@@ -71,6 +71,7 @@ Xelif currently retains superfile's Go module path, `spf` compatibility, and con
 | Filter this folder | Click the search field | `/` |
 | Search everywhere | Click **Search** | `Ctrl+G` |
 | Command palette | Click **Commands** | `Ctrl+Shift+P` / `Alt+P` |
+| Favourite a folder | Right-click a folder or sidebar entry → **Toggle favourite** | `Shift+P`; sidebar context menu: `Shift+F10` |
 | Information panels | Use the footer command | `Shift+F` |
 | Range selection | Selection controls | `Shift+Space` |
 
@@ -88,7 +89,7 @@ The earlier refresh benchmark measured about **32–35% less time for navigation
 
 Local tests, lint, and cross-builds are not substitutes for live validation on every platform. Expanded features remain subject to the acceptance checks above.
 
-Public CI is not green yet: the initial [macOS Go test run](https://github.com/ASVLCII/Xelif/actions/runs/39762441049) and [inherited Python integration suite](https://github.com/ASVLCII/Xelif/actions/runs/39762440765) have failures. These remain visible rather than being presented as passing release checks.
+The portability follow-up passed [Go CI on Windows, macOS and Linux](https://github.com/ASVLCII/Xelif/actions/runs/39833175305), the [Python integration suite](https://github.com/ASVLCII/Xelif/actions/runs/39833175330), and [module-tidy checks](https://github.com/ASVLCII/Xelif/actions/runs/39833175292). Those results apply to commit `6838f10`, not automatically to later changes; native interactive macOS/Linux acceptance and the Everything speed comparison remain separate gates.
 
 ## Attribution and license
 

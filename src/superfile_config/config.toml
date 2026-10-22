@@ -151,7 +151,7 @@ sidebar_width = 20
 #-- Sidebar Section Order
 # Order of sidebar sections (valid values: "home", "recent", "pinned", "disks")
 # Only enabled sections will be displayed
-sidebar_sections = ["home", "recent", "pinned", "disks"]
+sidebar_sections = ["home", "pinned", "recent", "disks"]
 
 #-- Border
 # Make sure to add strings that are exactly one character wide!

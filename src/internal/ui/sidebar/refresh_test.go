@@ -69,7 +69,7 @@ func TestSidebarMutationsInvalidateSnapshotImmediately(t *testing.T) {
 	s.updateDirectoriesIfNeeded(now)
 	s.PinnedItemRename()
 	s.rename.SetValue("renamed")
-	s.ConfirmSidebarRename()
+	require.NoError(t, s.ConfirmSidebarRename())
 	s.updateDirectoriesIfNeeded(now)
 	require.Len(t, s.directories, 1, "renamed pin must leave the filtered results immediately")
 	require.Equal(t, utils.SidebarSectionRecent, s.directories[0].Section)

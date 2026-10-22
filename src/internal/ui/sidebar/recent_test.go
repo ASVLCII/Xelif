@@ -141,7 +141,7 @@ func TestRecentAndFavoritesSectionsRender(t *testing.T) {
 	sidebar := Model{directories: directories, width: 40, height: 20}
 	rendered := ansi.Strip(sidebar.Render(false, ""))
 	assert.Contains(t, rendered, "Recent")
-	assert.Contains(t, rendered, "Favorites")
+	assert.Contains(t, rendered, "Favourites")
 	assert.NotContains(t, rendered, "Pinned")
 }
 

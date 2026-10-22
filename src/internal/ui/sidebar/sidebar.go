@@ -2,7 +2,6 @@ package sidebar
 
 import (
 	"errors"
-	"log/slog"
 	"slices"
 	"time"
 
@@ -34,29 +33,19 @@ func (s *Model) CancelSidebarRename() {
 }
 
 // ConfirmSidebarRename finalizes the rename process and saves changes to the pinned directories file.
-func (s *Model) ConfirmSidebarRename() {
+func (s *Model) ConfirmSidebarRename() error {
 	s.refreshDirty = true
 	itemLocation := s.directories[s.cursor].Location
 	newItemName := s.rename.Value()
-	// This is needed to update the current pinned directory data loaded into memory
-	s.directories[s.cursor].Name = newItemName
 
 	// recover the state of rename
 	s.CancelSidebarRename()
 
-	pinnedDirs := s.pinnedMgr.Load()
-	// Call getPinnedDirectories, instead of using what is stored in sidebar.directories
-	// sidebar.directories could have less directories in case a search filter is used
-	for i := range pinnedDirs {
-		// Considering the situation when many
-		if pinnedDirs[i].Location == itemLocation {
-			pinnedDirs[i].Name = newItemName
-		}
+	if err := s.pinnedMgr.Rename(itemLocation, newItemName); err != nil {
+		return err
 	}
-
-	if err := s.pinnedMgr.Save(pinnedDirs); err != nil {
-		slog.Error("error saving pinned directories", "error", err)
-	}
+	s.directories[s.cursor].Name = newItemName
+	return nil
 }
 
 // UpdateState handles the sidebar's state updates in response to Bubble Tea messages.
@@ -143,6 +132,9 @@ func (s *Model) refreshDirectories(now time.Time) {
 
 // TogglePinnedDirectory adds or removes a directory from the pinned list.
 func (s *Model) TogglePinnedDirectory(dir string) error {
+	if s.pinnedMgr == nil {
+		return errors.New("favourites storage is unavailable")
+	}
 	s.refreshDirty = true
 	return s.pinnedMgr.Toggle(dir)
 }

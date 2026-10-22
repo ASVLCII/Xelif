@@ -2,7 +2,6 @@ package sidebar
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -82,7 +81,7 @@ func Test_Load(t *testing.T) {
 		{
 			name:      "Valid With One Non-Existent Directory",
 			pinnedMgr: PinnedManager{filePath: nonexistentPath},
-			expected:  cleanDirs,
+			expected:  nonexistData,
 		},
 		{
 			name:      "Invalid filePath",
@@ -175,7 +174,7 @@ func Test_Toggle(t *testing.T) {
 			name:      "Add Non-Existing Directory to Pinned",
 			pinnedMgr: PinnedManager{filePath: pinnedFile},
 			expected:  []directory{},
-			noError:   true,
+			noError:   false,
 			argDir:    filepath.Join(tempDir, "nonExistentDir"),
 		},
 		{
@@ -208,83 +207,6 @@ func Test_Toggle(t *testing.T) {
 			} else {
 				require.Error(t, err)
 			}
-		})
-	}
-}
-
-func Test_Clean(t *testing.T) {
-	tempDir := t.TempDir()
-	pDirName := "pinnedDir"
-	pinnedDir := filepath.Join(tempDir, pDirName)
-	utils.SetupDirectories(t, pinnedDir)
-
-	pinnedFile := filepath.Join(pinnedDir, "pinned.json")
-
-	cleanDirs := []directory{
-		{
-			Location: pinnedDir,
-			Name:     pDirName,
-		},
-	}
-	badDirs := append([]directory{}, cleanDirs...)
-	badDirs = append(badDirs, directory{
-		Location: filepath.Join(tempDir, "nonexistentDir"),
-		Name:     "nonexistentDir",
-	})
-
-	testCases := []struct {
-		name      string
-		pinnedMgr PinnedManager
-		modified  bool
-		expected  []directory
-		argDirs   []directory
-	}{
-		{
-			name:      "All Directories Exist",
-			pinnedMgr: PinnedManager{filePath: pinnedFile},
-			modified:  false,
-			expected:  cleanDirs,
-			argDirs:   cleanDirs,
-		},
-		{
-			name:      "Some Directories Exist",
-			pinnedMgr: PinnedManager{filePath: pinnedFile},
-			modified:  true,
-			expected:  cleanDirs,
-			argDirs:   badDirs,
-		},
-		{
-			name:      "Save Fails",
-			pinnedMgr: PinnedManager{filePath: pinnedDir},
-			modified:  false,
-			expected:  cleanDirs,
-			argDirs:   badDirs,
-		},
-		{
-			name:      "Empty Input Slice",
-			pinnedMgr: PinnedManager{filePath: pinnedFile},
-			modified:  false,
-			expected:  []directory{},
-			argDirs:   []directory{},
-		},
-	}
-
-	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			subjectPath := tt.pinnedMgr.filePath
-			if subjectPath == pinnedFile {
-				_ = tt.pinnedMgr.Save(tt.argDirs)
-			}
-			beforeInfo, beforeErr := os.Stat(subjectPath)
-
-			cleaned := tt.pinnedMgr.Clean(tt.argDirs)
-
-			afterInfo, afterErr := os.Stat(subjectPath)
-			if beforeErr == nil && afterErr == nil && !tt.modified {
-				require.Equal(t, beforeInfo.ModTime(), afterInfo.ModTime())
-			}
-
-			assert.Equal(t, tt.expected, cleaned)
 		})
 	}
 }

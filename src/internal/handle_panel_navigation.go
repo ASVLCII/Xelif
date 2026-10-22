@@ -9,9 +9,20 @@ import (
 // Pinned directory
 func (m *model) pinnedDirectory() {
 	panel := m.getFocusedFilePanel()
-	err := m.sidebarModel.TogglePinnedDirectory(panel.Location)
+	path := panel.Location
+	if m.focusPanel == sidebarFocus {
+		if selected := m.sidebarModel.GetCurrentDirectoryLocation(); selected != "" {
+			path = selected
+		}
+	}
+	m.toggleFavourite(path)
+}
+
+func (m *model) toggleFavourite(path string) {
+	err := m.sidebarModel.TogglePinnedDirectory(path)
 	if err != nil {
 		slog.Error("Error while toggling pinned directory", "error", err)
+		m.showUserError("Could not update Favourites", err)
 	}
 }
 

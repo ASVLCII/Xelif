@@ -27,7 +27,7 @@ var diskDividerDir = directory{ //nolint: gochecknoglobals // This is more like 
 }
 
 var defaultSectionSlice = []string{ //nolint: gochecknoglobals // This is more like a const.
-	utils.SidebarSectionHome, utils.SidebarSectionRecent, utils.SidebarSectionPinned, utils.SidebarSectionDisks,
+	utils.SidebarSectionHome, utils.SidebarSectionPinned, utils.SidebarSectionRecent, utils.SidebarSectionDisks,
 }
 
 // superfile logo + blank line + search bar

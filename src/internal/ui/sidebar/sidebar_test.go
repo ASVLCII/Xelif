@@ -60,7 +60,7 @@ func TestConfirmSidebarRenameDoesNotPersistVisualIcon(t *testing.T) {
 
 	sidebar.PinnedItemRename()
 	sidebar.rename.SetValue(replacementName)
-	sidebar.ConfirmSidebarRename()
+	require.NoError(t, sidebar.ConfirmSidebarRename())
 
 	pinnedDirs := pinnedMgr.Load()
 	require.Len(t, pinnedDirs, 1)

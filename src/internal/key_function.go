@@ -370,7 +370,9 @@ func (m *model) sidebarRenamingKey(msg string) {
 	case slices.Contains(common.Hotkeys.CancelTyping, msg):
 		m.sidebarModel.CancelSidebarRename()
 	case slices.Contains(common.Hotkeys.ConfirmTyping, msg):
-		m.sidebarModel.ConfirmSidebarRename()
+		if err := m.sidebarModel.ConfirmSidebarRename(); err != nil {
+			m.showUserError("Could not rename favourite", err)
+		}
 	}
 }
 

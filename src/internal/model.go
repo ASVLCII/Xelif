@@ -272,6 +272,16 @@ func (m *model) handleRightMouseClick(mouse tea.Mouse) tea.Cmd {
 		return nil
 	}
 
+	if !m.sidebarModel.Disabled() && mouse.X > 0 && mouse.X < m.sidebarModel.GetWidth()-1 {
+		if path, ok := m.sidebarModel.FocusDirectoryAtY(mouse.Y, m.focusPanel == sidebarFocus); ok {
+			m.sidebarModel.SearchBarBlur()
+			m.focusPanel = sidebarFocus
+			m.getFocusedFilePanel().IsFocused = false
+			m.contextMenu = contextMenuState{open: true, targetPath: path, sidebarTarget: true}
+			m.positionContextMenu(mouse)
+		}
+		return nil
+	}
 	panelX := m.sidebarModel.GetWidth()
 	for panelIndex := range m.fileModel.FilePanels {
 		panel := &m.fileModel.FilePanels[panelIndex]

@@ -46,6 +46,7 @@ native macOS/Linux, live-remote or whole-application performance verification.
 | Approved compact UI, recognizable color-coded icons, aligned columns | Live Windows Terminal screenshots and focused filepanel tests recorded in verification.md | Final combined interaction pass after remaining changes |
 | Mouse and keyboard access | Mouse/context/tab/header tests; live new-tab, Commands, selection, and sidebar checks | Requirement-by-requirement reachability audit of every added action |
 | Independent single-row sidebar scrolling, last disk reachable | Live reduced-window check with information panels shown and hidden; refresh/partial-heading tests | Preserve behavior through final integration |
+| Favourites using existing sidebar pinning | Live mouse pin/unpin, keyboard context menu and quit/reopen persistence; offline/corrupt-storage regressions | Native macOS/Linux interaction remains unverified |
 | Exact build launched as Xelif from any directory | PowerShell/CMD/Git Bash launch checks, minimal-PATH check, live path-with-spaces launch | Machine-local setup only; WSL is not configured |
 | Fast global filename search with direct Everything integration | Native IPC tests and local benchmark record | Refresh final live-provider check; no claim of outperforming Everything |
 
@@ -80,6 +81,21 @@ lint result.
 - Reconcile the chronological verification record with final results and inspect current GitHub state. No commit, repository creation, push, release, or remote CI run is authorized merely by this audit.
 
 Completion requires evidence for all accepted requirements, not only a clean launch or a green subset of tests.
+
+### Favourites acceptance refresh (2026-10-23)
+
+An isolated candidate passed real Windows Terminal checks: mouse pin/unpin,
+sidebar keyboard context menu, persistence across quit/reopen, one-row file and
+sidebar wheel movement, viewport stability across refresh, and reaching the final
+disk with information panels both hidden and shown. Current-folder fallback
+search returned and opened a directory result. The approved layout was reused;
+existing user settings and favourites were not changed by these tests.
+
+The Everything comparison remains open. Its service was running in session 0;
+starting the existing desktop executable did not expose the native query window.
+The local-only 10,000-file benchmark passed exact-set, Unicode and cancellation
+checks, but `ComparisonValid` was false. No provider ranking or Everything-level
+speed claim is justified. No npm/Bun packaging work was performed.
 
 Safety correction after the serialized full-suite checkpoint: ordinary file copying now creates destination files exclusively rather than truncating a destination that appeared after duplicate-name selection. A regression test first reproduced the overwrite, then passed after the correction; new-destination copying, paste/compression/undo regressions, trash/dircompare/duplicates suites, raw full vet, and the Windows build passed. Three unreachable legacy copy/move helpers were removed. The rebuilt binary was installed and its hash matched the verified build. The full suite must be refreshed again after this and subsequent changes.
 

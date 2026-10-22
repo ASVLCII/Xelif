@@ -5,6 +5,13 @@ import tea "charm.land/bubbletea/v2"
 const keyboardContextMenuRow = 5
 
 func (m *model) openKeyboardContextMenu() {
+	if m.focusPanel == sidebarFocus {
+		if path := m.sidebarModel.GetCurrentDirectoryLocation(); path != "" {
+			m.contextMenu = contextMenuState{open: true, targetPath: path, sidebarTarget: true}
+			m.positionContextMenu(tea.Mouse{X: 1, Y: keyboardContextMenuRow})
+		}
+		return
+	}
 	panel := m.getFocusedFilePanel()
 	if m.focusPanel == nonePanelFocus && !panel.EmptyOrInvalid() {
 		x := m.sidebarModel.GetWidth() + 1

@@ -128,7 +128,7 @@ func LoadPrerenderedVariables() {
 	SideBarRecentDivider = SidebarTitleStyle.Render(icon.Directory+icon.Space+"Recent") +
 		SidebarDividerStyle.Render(divider)
 	SideBarPinnedDivider = SidebarTitleStyle.Render(
-		icon.Pinned+icon.Space+"Favorites",
+		icon.Pinned+icon.Space+"Favourites",
 	) + SidebarDividerStyle.Render(
 		divider,
 	)

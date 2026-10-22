@@ -25,6 +25,7 @@ const (
 	contextGitUnstage
 	contextGitDiscard
 	contextSelectRange
+	contextFavourite
 )
 
 var contextMenuItems = []string{ //nolint:gochecknoglobals // Static menu definition.
@@ -39,6 +40,7 @@ var contextMenuItems = []string{ //nolint:gochecknoglobals // Static menu defini
 	"Git unstage",
 	"Git discard",
 	"Select range here",
+	"Toggle favourite",
 }
 
 type contextMenuState struct {
@@ -49,17 +51,29 @@ type contextMenuState struct {
 	targetPath     string
 	cursor         int
 	rangeStartPath string
+	sidebarTarget  bool
 }
 
 func (m *model) openContextMenu(mouse tea.Mouse, panelIndex int, targetPath string) {
-	totalWidth, totalHeight := m.contextMenuDimensions()
 	m.contextMenu = contextMenuState{
 		open:       true,
-		x:          min(max(mouse.X, 0), max(m.fullWidth-totalWidth, 0)),
-		y:          min(max(mouse.Y, 0), max(m.fullHeight-totalHeight, 0)),
 		panelIndex: panelIndex,
 		targetPath: targetPath,
 	}
+	m.positionContextMenu(mouse)
+}
+
+func (m *model) positionContextMenu(mouse tea.Mouse) {
+	totalWidth, totalHeight := m.contextMenuDimensions()
+	m.contextMenu.x = min(max(mouse.X, 0), max(m.fullWidth-totalWidth, 0))
+	m.contextMenu.y = min(max(mouse.Y, 0), max(m.fullHeight-totalHeight, 0))
+}
+
+func (m *model) contextMenuLabels() []string {
+	if m.contextMenu.sidebarTarget {
+		return contextMenuItems[contextFavourite : contextFavourite+1]
+	}
+	return contextMenuItems
 }
 
 func (m *model) closeContextMenu() {
@@ -72,8 +86,9 @@ func (m *model) contextMenuDimensions() (int, int) {
 }
 
 func (m *model) contextMenuRender() string {
-	lines := make([]string, len(contextMenuItems))
-	for i, label := range contextMenuItems {
+	labels := m.contextMenuLabels()
+	lines := make([]string, len(labels))
+	for i, label := range labels {
 		prefix := "  "
 		style := common.ModalStyle
 		if i == m.contextMenu.cursor {
@@ -83,7 +98,7 @@ func (m *model) contextMenuRender() string {
 		lines[i] = style.Render(prefix + label)
 	}
 	return common.SortOptionsModalBorderStyle(
-		len(contextMenuItems), contextMenuWidth, common.Config.BorderBottom,
+		len(labels), contextMenuWidth, common.Config.BorderBottom,
 	).Render(strings.Join(lines, "\n"))
 }
 
@@ -104,7 +119,7 @@ func (m *model) contextMenuClick(mouse tea.Mouse) (tea.Cmd, bool) {
 	}
 
 	item := mouse.Y - m.contextMenu.y - 1 // account for top border
-	if item < 0 || item >= len(contextMenuItems) {
+	if item < 0 || item >= len(m.contextMenuLabels()) {
 		return nil, true
 	}
 	m.contextMenu.cursor = item
@@ -116,9 +131,10 @@ func (m *model) contextMenuKey(key string) tea.Cmd {
 	case containsKey(common.Hotkeys.Quit, key), containsKey(common.Hotkeys.CancelTyping, key):
 		m.closeContextMenu()
 	case containsKey(common.Hotkeys.ListUp, key):
-		m.contextMenu.cursor = (m.contextMenu.cursor - 1 + len(contextMenuItems)) % len(contextMenuItems)
+		count := len(m.contextMenuLabels())
+		m.contextMenu.cursor = (m.contextMenu.cursor - 1 + count) % count
 	case containsKey(common.Hotkeys.ListDown, key):
-		m.contextMenu.cursor = (m.contextMenu.cursor + 1) % len(contextMenuItems)
+		m.contextMenu.cursor = (m.contextMenu.cursor + 1) % len(m.contextMenuLabels())
 	case containsKey(common.Hotkeys.Confirm, key), containsKey(common.Hotkeys.ConfirmTyping, key):
 		return m.executeContextMenuAction()
 	}
@@ -137,6 +153,10 @@ func containsKey(keys []string, key string) bool {
 func (m *model) executeContextMenuAction() tea.Cmd {
 	menu := m.contextMenu
 	m.closeContextMenu()
+	if menu.sidebarTarget {
+		m.toggleFavourite(menu.targetPath)
+		return nil
+	}
 
 	if !m.fileModel.FocusPanel(menu.panelIndex) {
 		m.showUserError("Item is no longer available", errors.New("file panel was closed"))
@@ -151,6 +171,8 @@ func (m *model) executeContextMenuAction() tea.Cmd {
 	m.focusPanel = nonePanelFocus
 
 	switch menu.cursor {
+	case contextFavourite:
+		m.toggleFavourite(menu.targetPath)
 	case contextSelectRange:
 		start := panel.FindElementIndexByLocation(menu.rangeStartPath)
 		if start >= 0 {

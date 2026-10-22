@@ -231,3 +231,59 @@ Nothing was committed or published.
 Read-only inspection authenticated as `ASVLCII`. Local branch: `xelif/p0-lovable-explorer`; origin still points to `yorukot/superfile`. No owned repository matching Xelif or superfile was found. Upstream main is ten commits beyond the checkout's original base; no wholesale merge was performed. No Xelif repository, commit, push, release, or remote CI run was created by this checkpoint.
 
 Upstream CI and release status are separate from Xelif verification. Publishing requires separate authorization and identity/remote checks.
+
+## Favourites and native Windows acceptance (2026-10-23)
+
+Reused the existing pinned-folder JSON format rather than introducing a second
+favourites database. Folder and sidebar context menus expose the same toggle;
+`shift+p` uses the current folder or focused sidebar entry. New default layouts
+put Favourites before Recent, while configured section orders remain respected.
+
+Loading favourites is now read-only: unavailable removable/network folders are
+retained without statting every saved path. Adding requires a real directory;
+explicitly removing an offline favourite remains possible. Toggle and rename
+refuse unreadable/corrupt storage and report errors visibly. Writes use a synced,
+closed temporary file beside the destination before replacement. This does not
+claim cross-process transaction locking or platform-independent crash atomicity.
+
+Isolated native Windows Terminal checks passed for mouse pin/unpin, the sidebar
+keyboard context menu, quit/reopen persistence, single-row file/sidebar wheel
+movement, stable sidebar scrolling across refresh, and reaching disk `Z:` with
+information panels both shown and hidden. Current-folder search fallback returned
+and opened a directory result. The existing user runtime was not changed.
+Evidence is under `X:\Xelif-work\favourites-acceptance-20261023`, including
+`ui-results.json`, `reopen-results.json`, `search-ui.txt`, `quit.json`, and the
+native `favourites-native.png` screenshot. The Orca HUD overlaps the screenshot's
+upper-right area; this is not unobstructed visual verification of every column.
+
+The first full suite exposed a Windows fixture cleanup failure in
+`TestExecuteBoundsWaitForInheritedOutputPipes`: its intentionally orphaned helper
+locked both the temporary working directory and the Go test executable. The
+fixture now uses the shared temporary root and waits on its known helper process
+during cleanup, outside the measured Execute interval. Five focused repeats
+passed. Production plugin execution and its timeout assertion are unchanged.
+
+Everything's service was running in session 0. Starting the existing desktop
+executable, configured to run elevated, still did not expose its native query
+window; the precise startup failure is unconfirmed. Three direct smoke attempts
+failed, and `es.exe` was absent. The local-only 10,000-file benchmark passed exact
+result-set, Unicode and pre-cancellation checks, with `ComparisonValid=false`.
+Retained output is in `benchmarks/xbd2e5531440dffdd0/results.json` beneath the
+acceptance directory. This is not evidence of Everything-level speed or a valid
+cross-provider ranking. No elevation, indexing configuration or service changes
+were made, and no npm/Bun packaging was implemented.
+
+The website formatting check and production build passed (42 generated pages;
+38 indexed pages in two languages). Local golangci-lint 2.12.2 stalled without
+output and was stopped; no clean local lint result is claimed. Hosted lint and
+the final full-suite/build results are recorded in the publication follow-up.
+
+Final local gates passed: configured formatting, `go test -p=1 -count=1
+-timeout=8m ./...` (including the full layout sweep), raw `go vet ./...`, the
+Windows build, and diff whitespace checks. The installed `bin/spf.exe` matches
+the verified build, SHA256
+`8CF7DF08EE7835584F54485B8736A6C83B9C85197FB6766D21751058D0C22171`.
+Replacement preserved the running user's process and retained the old executable
+at `X:\Xelif-work\spf-before-favourites-20261023.exe`. Launcher dependency
+checking passed. Existing running instances still need a normal relaunch to use
+the new executable. Hosted CI remains distinct from these local results.

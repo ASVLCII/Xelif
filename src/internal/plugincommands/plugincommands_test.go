@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -41,12 +42,16 @@ func TestHelperProcess(t *testing.T) {
 		fmt.Print(strings.Repeat("x", 64*1024))
 	case "spawn-pipe-holder":
 		cmd := exec.Command(os.Args[0], "-test.run=^TestHelperProcess$", "--", "pipe-holder")
+		// Keep the intended inherited-pipe lifetime without locking the parent's
+		// test-owned working directory during Windows TempDir cleanup.
+		cmd.Dir = os.TempDir()
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Start(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(2)
 		}
+		fmt.Println(cmd.Process.Pid)
 	case "pipe-holder":
 		time.Sleep(1500 * time.Millisecond)
 	case "exit":
@@ -293,14 +298,32 @@ func TestExecuteBoundsWaitForInheritedOutputPipes(t *testing.T) {
 	registry := registryWithManifest(t, manifest)
 
 	started := time.Now()
-	_, err = registry.Execute(
+	result, err := registry.Execute(
 		context.Background(), "orphan", []string{absoluteSelection(t, ".txt")}, t.TempDir(),
 	)
+	elapsed := time.Since(started)
+	if runtime.GOOS == "windows" {
+		pid, parseErr := strconv.Atoi(strings.TrimSpace(string(result.Output)))
+		if parseErr != nil {
+			t.Fatalf("pipe-holder PID missing: %q: %v", result.Output, parseErr)
+		}
+		process, findErr := os.FindProcess(pid)
+		if findErr != nil {
+			t.Fatal(findErr)
+		}
+		// Outside the measured Execute interval: Windows cannot remove the Go
+		// test executable while this deliberately orphaned helper still runs.
+		t.Cleanup(func() {
+			if _, waitErr := process.Wait(); waitErr != nil {
+				t.Errorf("wait for pipe-holder cleanup: %v", waitErr)
+			}
+		})
+	}
 	var timeoutErr *TimeoutError
 	if !errors.As(err, &timeoutErr) {
 		t.Fatalf("error = %T %v, want *TimeoutError", err, err)
 	}
-	if elapsed := time.Since(started); elapsed >= time.Second {
+	if elapsed >= time.Second {
 		t.Fatalf("Execute waited %s for a descendant-held pipe", elapsed)
 	}
 }
