@@ -1,14 +1,14 @@
 ---
-title: superfile config
-description: Configure your superfile
+title: Xelif config
+description: Configure Xelif using the superfile-compatible config file.
 head:
   - tag: title
-    content: superfile config | superfile
+    content: Xelif config | Xelif
 ---
 
 import CodeBlock from "../../../components/code.astro";
 
-You can edit your superfile config file with the following command:
+Xelif intentionally uses superfile's existing config filename and location. You can edit it with the following command:
 
 ```bash
 $EDITOR config_path
@@ -118,7 +118,13 @@ Example command to enable - `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned`
 
 `true` => Shows the file preview window when you run superfile.
 
-`false` => Hides the file preview window when you run a superfile.
+`false` => Hides the file preview window when you run Xelif.
+
+- ###### restore_last_session
+
+`true` => Restores panels, tabs, sorting, navigation history, and the preview/footer layout from the previous normal launch.
+
+`false` => Starts from the configured or current directory. Paths supplied on the command line always take precedence.
 
 - ###### show_image_preview
 
@@ -179,6 +185,16 @@ Controls whether the shell prompt closes automatically after a command succeeds.
 `true` => Close the shell after successful command execution
 
 `false` => Keep the shell open after successful command execution
+
+- ###### plain_mode
+
+`true` => Uses ASCII borders, disables Nerd Font glyphs, and disables image previews. The standard `NO_COLOR` environment variable can be used independently to disable colors.
+
+`false` => Uses the configured borders, glyphs, and preview settings.
+
+- ###### language
+
+Sets the UI language foundation. Supported values are `"auto"`, `"en"`, and `"zh-TW"`. Some interface text may remain English while translation coverage grows.
 
 - ###### debug
 
@@ -380,6 +396,6 @@ xopp = "xournalpp"
 conf = "nvim"
 ```
 
-### Default superfile config
+### Default Xelif config
 
 <CodeBlock file="src/superfile_config/config.toml" />

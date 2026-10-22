@@ -13,5 +13,11 @@ func Available(_ string) bool {
 }
 
 func Move(path string) (Result, error) {
-	return Result{OriginalPath: path, Backend: BackendMacOS}, fmt.Errorf("%w: macOS trash requires cgo for Foundation FileManager", ErrUnsupported)
+	return Result{
+			OriginalPath: path,
+			Backend:      BackendMacOS,
+		}, fmt.Errorf(
+			"%w: macOS trash requires cgo for Foundation FileManager",
+			ErrUnsupported,
+		)
 }

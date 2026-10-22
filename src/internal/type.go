@@ -1,17 +1,32 @@
 package internal
 
 import (
+	"context"
 	"sync"
+	"time"
 
 	zoxidelib "github.com/lazysegtree/go-zoxide"
 
+	"github.com/yorukot/superfile/src/internal/batchrename"
+	"github.com/yorukot/superfile/src/internal/catalog"
+	"github.com/yorukot/superfile/src/internal/folderwatch"
+	"github.com/yorukot/superfile/src/internal/gitstatus"
+	"github.com/yorukot/superfile/src/internal/metadataedit"
+	"github.com/yorukot/superfile/src/internal/plugincommands"
+	"github.com/yorukot/superfile/src/internal/savedsearch"
+	"github.com/yorukot/superfile/src/internal/session"
 	"github.com/yorukot/superfile/src/internal/ui/helpmenu"
 	"github.com/yorukot/superfile/src/internal/ui/spferror"
 
+	"github.com/yorukot/superfile/src/internal/ui/archiveviewer"
 	"github.com/yorukot/superfile/src/internal/ui/clipboard"
+	"github.com/yorukot/superfile/src/internal/ui/commandpalette"
+	"github.com/yorukot/superfile/src/internal/ui/remoteviewer"
 	"github.com/yorukot/superfile/src/internal/ui/sortmodel"
+	"github.com/yorukot/superfile/src/internal/ui/textviewer"
 
 	"github.com/yorukot/superfile/src/internal/ui/filemodel"
+	"github.com/yorukot/superfile/src/internal/ui/globalsearch"
 
 	"github.com/yorukot/superfile/src/internal/ui/metadata"
 	"github.com/yorukot/superfile/src/internal/ui/notify"
@@ -60,14 +75,48 @@ type model struct {
 	focusPanel      focusPanelType
 
 	// Modals
-	notifyModel     notify.Model
-	typingModal     typingModal
-	helpMenu        helpmenu.Model
-	promptModal     prompt.Model
-	zoxideModal     zoxideui.Model
-	sortModal       sortmodel.Model
-	spfError        spferror.Model
-	mutexErrorModal sync.Mutex
+	notifyModel          notify.Model
+	typingModal          typingModal
+	helpMenu             helpmenu.Model
+	promptModal          prompt.Model
+	zoxideModal          zoxideui.Model
+	sortModal            sortmodel.Model
+	spfError             spferror.Model
+	mutexErrorModal      sync.Mutex
+	lastUndo             *undoAction
+	mouse                mouseState
+	contextMenu          contextMenuState
+	globalSearchModal    globalsearch.Model
+	commandPalette       commandpalette.Model
+	textViewer           textviewer.Model
+	archiveViewer        archiveviewer.Model
+	remoteViewer         remoteviewer.Model
+	sessionStore         *session.Store
+	savedSearchStore     *savedsearch.Store
+	catalogModel         *catalog.Catalog
+	folderWatcher        folderwatch.Service
+	folderWatchPaths     []string
+	gitClient            *gitstatus.Client
+	gitStatusPaths       []string
+	gitStatusReqID       int
+	gitStatusLast        time.Time
+	pendingGitDiscard    []string
+	pendingBatchRename   *batchrename.Plan
+	duplicateScanCancel  context.CancelFunc
+	duplicateScanReqID   int
+	pendingDroppedPaths  []string
+	dirCompareCancel     context.CancelFunc
+	dirCompareReqID      int
+	pendingSync          *pendingDirectorySync
+	pendingMetadataPatch *metadataedit.Patch
+	lastMetadataJournal  string
+	remoteClient         remoteService
+	remoteCancel         context.CancelFunc
+	remoteReqID          int
+	pluginCommands       *plugincommands.Registry
+	pluginCommandDir     string
+	pluginCommandCancel  context.CancelFunc
+	pluginCommandReqID   int
 
 	// Zoxide client for directory tracking
 	zClient *zoxidelib.Client
@@ -107,3 +156,9 @@ type typingModal struct {
 }
 
 type editorFinishedMsg struct{ err error }
+
+type mouseState struct {
+	lastPanel int
+	lastPath  string
+	lastClick time.Time
+}

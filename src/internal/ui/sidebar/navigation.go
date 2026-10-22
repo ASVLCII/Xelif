@@ -29,6 +29,38 @@ func (s *Model) ListUp() {
 	}
 }
 
+// Scroll moves the viewport one terminal row without changing selection.
+func (s *Model) Scroll(delta int) {
+	if delta != -1 && delta != 1 {
+		return
+	}
+	s.scrollRows(delta)
+}
+
+func (s *Model) viewportRows() int {
+	return max(0, s.height-common.BorderPadding-sideBarInitialHeight)
+}
+
+func (s *Model) scrollRows(delta int) {
+	total, offset := 0, s.renderOffset
+	for i, entry := range s.directories {
+		rows := entry.requiredHeight()
+		total += rows
+		if i < s.renderIndex {
+			offset += rows
+		}
+	}
+	offset = min(max(0, offset+delta), max(0, total-s.viewportRows()))
+	s.renderIndex, s.renderOffset = 0, 0
+	for i, entry := range s.directories {
+		if offset < entry.requiredHeight() {
+			s.renderIndex, s.renderOffset = i, offset
+			return
+		}
+		offset -= entry.requiredHeight()
+	}
+}
+
 func (s *Model) ListDown() {
 	slog.Debug("controlListDown called", "cursor", s.cursor,
 		"renderIndex", s.renderIndex, "directory count", len(s.directories))
@@ -96,6 +128,7 @@ func (s *Model) firstRenderedIndex(endIndex int) int {
 }
 
 func (s *Model) updateRenderIndex() {
+	s.renderOffset = 0
 	if len(s.directories) == 0 {
 		s.renderIndex = 0
 		return

@@ -7,45 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/yorukot/superfile/src/pkg/utils"
-
 	"github.com/yorukot/superfile/src/internal/ui/processbar"
 )
 
 var suffixRegexp = regexp.MustCompile(`^(.*)\((\d+)\)$`)
-
-// Check if the directory is external disk path
-// TODO : This function should be give two directories, and it should return
-// if the two share a different disk partition.
-// Ideally we shouldn't even try to figure that out in our file operations, and let OS handles it.
-// But at least right now its not okay. This returns if `path` is an External disk
-// from perspective of `/`, but it should tell from perspective of currently open directory
-// The usage of this function in cut/paste is not as expected.
-func isExternalDiskPath(path string) bool {
-	// This is very vague. You cannot tell if a path is belonging to an external partition
-	// if you dont define the source path to compare with
-	// But making this true will cause slow file operations based on current implementation
-	if runtime.GOOS == utils.OsWindows {
-		return false
-	}
-
-	// exclude timemachine on macOS
-	if strings.HasPrefix(path, "/Volumes/.timemachine") {
-		return false
-	}
-
-	// to filter out mounted partitions like /, /boot etc
-	return strings.HasPrefix(path, "/mnt") ||
-		strings.HasPrefix(path, "/media") ||
-		strings.HasPrefix(path, "/run/media") ||
-		strings.HasPrefix(path, "/Volumes")
-}
 
 func checkFileNameValidity(name string) error {
 	switch {

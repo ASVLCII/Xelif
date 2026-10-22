@@ -1,12 +1,21 @@
 ---
-title: Plugin List
-description: Complete list of available superfile plugins
+title: Plugin list
+description: Built-in integrations and declarative command plugins available to Xelif.
 head:
   - tag: title
-    content: Plugin List | superfile
+    content: Plugin list | Xelif
 ---
 
-Superfile supports various plugins to extend its functionality. Below is a complete list of available plugins and their requirements.
+Xelif retains superfile's optional integrations and adds declarative command plugins.
+
+### Command plugins
+
+- **Description:** Add external-tool actions to the command palette with versioned JSON manifests.
+- **Requirements:** The executable named by each manifest must be installed.
+- **Configuration:** Put manifests in the `command-plugins` folder inside the [config directory](/configure/config-file-path), then run **Refresh command plugins** from the command palette.
+- **Safety:** Commands run directly without a shell, with an environment allowlist plus bounded execution time and output.
+
+See the [feature guide](/features#command-plugins) for the schema and an example.
 
 ### Metadata
 

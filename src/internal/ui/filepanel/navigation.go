@@ -11,7 +11,7 @@ func (m *Model) scrollToCursor(cursor int) {
 	m.cursor = cursor
 
 	// Modify renderIndex if needed
-	renderCount := m.PanelElementHeight()
+	renderCount := max(1, m.PanelElementHeight())
 	if m.cursor < m.renderIndex {
 		// Due to size change, when last element is selected, we might have
 		// empty space (renderIndex ... ElemCount()-1 spans less then renderCount)
@@ -52,6 +52,15 @@ func (m *Model) ListUp() {
 // Control file panel list down
 func (m *Model) ListDown() {
 	m.moveCursorBy(1)
+}
+
+// FocusIndex moves focus to the requested file element.
+func (m *Model) FocusIndex(index int) bool {
+	if index < 0 || index >= m.ElemCount() {
+		return false
+	}
+	m.scrollToCursor(index)
+	return true
 }
 
 func (m *Model) PgUp() {

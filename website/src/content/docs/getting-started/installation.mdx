@@ -1,12 +1,36 @@
 ---
-title: Install superfile
-description: Let's install superfile to your computer.
+title: Install Xelif
+description: Build Xelif from this checkout or install the upstream superfile release.
 head:
   - tag: title
-    content: Install superfile | superfile
+    content: Install Xelif | Xelif
 ---
 
 ## Before install
+
+:::caution
+
+Xelif does not yet have a separate packaged release channel. The scripts and package-manager commands on this page install upstream [yorukot/superfile](https://github.com/yorukot/superfile), not the Xelif development features.
+
+:::
+
+## Build Xelif from this checkout
+
+Install [Go](https://go.dev/doc/install), then run one of these commands from the repository root:
+
+```bash
+# macOS or Linux
+./build.sh
+```
+
+```powershell
+# Windows
+go build -o bin/spf.exe
+```
+
+The development binary intentionally remains named `spf` for superfile compatibility.
+
+## Install upstream superfile
 
 First make sure you have the following tools installed on your machine:
 
@@ -18,7 +42,7 @@ If you don't install `Nerd font`, superfile will still work, but the UI may look
 
 :::
 
-## Installation Scripts
+### Installation scripts
 
 Copy and paste the following one-line command into your machine's terminal.
 

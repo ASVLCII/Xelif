@@ -19,6 +19,7 @@ import (
 	variable "github.com/yorukot/superfile/src/config"
 	"github.com/yorukot/superfile/src/internal/common"
 	"github.com/yorukot/superfile/src/internal/ui/notify"
+	"github.com/yorukot/superfile/src/internal/ui/preview"
 	"github.com/yorukot/superfile/src/internal/ui/processbar"
 	"github.com/yorukot/superfile/src/internal/ui/prompt"
 	"github.com/yorukot/superfile/src/internal/ui/sidebar"
@@ -56,13 +57,10 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// A cleanup before is required in case the previous test run had a panic, and then
-	// deferred cleanup never executed
-
-	// Create testDir
-	testDir = filepath.Join(os.TempDir(), "spf_testdir")
-	cleanupTestDir()
-	if err := os.Mkdir(testDir, 0o755); err != nil {
+	// Each invocation owns its directory. A concurrent test run must never
+	// remove another run's fixtures or collide with its open files on Windows.
+	testDir, err = os.MkdirTemp(os.TempDir(), "xelif-test-*")
+	if err != nil {
 		fmt.Printf("error while creating test directory, err : %v", err)
 		os.Exit(1)
 	}
@@ -350,6 +348,57 @@ func TestAsyncPreviewPanelSync(t *testing.T) {
 	p.Send(tea.WindowSizeMsg{Width: 6 * DefaultTestModelWidth,
 		Height: 6 * DefaultTestModelHeight})
 	eventuallyEnsurePreviewContent(t, m, content1, "content should update to file1 after resize")
+}
+
+func TestPreviewRejectsStaleSamePathResult(t *testing.T) {
+	curTestDir := t.TempDir()
+	file := filepath.Join(curTestDir, "file.txt")
+	utils.SetupFilesWithData(t, []byte("content"), file)
+
+	m := defaultTestModelWithFilePreview(curTestDir)
+	panel := m.getFocusedFilePanel()
+	setFilePanelSelectedItemByName(t, panel, filepath.Base(file))
+
+	// Register two requests for the same path and dimensions. The newer result
+	// arrives first, followed by the older result.
+	firstCmd := m.fileModel.GetFilePreviewCmd(true)
+	secondCmd := m.fileModel.GetFilePreviewCmd(true)
+	require.NotNil(t, firstCmd)
+	require.NotNil(t, secondCmd)
+	firstMsg, ok := ExecuteTeaCmdWithTimeout(firstCmd, DefaultTestTimeout).(preview.UpdateMsg)
+	require.True(t, ok)
+	secondMsg, ok := ExecuteTeaCmdWithTimeout(secondCmd, DefaultTestTimeout).(preview.UpdateMsg)
+	require.True(t, ok)
+	width := m.fileModel.ExpectedPreviewWidth
+	height := m.fileModel.Height
+
+	m.fileModel.UpdatePreviewPanel(preview.NewUpdateMsg(file, "newest", "", width, height, secondMsg.GetReqID()))
+	m.fileModel.UpdatePreviewPanel(preview.NewUpdateMsg(file, "stale", "", width, height, firstMsg.GetReqID()))
+
+	assert.Equal(t, "newest", m.fileModel.FilePreview.GetContent())
+}
+
+func TestClosedPreviewRejectsInFlightResult(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "file.txt")
+	utils.SetupFilesWithData(t, []byte("content"), file)
+	m := defaultTestModelWithFilePreview(dir)
+	setFilePanelSelectedItemByName(t, m.getFocusedFilePanel(), filepath.Base(file))
+
+	cmd := m.fileModel.GetFilePreviewCmd(true)
+	require.NotNil(t, cmd)
+	msg, ok := ExecuteTeaCmdWithTimeout(cmd, DefaultTestTimeout).(preview.UpdateMsg)
+	require.True(t, ok)
+	m.fileModel.ToggleFilePreviewPanel()
+	require.False(t, m.fileModel.FilePreview.IsOpen())
+	contentBefore := m.fileModel.FilePreview.GetContent()
+
+	rawCmd := m.fileModel.UpdatePreviewPanel(preview.NewUpdateMsg(
+		file, "stale", "kitty transmit", msg.GetContentWidth(), msg.GetContentHeight(), msg.GetReqID(),
+	))
+
+	assert.Equal(t, contentBefore, m.fileModel.FilePreview.GetContent())
+	assert.Nil(t, rawCmd)
 }
 
 func prepareLockUnlockTest(t *testing.T) *model {

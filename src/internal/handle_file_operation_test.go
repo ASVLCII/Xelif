@@ -174,7 +174,23 @@ func TestCompressSelectedFiles(t *testing.T) {
 	for _, tt := range testdata {
 		t.Run(tt.name, func(t *testing.T) {
 			m := defaultTestModel(tt.startDir)
-			p := NewTestTeaProgWithEventLoop(t, m)
+			observer, compressed, extracted := observeTestFileOperations()
+			p := NewTestTeaProgWithEventLoop(t, m, observer)
+			zipFile := filepath.Join(tt.startDir, tt.expectedZipName)
+			extractedDir := filepath.Join(tt.startDir, tt.extractedDirName)
+			compressStarted, extractStarted := false, false
+			t.Cleanup(func() {
+				if compressStarted && !compressed.wait(t, "compress") {
+					return
+				}
+				if extractStarted && !extracted.wait(t, "extract") {
+					return
+				}
+				p.Close()
+				p.prog.Wait()
+				cleanupWithRetry(t, extractedDir, "extracted directory")
+				cleanupWithRetry(t, zipFile, "zip file")
+			})
 			require.Greater(t, m.getFocusedFilePanel().ElemCount(), tt.cursor)
 			// Update cursor
 			for range tt.cursor {
@@ -187,13 +203,14 @@ func TestCompressSelectedFiles(t *testing.T) {
 				m.getFocusedFilePanel().SetSelectedAll(tt.selectedElem)
 			}
 
+			compressStarted = true
 			p.SendKey(common.Hotkeys.CompressFile[0])
-
-			// This is a bit of an indirect validation, but there aren't many ways.
-			// We many add a process type later, and ensure that a process of
-			// type compress was done
-			ensureOneProcessDone(t, m)
-			zipFile := filepath.Join(tt.startDir, tt.expectedZipName)
+			// The final command message follows deferred ZIP writer/file closes.
+			require.True(t, compressed.wait(t, "compress"))
+			// The filter observes command completion before model.Update applies
+			// its forced refresh. Rendezvous with the next event before reading UI state.
+			p.Send(nil)
+			require.Equal(t, processbar.Successful, compressed.state)
 			require.FileExists(t, zipFile, "Expected zip file does not exist after compression")
 
 			setFilePanelSelectedItemByLocation(t, m.getFocusedFilePanel(), zipFile)
@@ -206,25 +223,14 @@ func TestCompressSelectedFiles(t *testing.T) {
 			require.False(t, fileInfo.IsDir(),
 				"Panel location for extraction is a directory, expected a zip file: %s", selectedItemLocation)
 
+			extractStarted = true
 			p.SendKey(common.Hotkeys.ExtractFile[0])
-			// File extraction is supposedly async. So function's return doesn't means its done.
-			extractedDir := filepath.Join(tt.startDir, tt.extractedDirName)
-
-			// Setup cleanup to run even if test fails
-			t.Cleanup(func() {
-				cleanupWithRetry(t, extractedDir, "extracted directory")
-				cleanupWithRetry(t, zipFile, "zip file")
-			})
-			assert.Eventually(t, func() bool {
-				for _, f := range tt.expectedFilesAfterExtract {
-					_, err := os.Stat(filepath.Join(extractedDir, f))
-					if err != nil {
-						return false
-					}
-				}
-				return true
-			}, DefaultTestTimeout, DefaultTestTick, "Extraction of files failed Required - [%s]+%v",
-				extractedDir, tt.expectedFilesAfterExtract)
+			require.True(t, extracted.wait(t, "extract"))
+			p.Send(nil)
+			require.Equal(t, processbar.Successful, extracted.state)
+			for _, name := range tt.expectedFilesAfterExtract {
+				verifyPathExists(t, filepath.Join(extractedDir, name), "expected extracted path")
+			}
 		})
 	}
 
@@ -433,6 +439,42 @@ func TestPasteItem(t *testing.T) {
 		// Verify duplicate file with different name
 		verifyDestinationFiles(t, destDir, []string{"duplicate(1).txt"})
 	})
+
+	t.Run("Cut Duplicate File Preserves Both Files", func(t *testing.T) {
+		collisionSourceDir := filepath.Join(curTestDir, "cut_collision_source")
+		collisionDestDir := filepath.Join(curTestDir, "cut_collision_dest")
+		sourceFile := filepath.Join(collisionSourceDir, "duplicate.txt")
+		existingDestFile := filepath.Join(collisionDestDir, "duplicate.txt")
+		renamedDestFile := filepath.Join(collisionDestDir, "duplicate(1).txt")
+
+		utils.SetupDirectories(t, collisionSourceDir, collisionDestDir)
+		utils.SetupFilesWithData(t, []byte("source content"), sourceFile)
+		utils.SetupFilesWithData(t, []byte("destination content"), existingDestFile)
+
+		m := setupModelAndPerformOperation(t, collisionSourceDir, false, "duplicate.txt", nil, true)
+		p := NewTestTeaProgWithEventLoop(t, m)
+		navigateToTargetDir(t, m, collisionSourceDir, collisionDestDir)
+
+		p.SendKey(common.Hotkeys.PasteItems[0])
+
+		// A successful rename becomes visible to Stat on Windows before the
+		// asynchronous paste command has returned and released its move handle.
+		// Wait for the process completion update before opening the moved file.
+		ensureOneProcessDone(t, m)
+		require.Eventually(t, func() bool {
+			_, sourceErr := os.Stat(sourceFile)
+			_, renamedErr := os.Stat(renamedDestFile)
+			return os.IsNotExist(sourceErr) && renamedErr == nil
+		}, DefaultTestTimeout, DefaultTestTick, "cut file was not moved under a duplicate-safe name")
+
+		existingContent, err := os.ReadFile(existingDestFile)
+		require.NoError(t, err)
+		assert.Equal(t, "destination content", string(existingContent))
+
+		renamedContent, err := os.ReadFile(renamedDestFile)
+		require.NoError(t, err)
+		assert.Equal(t, "source content", string(renamedContent))
+	})
 }
 
 // ------  Very specific utilities that are required for this test case file only
@@ -464,6 +506,16 @@ func ensureOneProcessDone(t *testing.T, m *model) {
 		processes := m.processBarModel.GetProcessesSlice()
 		return len(processes) == 1 && processes[0].State == processbar.Successful
 	}, DefaultTestTimeout, DefaultTestTick, "Compress process not done")
+}
+
+func TestFileOperationCompletionSignalIsReusable(t *testing.T) {
+	signal := &testFileOperationSignal{done: make(chan struct{})}
+	go signal.complete(processbar.Successful)
+	require.True(t, signal.wait(t, "first wait"))
+	require.Equal(t, processbar.Successful, signal.state)
+	signal.complete(processbar.Failed)
+	require.True(t, signal.wait(t, "cleanup wait"))
+	require.Equal(t, processbar.Successful, signal.state)
 }
 
 // Duct tape to have less flaky tests in windows
@@ -536,4 +588,61 @@ func TestRunFileProcessorMutex(t *testing.T) {
 			assert.True(t, ok)
 			assert.True(t, m.mutexErrorModal.TryLock())
 		})
+}
+
+func TestPasteProgressTotalSkipsRecursiveCountForMoves(t *testing.T) {
+	dir := t.TempDir()
+	nested := filepath.Join(dir, "nested")
+	utils.SetupDirectories(t, nested)
+	utils.SetupFiles(t,
+		filepath.Join(dir, "one.txt"),
+		filepath.Join(nested, "two.txt"),
+	)
+
+	assert.Equal(t, 1, getPasteProgressTotal([]string{dir}, true))
+	assert.Equal(t, 2, getPasteProgressTotal([]string{dir}, false))
+}
+
+func TestRetriedCreateProcessReceivesCompletionTime(t *testing.T) {
+	dir := t.TempDir()
+	processes := processbar.New()
+	processes.ListenForChannelUpdates()
+	process := processbar.NewProcess("retry-create", "item", processbar.OpCreate, 1)
+	require.NoError(t, processes.AddProcess(process))
+	processor := makeCreateProcessor(dir, process, &processes)
+
+	failed, remaining := processor([]string{"."})
+	require.Equal(t, processbar.Failed, failed.State)
+	require.NotEmpty(t, remaining)
+	_, remaining = processor([]string{"created.txt"})
+	require.Empty(t, remaining)
+
+	assert.Eventually(t, func() bool {
+		stored, ok := processes.GetByID(process.ID)
+		return ok && !stored.DoneTime.IsZero()
+	}, DefaultTestTimeout, DefaultTestTick)
+}
+
+func TestRetriedMoveProcessReceivesCompletionTime(t *testing.T) {
+	sourceDir := t.TempDir()
+	destinationDir := t.TempDir()
+	source := filepath.Join(sourceDir, "moved.txt")
+	processes := processbar.New()
+	processes.ListenForChannelUpdates()
+	process := processbar.NewProcess("retry-move", filepath.Base(source), processbar.OpCut, 1)
+	require.NoError(t, processes.AddProcess(process))
+	moves := []pathMove{}
+	processor := makePasteProcessor(process, &processes, destinationDir, true, &moves)
+
+	failed, remaining := processor([]string{source})
+	require.Equal(t, processbar.Failed, failed.State)
+	require.NotEmpty(t, remaining)
+	utils.SetupFiles(t, source)
+	_, remaining = processor([]string{source})
+	require.Empty(t, remaining)
+
+	assert.Eventually(t, func() bool {
+		stored, ok := processes.GetByID(process.ID)
+		return ok && !stored.DoneTime.IsZero()
+	}, DefaultTestTimeout, DefaultTestTick)
 }

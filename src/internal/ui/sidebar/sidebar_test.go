@@ -19,7 +19,8 @@ func TestPinnedItemRenameUsesStoredNameWithoutVisualIcon(t *testing.T) {
 		Name:     "project",
 	}}))
 
-	sidebar.directories = formDirctorySlice(
+	sidebar.directories = formDirectorySlice(
+		nil,
 		nil,
 		getPinnedDirectoriesWithIcon(&pinnedMgr),
 		nil,
@@ -44,7 +45,8 @@ func TestConfirmSidebarRenameDoesNotPersistVisualIcon(t *testing.T) {
 		Name:     "project",
 	}}))
 
-	sidebar.directories = formDirctorySlice(
+	sidebar.directories = formDirectorySlice(
+		nil,
 		nil,
 		getPinnedDirectoriesWithIcon(&pinnedMgr),
 		nil,

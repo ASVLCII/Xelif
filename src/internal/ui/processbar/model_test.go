@@ -4,7 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -103,4 +105,126 @@ func TestModelSetDimenstions(t *testing.T) {
 	m.SetDimensions(minWidth+1, minHeight-1)
 	assert.Equal(t, minHeight, m.height, "Min value should be set")
 	assert.Equal(t, minWidth+1, m.width, "Given value should be set")
+}
+
+func TestCompletedProcessHistoryIsBounded(t *testing.T) {
+	m := New()
+	running := NewProcess("running", "large-copy", OpCopy, 100)
+	require.NoError(t, m.AddProcess(running))
+
+	for i := range maxCompletedProcesses + 5 {
+		p := NewProcess(fmt.Sprintf("done-%d", i), "file", OpCopy, 1)
+		p.State = Successful
+		p.Done = p.Total
+		p.DoneTime = time.Unix(int64(i+1), 0)
+		m.AddOrUpdateProcess(p)
+	}
+
+	assert.Equal(t, maxCompletedProcesses+1, m.cntProcesses())
+	_, runningStillPresent := m.GetByID(running.ID)
+	assert.True(t, runningStillPresent)
+	_, oldestStillPresent := m.GetByID("done-0")
+	assert.False(t, oldestStillPresent)
+	_, newestStillPresent := m.GetByID(fmt.Sprintf("done-%d", maxCompletedProcesses+4))
+	assert.True(t, newestStillPresent)
+}
+
+func TestPruningClampsCursorAndRenderIndex(t *testing.T) {
+	m := New()
+	m.SetDimensions(minWidth, 20)
+	for i := range maxCompletedProcesses {
+		p := NewProcess(fmt.Sprintf("done-%d", i), "file", OpCopy, 1)
+		p.State = Successful
+		p.DoneTime = time.Unix(int64(i+1), 0)
+		m.AddOrUpdateProcess(p)
+	}
+	running := NewProcess("running", "file", OpCopy, 1)
+	m.AddOrUpdateProcess(running)
+	m.cursor = maxCompletedProcesses
+	m.renderIndex = m.cursor
+
+	running.State = Successful
+	running.DoneTime = time.Unix(1000, 0)
+	m.AddOrUpdateProcess(running)
+
+	assert.Less(t, m.cursor, m.cntProcesses())
+	assert.LessOrEqual(t, m.renderIndex, m.cursor)
+	assert.True(t, m.isValid())
+}
+
+func TestPruningKeepsTerminalProcessUntilDoneTimeIsSet(t *testing.T) {
+	m := New()
+	for i := range maxCompletedProcesses {
+		p := NewProcess(fmt.Sprintf("done-%d", i), "file", OpCopy, 1)
+		p.State = Successful
+		p.DoneTime = time.Unix(int64(i+1), 0)
+		m.AddOrUpdateProcess(p)
+	}
+
+	failed := NewProcess("failed-with-modal", "file", OpCopy, 1)
+	failed.State = Failed
+	m.AddOrUpdateProcess(failed)
+
+	_, exists := m.GetByID(failed.ID)
+	assert.True(t, exists)
+}
+
+func TestConcurrentRequestIDsAreUnique(t *testing.T) {
+	m := New()
+	const workers = 100
+	const perWorker = 1000
+	ids := make(chan int, workers*perWorker)
+	var wait sync.WaitGroup
+	for range workers {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			for range perWorker {
+				ids <- m.newReqCnt()
+			}
+		}()
+	}
+	wait.Wait()
+	close(ids)
+
+	seen := make(map[int]struct{}, workers*perWorker)
+	for id := range ids {
+		seen[id] = struct{}{}
+	}
+	assert.Len(t, seen, workers*perWorker)
+}
+
+func TestConcurrentProcessReadsAndWritesAcrossModelCopies(t *testing.T) {
+	m := New()
+	copyOfModel := m
+	const iterations = 10_000
+	start := make(chan struct{})
+	var wait sync.WaitGroup
+
+	wait.Add(2)
+	go func() {
+		defer wait.Done()
+		<-start
+		for i := range iterations {
+			p := Process{ID: "process", State: InOperation, Total: iterations, Done: i}
+			copyOfModel.AddOrUpdateProcess(p)
+		}
+	}()
+	go func() {
+		defer wait.Done()
+		<-start
+		for range iterations {
+			_ = m.GetProcessesSlice()
+			_, _ = m.GetByID("process")
+			_ = m.HasRunningProcesses()
+		}
+	}()
+
+	close(start)
+	wait.Wait()
+	require.Same(t, m.processesMu, copyOfModel.processesMu)
+	assert.Equal(t, 1, m.cntProcesses())
+	stored, ok := m.GetByID("process")
+	require.True(t, ok)
+	assert.Equal(t, iterations-1, stored.Done)
 }

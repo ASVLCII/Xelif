@@ -23,7 +23,7 @@ import (
 	internal "github.com/yorukot/superfile/src/internal"
 )
 
-// Run superfile app
+// Run Xelif, retaining superfile-compatible configuration and command flags.
 func Run(content embed.FS) {
 	// Enable custom colored help output
 	cli.HelpPrinter = CustomHelpPrinter //nolint:reassign // Intentionally reassigning to customize help output
@@ -35,9 +35,9 @@ func Run(content embed.FS) {
 	common.LoadAllDefaultConfig(content)
 
 	app := &cli.Command{
-		Name:        "superfile",
+		Name:        "xelif",
 		Version:     variable.CurrentVersion + variable.PreReleaseSuffix,
-		Description: "Pretty fancy and modern terminal file manager ",
+		Description: "Fast, accessible terminal file manager based on superfile",
 		ArgsUsage:   "[PATH]...",
 		Commands: []*cli.Command{
 			{
@@ -120,7 +120,7 @@ func Run(content embed.FS) {
 			&cli.StringFlag{
 				Name:    "chooser-file",
 				Aliases: []string{"cf"},
-				Usage:   "On trying to open any file, superfile will write to its path to this file, and exit",
+				Usage:   "On trying to open any file, Xelif writes its path to this file and exits",
 				Value:   "", // Default to the blank string indicating non-usage of flag
 			},
 		},
@@ -150,7 +150,8 @@ func spfAppAction(_ context.Context, c *cli.Command) error {
 
 	firstUse := checkFirstUse()
 
-	p := tea.NewProgram(internal.InitialModel(firstPanelPaths, firstUse))
+	m := internal.InitialModel(firstPanelPaths, firstUse, c.Args().Present())
+	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
 		utils.PrintfAndExitf("Alas, there's been an error: %v", err)
 	}
@@ -177,6 +178,9 @@ func InitConfigFile() {
 		variable.SuperFileDataDir,
 		variable.SuperFileStateDir,
 		variable.ThemeFolder,
+		variable.CommandPluginDir,
+		variable.WorkspaceDir,
+		variable.MetadataJournalDir,
 	); err != nil {
 		utils.PrintlnAndExit("Error creating directories:", err)
 	}

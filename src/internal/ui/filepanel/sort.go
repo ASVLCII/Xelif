@@ -54,6 +54,31 @@ func getOrderingFunc(elements []Element, reversed bool, sortKind sortmodel.SortK
 }
 
 func getSizeOrderingFunc(elements []Element, reversed bool) sliceOrderFunc {
+	return getSizeOrderingFuncWithReadDir(elements, reversed, os.ReadDir)
+}
+
+func getSizeOrderingFuncWithReadDir(
+	elements []Element,
+	reversed bool,
+	readDir func(string) ([]os.DirEntry, error),
+) sliceOrderFunc {
+	// Counts live only for this sort, so later refreshes still observe changes.
+	// Read lazily to retain the no-I/O behavior of mixed file/directory pairs.
+	childCounts := make(map[string]int)
+	childCount := func(location string) int {
+		if count, ok := childCounts[location]; ok {
+			return count
+		}
+		files, err := readDir(location)
+		if err != nil {
+			slog.Error("Error when reading directory during sort", "error", err)
+		}
+		// Preserve len(files) on errors too: nil is zero, partial reads retain
+		// their available entries, and failed reads are not repeatedly retried.
+		childCounts[location] = len(files)
+		return len(files)
+	}
+
 	return func(i, j int) bool {
 		// Directories at the top sorted by direct child count (not recursive)
 		// Files sorted by size
@@ -63,20 +88,8 @@ func getSizeOrderingFunc(elements []Element, reversed bool) sliceOrderFunc {
 			return elements[i].Directory
 		}
 
-		// This needs to be improved, and we should sort by actual size only
-		// Repeated recursive read would be slow, so we could cache
 		if elements[i].Directory && elements[j].Directory {
-			filesI, err := os.ReadDir(elements[i].Location)
-			// No need of early return, we only call len() on filesI, so nil would
-			// just result in 0
-			if err != nil {
-				slog.Error("Error when reading directory during sort", "error", err)
-			}
-			filesJ, err := os.ReadDir(elements[j].Location)
-			if err != nil {
-				slog.Error("Error when reading directory during sort", "error", err)
-			}
-			return len(filesI) < len(filesJ) != reversed
+			return childCount(elements[i].Location) < childCount(elements[j].Location) != reversed
 		}
 		return elements[i].Info.Size() < elements[j].Info.Size() != reversed
 	}

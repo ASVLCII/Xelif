@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yorukot/superfile/src/internal/common"
 	"github.com/yorukot/superfile/src/pkg/utils"
 )
 
@@ -62,6 +63,9 @@ func (m *Model) getDirectoryElementsBySearch(displayDotFile bool) []Element {
 		fileAndDirectories = append(fileAndDirectories, item.Name())
 		folderElementMap[item.Name()] = item
 	}
+	if len(fileAndDirectories) == 0 {
+		return nil
+	}
 	// https://github.com/reinhrst/fzf-lib/blob/main/core.go#L43
 	// fzf returns matches ordered by score; we subsequently sort by the chosen sort option.
 	fzfResults := utils.FzfSearch(searchString, fileAndDirectories)
@@ -76,23 +80,39 @@ func (m *Model) getDirectoryElementsBySearch(displayDotFile bool) []Element {
 
 // Helper to decide whether to skip updating a panel this tick.
 func (m *Model) shouldSkipPanelUpdate(nowTime time.Time) bool {
+	if m.LastTimeGetElement.IsZero() || m.TargetFile != "" {
+		return false
+	}
 	if !m.IsFocused {
 		return nowTime.Sub(m.LastTimeGetElement) < nonFocussedPanelReRenderTime
 	}
 
-	reRenderTime := int(float64(m.ElemCount()) / ReRenderChunkDivisor)
-	reRenderTime = min(reRenderTime, ReRenderMaxDelay)
-	return !m.NeedsReRender() &&
-		nowTime.Sub(m.LastTimeGetElement) < time.Duration(reRenderTime)*time.Second
+	// A loaded empty directory (or a search with no matches) is stable too.
+	// Changes to location, query and sort inputs are checked separately below.
+	if !m.Empty() && m.NeedsReRender() {
+		return false
+	}
+	reRenderTime := max(1, min(m.ElemCount()/ReRenderChunkDivisor, ReRenderMaxDelay))
+	return nowTime.Sub(m.LastTimeGetElement) < time.Duration(reRenderTime)*time.Second
 }
 
 func (m *Model) UpdateElementsIfNeeded(force bool, displayDotFile bool) {
 	nowTime := time.Now()
-	if force || !m.shouldSkipPanelUpdate(nowTime) {
+	inputs := panelElementInputs{
+		location:          m.Location,
+		search:            m.SearchBar.Value(),
+		sortKind:          m.SortKind,
+		sortReversed:      m.SortReversed,
+		displayDotFile:    displayDotFile,
+		caseSensitiveSort: common.Config.CaseSensitiveSort,
+	}
+	if force || inputs != m.lastElementInputs || !m.shouldSkipPanelUpdate(nowTime) {
 		// Load elements for this panel (with/without search filter)
 		m.element = m.getElements(displayDotFile)
+		m.clearMissingSelectionAnchor()
 		// Update file panel list
 		m.LastTimeGetElement = nowTime
+		m.lastElementInputs = inputs
 
 		// For hover to file on first time loading
 		if m.TargetFile != "" {

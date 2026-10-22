@@ -8,6 +8,15 @@ import (
 	"unsafe"
 )
 
+// winsize matches the Unix TIOCGWINSZ layout. Keep it with its only caller so
+// Windows builds do not mistake this platform-specific ABI type for dead code.
+type winsize struct {
+	Row    uint16
+	Col    uint16
+	Xpixel uint16
+	Ypixel uint16
+}
+
 // getTerminalCellSizeViaIoctl uses ioctl system call to get terminal size
 func getTerminalCellSizeViaIoctl() (TerminalCellSize, bool) {
 	// Try different file descriptors in order of preference

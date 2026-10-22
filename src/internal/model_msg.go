@@ -24,10 +24,40 @@ func (msg BaseMessage) GetReqID() int {
 	return msg.reqID
 }
 
+type UndoOperationMsg struct {
+	BaseMessage
+
+	journal   *undoAction
+	remaining *undoAction
+	err       error
+}
+
+func (msg UndoOperationMsg) ApplyToModel(m *model) tea.Cmd {
+	if m.lastUndo == msg.journal {
+		m.lastUndo = msg.remaining
+	}
+	if msg.journal != nil {
+		completedFrom := 0
+		if msg.remaining != nil {
+			completedFrom = len(msg.remaining.moves)
+		}
+		reversed := make([]pathMove, 0, len(msg.journal.moves)-completedFrom)
+		for _, move := range msg.journal.moves[completedFrom:] {
+			reversed = append(reversed, pathMove{from: move.to, to: move.from})
+		}
+		m.updateCatalogMoves(reversed)
+	}
+	m.showUserError("Could not undo", msg.err)
+	return nil
+}
+
 type PasteOperationMsg struct {
 	BaseMessage
 
-	state processbar.ProcessState
+	state               processbar.ProcessState
+	moves               []pathMove
+	cut                 bool
+	clipboardGeneration uint64
 }
 
 func NewPasteOperationMsg(state processbar.ProcessState, reqID int) PasteOperationMsg {
@@ -39,9 +69,29 @@ func NewPasteOperationMsg(state processbar.ProcessState, reqID int) PasteOperati
 	}
 }
 
+func newPasteOperationMsgWithContext(
+	state processbar.ProcessState,
+	reqID int,
+	cut bool,
+	clipboardGeneration uint64,
+	moves []pathMove,
+) PasteOperationMsg {
+	msg := NewPasteOperationMsg(state, reqID)
+	msg.moves = append([]pathMove(nil), moves...)
+	msg.cut = cut
+	msg.clipboardGeneration = clipboardGeneration
+	return msg
+}
+
 func (msg PasteOperationMsg) ApplyToModel(m *model) tea.Cmd {
-	if (msg.state == processbar.Failed || msg.state == processbar.Successful) && m.clipboard.IsCut() {
+	terminal := msg.state == processbar.Failed || msg.state == processbar.Successful ||
+		msg.state == processbar.Cancelled
+	if terminal && msg.cut && m.clipboard.Generation() == msg.clipboardGeneration {
 		m.clipboard.Reset(false)
+	}
+	if terminal && msg.cut && len(msg.moves) > 0 {
+		m.recordUndo("move", msg.moves)
+		m.updateCatalogMoves(msg.moves)
 	}
 	return nil
 }

@@ -91,28 +91,18 @@ func (m *model) typineModalRender() string {
 }
 
 func (m *model) introduceModalRender() string {
-	title := common.SidebarTitleStyle.Render(" Thanks for using superfile!!") +
-		common.ModalStyle.Render("\n You can read the following information before starting to use it!")
-	vimUserWarn := common.ProcessErrorStyle.Render("  ** Very importantly ** If you are a Vim/Nvim user, go to:\n" +
-		"  https://superfile.dev/configure/custom-hotkeys/ to change your hotkey settings!")
-	subOne := common.SidebarTitleStyle.Render("  (1)") +
-		common.ModalStyle.Render(" If this is your first time, make sure you read:\n"+
-			"      https://superfile.dev/getting-started/tutorial/")
-	subTwo := common.SidebarTitleStyle.Render("  (2)") +
-		common.ModalStyle.Render(" If you forget the relevant keys during use,\n"+
-			"      you can press \"?\" (shift+/) at any time to query the keys!")
-	subThree := common.SidebarTitleStyle.Render("  (3)") +
-		common.ModalStyle.Render(" For more customization you can refer to:\n"+
-			"      https://superfile.dev/")
-	subFour := common.SidebarTitleStyle.Render("  (4)") +
-		common.ModalStyle.Render(" Thank you again for using superfile.\n"+
-			"      If you have any questions, please feel free to ask at:\n"+
-			"      https://github.com/yorukot/superfile\n"+
-			"      Of course, you can always open a new issue to share your idea \n"+
-			"      or report a bug!")
+	title := common.SidebarTitleStyle.Render(" Xelif")
+	content := common.ModalStyle.Render(
+		" Click folders, breadcrumbs, tabs, Search, or Commands.\n" +
+			" Keyboard: Enter opens; ? shows your configured keys.\n\n" +
+			" Commands: ctrl+shift+p     Search: ctrl+g\n\n" +
+			" Themes and Vim bindings are configurable.\n" +
+			" Upstream configuration guide: superfile.dev\n\n" +
+			" Built from github.com/yorukot/superfile.\n\n" +
+			" Press any key to continue.",
+	)
 	return common.FirstUseModal(m.helpMenu.GetHeight(), m.helpMenu.GetWidth()).
-		Render(title + "\n\n" + vimUserWarn + "\n\n" + subOne + "\n\n" +
-			subTwo + "\n\n" + subThree + "\n\n" + subFour + "\n\n")
+		Render(title + "\n\n" + content)
 }
 
 func (m *model) promptModalRender() string {

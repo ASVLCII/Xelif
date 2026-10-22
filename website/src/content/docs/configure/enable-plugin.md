@@ -1,12 +1,18 @@
 ---
-title: Enable Plugin
-description: How to enable and configure superfile plugins
+title: Enable plugins
+description: How to enable inherited integrations and Xelif command plugins.
 head:
   - tag: title
-    content: Enable Plugins | superfile
+    content: Enable plugins | Xelif
 ---
 
-Plugins extend superfile's functionality by integrating with external tools. This guide shows you how to enable and configure plugins.
+Plugins extend Xelif by integrating with external tools. The inherited integrations use `config.toml`; declarative command plugins use JSON manifests instead.
+
+:::note
+
+Command plugins do not have a `config.toml` switch. Put their manifests in the `command-plugins` folder inside the [config directory](/configure/config-file-path), then choose **Refresh command plugins** from the command palette. See the [feature guide](/features#command-plugins).
+
+:::
 
 ## Prerequisites
 

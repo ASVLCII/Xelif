@@ -6,7 +6,12 @@ import (
 	"github.com/lithammer/shortuuid"
 )
 
+const maxCompletedProcesses = 50
+
 func (m *Model) cntProcesses() int {
+	m.processesMu.RLock()
+	defer m.processesMu.RUnlock()
+
 	return len(m.processes)
 }
 
@@ -69,8 +74,7 @@ func (m *Model) getSortedProcesses() []Process {
 }
 
 func (m *Model) newReqCnt() int {
-	m.reqCnt++
-	return m.reqCnt
+	return int(m.reqCnt.Add(1))
 }
 
 // TODO: Maybe make sure that there isn't any existing process with this UUID
@@ -80,9 +84,40 @@ func (m *Model) newUUIDForProcess() string {
 
 // Copy of the current processes for read only purpose
 func (m *Model) GetProcessesSlice() []Process {
+	m.processesMu.RLock()
+	defer m.processesMu.RUnlock()
+
 	var processes []Process
 	for _, p := range m.processes {
 		processes = append(processes, p)
 	}
 	return processes
+}
+
+func (m *Model) pruneCompletedProcesses() {
+	// The caller holds processesMu for writing so pruning is atomic with the
+	// update that triggered it.
+	completed := make([]Process, 0, len(m.processes))
+	for _, process := range m.processes {
+		if process.State != InOperation && !process.DoneTime.IsZero() {
+			completed = append(completed, process)
+		}
+	}
+	if len(completed) <= maxCompletedProcesses {
+		return
+	}
+
+	sort.Slice(completed, func(i, j int) bool {
+		return completed[i].DoneTime.Before(completed[j].DoneTime)
+	})
+	for _, process := range completed[:len(completed)-maxCompletedProcesses] {
+		delete(m.processes, process.ID)
+	}
+	if len(m.processes) == 0 {
+		m.cursor = 0
+		m.renderIndex = 0
+		return
+	}
+	m.cursor = min(m.cursor, len(m.processes)-1)
+	m.renderIndex = min(m.renderIndex, m.cursor)
 }

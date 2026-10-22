@@ -25,6 +25,7 @@ const (
 
 	// Sidebar sections
 	SidebarSectionHome   = "home"
+	SidebarSectionRecent = "recent"
 	SidebarSectionPinned = "pinned"
 	SidebarSectionDisks  = "disks"
 

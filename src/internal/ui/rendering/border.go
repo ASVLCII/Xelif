@@ -28,6 +28,11 @@ type BorderConfig struct {
 	titleLeftMargin int
 }
 
+type borderInfoItemRange struct {
+	start int
+	end   int
+}
+
 func NewBorderConfig(height int, width int) BorderConfig {
 	return BorderConfig{
 		height:          height,
@@ -62,6 +67,47 @@ func (b *BorderConfig) AreInfoItemsTruncated() bool {
 		}
 	}
 	return false
+}
+
+// BorderInfoItemAtX returns the info-item index rendered at a bottom-border X
+// coordinate. Coordinates include the outer border corners.
+func BorderInfoItemAtX(width int, infoItems []string, x int) (int, bool) {
+	_, _, ranges, ok := layoutBorderInfoItems(width, infoItems)
+	if !ok {
+		return 0, false
+	}
+	for i, itemRange := range ranges {
+		if x >= itemRange.start && x < itemRange.end {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+func layoutBorderInfoItems(width int, infoItems []string) ([]string, int, []borderInfoItemRange, bool) {
+	cnt := len(infoItems)
+	actualWidth := width - borderCornerWidth
+	if cnt == 0 || actualWidth < cnt*minInfoItemWidth {
+		return nil, 0, nil, false
+	}
+
+	availWidth := actualWidth/cnt - borderDividerWidth
+	truncatedItems := make([]string, len(infoItems))
+	infoWidth := 0
+	for i, item := range infoItems {
+		truncatedItems[i] = ansi.Truncate(item, availWidth, "")
+		infoWidth += ansi.StringWidth(truncatedItems[i]) + borderDividerWidth
+	}
+
+	remainingWidth := actualWidth - infoWidth
+	ranges := make([]borderInfoItemRange, len(truncatedItems))
+	start := 1 + remainingWidth
+	for i, item := range truncatedItems {
+		end := start + ansi.StringWidth(item) + borderDividerWidth
+		ranges[i] = borderInfoItemRange{start: start, end: end}
+		start = end
+	}
+	return truncatedItems, remainingWidth, ranges, true
 }
 
 func (b *BorderConfig) AddDivider(idx int) {
@@ -102,22 +148,14 @@ func (b *BorderConfig) GetBorder(borderStrings lipgloss.Border) lipgloss.Border 
 			strings.Repeat(borderStrings.Top, remainingWidth)
 	}
 
-	cnt := len(b.infoItems)
-	// Minimum 4 character for each info item so that at least first character is rendered
-	if cnt > 0 && actualWidth >= cnt*minInfoItemWidth {
-		// Max available width for each item's actual content
-		// border.MiddleLeft <content> border.MiddleRight border.Bottom
-		availWidth := actualWidth/cnt - borderDividerWidth
+	truncatedItems, remainingWidth, _, renderInfoItems := layoutBorderInfoItems(b.width, b.infoItems)
+	if renderInfoItems {
 		var infoText strings.Builder
-		for _, item := range b.infoItems {
-			item = ansi.Truncate(item, availWidth, "")
+		for _, item := range truncatedItems {
 			infoText.WriteString(
 				borderStrings.MiddleRight + item + borderStrings.MiddleLeft + borderStrings.Bottom,
 			)
 		}
-
-		// Fill the rest with border char.
-		remainingWidth := actualWidth - ansi.StringWidth(infoText.String())
 
 		res.Bottom = strings.Repeat(borderStrings.Bottom, remainingWidth) + infoText.String()
 	}

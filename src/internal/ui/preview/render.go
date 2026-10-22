@@ -64,10 +64,6 @@ func renderDirectoryPreview(r *rendering.Renderer, itemPath string, previewHeigh
 func (m *Model) renderImagePreview(r *rendering.Renderer, itemPath string, previewWidth,
 	previewHeight int, sideAreaWidth int, kittyClear string,
 ) (string, string) {
-	if !m.open {
-		return r.AddLines(common.FilePreviewPanelClosedText).Render(), kittyClear
-	}
-
 	if !common.Config.ShowImagePreview {
 		return r.AddLines(common.FilePreviewImagePreviewDisabledText).Render(), kittyClear
 	}

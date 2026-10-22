@@ -3,10 +3,13 @@ package internal
 import (
 	"errors"
 	"log/slog"
+	"sync"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/yorukot/superfile/src/internal/ui/processbar"
 	"github.com/yorukot/superfile/src/pkg/utils"
 )
 
@@ -21,16 +24,60 @@ type TeaProg struct {
 	prog *tea.Program
 }
 
-func NewTestTeaProgWithEventLoop(t *testing.T, m *model) *TeaProg {
-	p := &TeaProg{m: m, prog: tea.NewProgram(m,
+func NewTestTeaProgWithEventLoop(t *testing.T, m *model, options ...tea.ProgramOption) *TeaProg {
+	defaults := []tea.ProgramOption{
 		tea.WithInput(nil), tea.WithOutput(IgnorerWriter{}),
-		tea.WithWindowSize(DefaultTestModelWidth, DefaultTestModelHeight))}
+		tea.WithWindowSize(DefaultTestModelWidth, DefaultTestModelHeight),
+	}
+	p := &TeaProg{m: m, prog: tea.NewProgram(m, append(defaults, options...)...)}
 	p.StartEventLoop()
 
 	t.Cleanup(func() {
 		p.Close()
 	})
 	return p
+}
+
+type testFileOperationSignal struct {
+	done  chan struct{}
+	once  sync.Once
+	state processbar.ProcessState
+}
+
+// Observe one compression and one extraction without blocking the event loop.
+func observeTestFileOperations() (tea.ProgramOption, *testFileOperationSignal, *testFileOperationSignal) {
+	compressed := &testFileOperationSignal{done: make(chan struct{})}
+	extracted := &testFileOperationSignal{done: make(chan struct{})}
+	filter := tea.WithFilter(func(_ tea.Model, msg tea.Msg) tea.Msg {
+		switch operation := msg.(type) {
+		case CompressOperationMsg:
+			compressed.complete(operation.state)
+		case ExtractOperationMsg:
+			extracted.complete(operation.state)
+		}
+		return msg
+	})
+	return filter, compressed, extracted
+}
+
+func (signal *testFileOperationSignal) complete(state processbar.ProcessState) {
+	signal.once.Do(func() {
+		signal.state = state
+		close(signal.done)
+	})
+}
+
+func (signal *testFileOperationSignal) wait(t *testing.T, operation string) bool {
+	t.Helper()
+	timer := time.NewTimer(DefaultTestTimeout)
+	defer timer.Stop()
+	select {
+	case <-signal.done:
+		return true
+	case <-timer.C:
+		t.Errorf("%s command completion was not observed", operation)
+		return false
+	}
 }
 
 func NewTestTeaProgWithEventLoopWithWinSize(t *testing.T, m *model, width int, height int) *TeaProg {

@@ -2,6 +2,7 @@ package common
 
 import (
 	"image/color"
+	"os"
 
 	"charm.land/lipgloss/v2"
 )
@@ -166,6 +167,9 @@ func LoadThemeConfig() { //nolint: funlen // Variable initialization
 
 	promptSuccessColor = lipgloss.Color(Theme.Correct)
 	promptFailureColor = lipgloss.Color(Theme.Error)
+	if _, noColor := os.LookupEnv("NO_COLOR"); noColor {
+		applyNoColor()
+	}
 
 	if Config.TransparentBackground {
 		TransparentAllBackgroundColor()
@@ -220,6 +224,25 @@ func LoadThemeConfig() { //nolint: funlen // Variable initialization
 	// Prompt Style
 	PromptSuccessStyle = lipgloss.NewStyle().Foreground(promptSuccessColor).Background(ModalBGColor)
 	PromptFailureStyle = lipgloss.NewStyle().Foreground(promptFailureColor).Background(ModalBGColor)
+}
+
+func applyNoColor() {
+	noColor := lipgloss.NoColor{}
+	FilePanelBorderColor, SidebarBorderColor, FooterBorderColor = noColor, noColor, noColor
+	FilePanelBorderActiveColor, SidebarBorderActiveColor = noColor, noColor
+	FooterBorderActiveColor, ModalBorderActiveColor = noColor, noColor
+	FullScreenBGColor, FilePanelBGColor, SidebarBGColor = noColor, noColor, noColor
+	FooterBGColor, ModalBGColor = noColor, noColor
+	FullScreenFGColor, FilePanelFGColor, SidebarFGColor = noColor, noColor, noColor
+	FooterFGColor, ModalFGColor = noColor, noColor
+	cursorColor, correctColor, errorColor, hintColor, cancelColor = noColor, noColor, noColor, noColor, noColor
+	filePanelTopDirectoryIconColor, filePanelTopPathColor = noColor, noColor
+	filePanelItemSelectedFGColor, filePanelItemSelectedBGColor = noColor, noColor
+	sidebarTitleColor, sidebarItemSelectedFGColor, sidebarItemSelectedBGColor = noColor, noColor, noColor
+	sidebarDividerColor = noColor
+	modalCancelFGColor, modalCancelBGColor, modalConfirmFGColor, modalConfirmBGColor = noColor, noColor, noColor, noColor
+	helpMenuHotkeyColor, helpMenuTitleColor = noColor, noColor
+	promptSuccessColor, promptFailureColor = noColor, noColor
 }
 
 func TransparentAllBackgroundColor() {

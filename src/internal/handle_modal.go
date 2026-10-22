@@ -112,6 +112,8 @@ func makeCreateProcessor(location string,
 
 		if process.State != processbar.Failed {
 			process.State = processbar.Successful
+		}
+		if len(notProcessed) == 0 {
 			markProcessDone(process, processBarModel)
 		}
 		return process, notProcessed
@@ -141,15 +143,31 @@ func (m *model) confirmRename() {
 	oldPath := panel.GetFocusedItem().Location
 	newPath := filepath.Join(panel.Location, panel.Rename.Value())
 
-	// Rename the file
-	err := os.Rename(oldPath, newPath)
+	var err error
+	switch {
+	case oldPath == newPath:
+		// No-op.
+	case strings.EqualFold(filepath.Clean(oldPath), filepath.Clean(newPath)) &&
+		sameFileIdentity(oldPath, newPath):
+		// Allows case-only renames on case-insensitive filesystems.
+		err = os.Rename(oldPath, newPath)
+	default:
+		err = moveElementNoReplace(oldPath, newPath)
+	}
 	if err != nil {
-		slog.Error("Error while confirmRename during rename", "error", err)
+		m.showUserError("Could not rename item", err)
 		// Dont return. We have to also reset the panel and model information
+	} else if oldPath != newPath {
+		moves := []pathMove{{from: oldPath, to: newPath}}
+		m.recordUndo("rename", moves)
+		m.updateCatalogMoves(moves)
 	}
 	m.fileModel.Renaming = false
 	panel.Rename.Blur()
 	panel.Renaming = false
+	if err == nil && oldPath != newPath {
+		m.refreshAfterDiskChange()
+	}
 }
 
 func (m *model) confirmSortOptions() {

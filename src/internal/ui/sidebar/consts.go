@@ -16,13 +16,18 @@ var pinnedDividerDir = directory{ //nolint: gochecknoglobals // This is more lik
 	Location: "Pinned+-*/=?",
 }
 
+var recentDividerDir = directory{ //nolint: gochecknoglobals // This is more like a const.
+	Name:     "",
+	Location: "Recent+-*/=?",
+}
+
 var diskDividerDir = directory{ //nolint: gochecknoglobals // This is more like a const.
 	Name:     "",
 	Location: "Disks+-*/=?",
 }
 
 var defaultSectionSlice = []string{ //nolint: gochecknoglobals // This is more like a const.
-	utils.SidebarSectionHome, utils.SidebarSectionPinned, utils.SidebarSectionDisks,
+	utils.SidebarSectionHome, utils.SidebarSectionRecent, utils.SidebarSectionPinned, utils.SidebarSectionDisks,
 }
 
 // superfile logo + blank line + search bar
@@ -33,7 +38,7 @@ const (
 	// searchBarPadding is the total padding for search bar (borders + prompt + extra char)
 	searchBarPadding = 5 // 2 (borders) + 2 (prompt) + 1 (extra char)
 
-	directoryCapacityForDividers = 2
+	directoryCapacityForDividers = 3
 
 	// dividerDirHeight is the default height when no height is available
 	dividerDirHeight = 3

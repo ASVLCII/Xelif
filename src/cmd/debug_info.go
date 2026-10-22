@@ -40,7 +40,7 @@ func printDebugInfo() {
 	dp := newDebugPrinter()
 
 	fmt.Println()
-	dp.printHeader("Superfile")
+	dp.printHeader("Xelif")
 	dp.printKeyValue("Version", variable.CurrentVersion+variable.PreReleaseSuffix)
 
 	fmt.Println()

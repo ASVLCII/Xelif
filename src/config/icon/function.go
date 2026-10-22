@@ -30,6 +30,8 @@ func InitIcon(nerdfont bool, directoryIconColor string) {
 		SuperfileIcon = ""
 
 		Home = ""
+		Desktop = ""
+		Trash = ""
 		Download = ""
 		Documents = ""
 		Pictures = ""

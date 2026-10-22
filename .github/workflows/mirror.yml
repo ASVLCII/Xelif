@@ -10,6 +10,7 @@ concurrency:
 
 jobs:
   mirror:
+    if: github.repository == 'yorukot/superfile'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

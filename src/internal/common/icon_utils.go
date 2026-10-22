@@ -1,6 +1,7 @@
 package common
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -51,9 +52,26 @@ func getFileIcon(file string, isLink bool) icon.Style {
 }
 
 func GetElementIcon(file string, isDir bool, isLink bool, nerdFont bool) icon.Style {
+	style := getElementIcon(file, isDir, isLink, nerdFont)
+	if Config.ColorFileIcons && !Config.PlainMode {
+		style.Color = fileTypeIconColor(file, isDir, isLink)
+	} else {
+		style.Color = Theme.FilePanelFG
+	}
+	if _, noColor := os.LookupEnv("NO_COLOR"); noColor {
+		style.Color = ""
+	}
+	return style
+}
+
+func getElementIcon(file string, isDir bool, isLink bool, nerdFont bool) icon.Style {
 	if !nerdFont {
+		marker := ""
+		if !Config.PlainMode {
+			marker = compactFileMarker(file, isDir, isLink)
+		}
 		return icon.Style{
-			Icon:  "",
+			Icon:  marker,
 			Color: Theme.FilePanelFG,
 		}
 	}
@@ -71,6 +89,30 @@ func GetElementIcon(file string, isDir bool, isLink bool, nerdFont bool) icon.St
 	}
 
 	return getFileIcon(file, isLink)
+}
+
+// Compact markers use monochrome Unicode, not emoji or a private-use icon font.
+func compactFileMarker(file string, isDir, isLink bool) string {
+	if isLink {
+		return "↗"
+	}
+	if isDir {
+		return "▸"
+	}
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(file), "."))
+	if alias, ok := icon.Aliases[ext]; ok {
+		ext = alias
+	}
+	switch ext {
+	case "image":
+		return "▧"
+	case "zip":
+		return "▥"
+	case "txt", "md", "markdown", "pdf", "doc", "rtf", "odt", "ebook", "csv", "xls", "ppt":
+		return "≡"
+	default:
+		return "□"
+	}
 }
 
 func GetDirectoryIcon(path string, name string, nerdFont bool) string {

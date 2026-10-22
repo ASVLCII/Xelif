@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/lipgloss/v2"
 
+	"github.com/yorukot/superfile/src/internal/gitstatus"
 	"github.com/yorukot/superfile/src/internal/ui/sortmodel"
 )
 
@@ -33,14 +34,37 @@ type Model struct {
 	// key is file location, value order of selection
 	selected           map[string]int
 	selectOrderCounter int
+	selectionAnchor    string
+	gitStates          map[string]gitstatus.State
 	element            []Element
 	DirectoryRecords   map[string]directoryRecord
 	Rename             textinput.Model
 	Renaming           bool
 	SearchBar          textinput.Model
 	LastTimeGetElement time.Time
+	lastElementInputs  panelElementInputs
 	TargetFile         string             // filename to position cursor on after load
 	columns            []columnDefinition // columns for rendering
+	tabs               []panelTab
+	activeTab          int
+}
+
+// Inputs that affect directory membership or ordering. Keeping the last loaded
+// values makes query/configuration changes immediate without rereading a stable
+// directory on unrelated messages.
+type panelElementInputs struct {
+	location          string
+	search            string
+	sortKind          sortmodel.SortKind
+	sortReversed      bool
+	displayDotFile    bool
+	caseSensitiveSort bool
+}
+
+type panelTab struct {
+	location       string
+	backHistory    []string
+	forwardHistory []string
 }
 
 // Record for directory navigation

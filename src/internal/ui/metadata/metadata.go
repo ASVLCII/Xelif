@@ -118,6 +118,10 @@ func getMetaDataUnsorted(filePath string, metadataFocused bool, et *exiftool.Exi
 	owner := [2]string{keyOwner, ownerVal}
 	group := [2]string{keyGroup, groupVal}
 
+	if fileInfo.IsDir() {
+		// A directory's stat size is not the size of its contents.
+		size[1] = "Not calculated"
+	}
 	if fileInfo.IsDir() && metadataFocused {
 		// TODO : Calling dirSize() could be expensive for large directories, as it recursively
 		// walks the entire tree. For now we have async approach of loading metadata,

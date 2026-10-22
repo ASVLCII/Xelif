@@ -127,7 +127,7 @@ func setTextInputStyles(ti *textinput.Model, textStyle, placeholderStyle lipglos
 func GenerateSearchBar() textinput.Model {
 	ti := textinput.New()
 	ti.Prompt = FilePanelTopDirectoryIconStyle.Render(icon.Search + icon.Space)
-	ti.Placeholder = "(" + Hotkeys.SearchBar[0] + ") Type something"
+	ti.Placeholder = "Filter files"
 	setTextInputStyles(&ti, FilePanelStyle, FilePanelStyle)
 	ti.Blur()
 	ti.CharLimit = 156

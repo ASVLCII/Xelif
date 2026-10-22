@@ -22,11 +22,11 @@ const (
 	LatestVersionGithub = "github.com/yorukot/superfile/releases/latest"
 
 	// This will not break in windows. This is a relative path for Embed FS. It uses "/" only
-	EmbedConfigDir           = "src/superfile_config"
-	EmbedConfigFile          = EmbedConfigDir + "/config.toml"
-	EmbedHotkeysFile         = EmbedConfigDir + "/hotkeys.toml"
-	EmbedThemeDir            = EmbedConfigDir + "/theme"
-	EmbedThemeCatppuccinFile = EmbedThemeDir + "/catppuccin-mocha.toml"
+	EmbedConfigDir        = "src/superfile_config"
+	EmbedConfigFile       = EmbedConfigDir + "/config.toml"
+	EmbedHotkeysFile      = EmbedConfigDir + "/hotkeys.toml"
+	EmbedThemeDir         = EmbedConfigDir + "/theme"
+	EmbedThemeDefaultFile = EmbedThemeDir + "/monochrome.toml"
 )
 
 var (
@@ -37,19 +37,26 @@ var (
 	SuperFileStateDir = filepath.Join(xdg.StateHome, "superfile")
 
 	// MainDir files
-	ThemeFolder = filepath.Join(SuperFileMainDir, "theme")
+	ThemeFolder      = filepath.Join(SuperFileMainDir, "theme")
+	CommandPluginDir = filepath.Join(SuperFileMainDir, "command-plugins")
 
 	// DataDir files
 	LastCheckVersion = filepath.Join(SuperFileDataDir, "lastCheckVersion")
 	ThemeFileVersion = filepath.Join(SuperFileDataDir, "themeFileVersion")
 	FirstUseCheck    = filepath.Join(SuperFileDataDir, "firstUseCheck")
 	PinnedFile       = filepath.Join(SuperFileDataDir, "pinned.json")
+	RecentFile       = filepath.Join(SuperFileDataDir, "recent.json")
 	ToggleDotFile    = filepath.Join(SuperFileDataDir, "toggleDotFile")
 	ToggleFooter     = filepath.Join(SuperFileDataDir, "toggleFooter")
+	WorkspaceDir     = filepath.Join(SuperFileDataDir, "workspaces")
+	SavedSearchFile  = filepath.Join(SuperFileDataDir, "saved-searches.json")
+	CatalogFile      = filepath.Join(SuperFileDataDir, "catalog.json")
 
 	// StateDir files
-	LogFile     = filepath.Join(SuperFileStateDir, "superfile.log")
-	LastDirFile = filepath.Join(SuperFileStateDir, "lastdir")
+	LogFile            = filepath.Join(SuperFileStateDir, "superfile.log")
+	LastDirFile        = filepath.Join(SuperFileStateDir, "lastdir")
+	SessionFile        = filepath.Join(SuperFileStateDir, "session.json")
+	MetadataJournalDir = filepath.Join(SuperFileStateDir, "metadata-journals")
 
 	// Trash Directories
 	DarwinTrashDirectory = filepath.Join(HomeDir, ".Trash")

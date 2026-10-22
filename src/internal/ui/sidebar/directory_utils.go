@@ -42,9 +42,10 @@ func fuzzySearch(query string, dirs []directory) []directory {
 }
 
 // getDirectories returns the list of directories to display in the sidebar.
-func getDirectories(pinnedMgr *PinnedManager, sections []string) []directory {
-	return formDirctorySlice(
+func getDirectories(pinnedMgr *PinnedManager, recentMgr *RecentManager, sections []string) []directory {
+	return formDirectorySlice(
 		getWellKnownDirectories(),
+		getRecentDirectoriesWithIcon(recentMgr),
 		getPinnedDirectoriesWithIcon(pinnedMgr),
 		getExternalMediaFolders(),
 		sections,
@@ -88,27 +89,45 @@ func getPinnedDirectoriesWithIcon(pinnedMgr *PinnedManager) []directory {
 	return dirs
 }
 
+func getRecentDirectoriesWithIcon(recentMgr *RecentManager) []directory {
+	if recentMgr == nil {
+		return nil
+	}
+	dirs := recentMgr.Load()
+	for i := range dirs {
+		dirs[i].Icon = common.GetDirectoryIcon(dirs[i].Location, dirs[i].Name, common.Config.Nerdfont)
+	}
+	return dirs
+}
+
 // getFilteredDirectories returns a list of directories that match the fuzzy search query across all sections.
-func getFilteredDirectories(query string, pinnedMgr *PinnedManager, sections []string) []directory {
-	return formDirctorySlice(
+func getFilteredDirectories(query string, pinnedMgr *PinnedManager,
+	recentMgr *RecentManager, sections []string,
+) []directory {
+	return formDirectorySlice(
 		fuzzySearch(query, getWellKnownDirectories()),
+		fuzzySearch(query, getRecentDirectoriesWithIcon(recentMgr)),
 		fuzzySearch(query, getPinnedDirectoriesWithIcon(pinnedMgr)),
 		fuzzySearch(query, getExternalMediaFolders()),
 		sections,
 	)
 }
 
-// formDirctorySlice assembles the final list of directories for the sidebar based on the configured sections.
+// formDirectorySlice assembles the final list of directories for the sidebar based on the configured sections.
 // It ensures that dividers are only added between non-empty sections.
-func formDirctorySlice(homeDirectories []directory, pinnedDirectories []directory,
-	diskDirectories []directory, sections []string) []directory {
-	totalCapacity := len(homeDirectories) + len(pinnedDirectories) + len(diskDirectories) + directoryCapacityForDividers
+func formDirectorySlice(homeDirectories []directory, recentDirectories []directory,
+	pinnedDirectories []directory, diskDirectories []directory, sections []string,
+) []directory {
+	totalCapacity := len(homeDirectories) + len(recentDirectories) + len(pinnedDirectories) +
+		len(diskDirectories) + directoryCapacityForDividers
 	directories := make([]directory, 0, totalCapacity)
 
 	for _, section := range sections {
 		switch section {
 		case utils.SidebarSectionHome:
 			directories = appendSection(directories, utils.SidebarSectionHome, homeDividerDir, homeDirectories)
+		case utils.SidebarSectionRecent:
+			directories = appendSection(directories, utils.SidebarSectionRecent, recentDividerDir, recentDirectories)
 		case utils.SidebarSectionPinned:
 			directories = appendSection(directories, utils.SidebarSectionPinned, pinnedDividerDir, pinnedDirectories)
 		case utils.SidebarSectionDisks:

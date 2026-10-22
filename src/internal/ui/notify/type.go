@@ -8,4 +8,6 @@ const (
 	QuitAction
 	NoAction
 	PermanentDeleteAction
+	GitDiscardAction
+	DropPasteAction
 )

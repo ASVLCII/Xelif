@@ -55,11 +55,25 @@ func (m *Model) CloseFilePanel() (tea.Cmd, error) {
 
 func (m *Model) ToggleFilePreviewPanel() tea.Cmd {
 	m.FilePreview.ToggleOpen()
+	if !m.FilePreview.IsOpen() {
+		m.ioReqCnt++
+		m.activePreviewReqID = m.ioReqCnt
+	}
 	m.updateChildComponentWidth()
 	return m.ensurePreviewDimensionsSync()
 }
 
 func (m *Model) UpdatePreviewPanel(msg preview.UpdateMsg) tea.Cmd {
+	if !m.FilePreview.IsOpen() {
+		slog.Debug("FilePreviewUpdateMsg received while preview is closed. Ignoring")
+		return nil
+	}
+	if msg.GetReqID() != m.activePreviewReqID {
+		slog.Debug("FilePreviewUpdateMsg for older request. Ignoring",
+			"activeReqID", m.activePreviewReqID, "msgReqID", msg.GetReqID())
+		return nil
+	}
+
 	selectedItem := m.GetFocusedFilePanel().GetFocusedItemPtr()
 	if selectedItem == nil {
 		slog.Debug("Panel empty or cursor invalid. Ignoring FilePreviewUpdateMsg")
@@ -118,6 +132,7 @@ func (m *Model) GetFilePreviewCmd(forcePreviewRender bool) tea.Cmd {
 
 	reqCnt := m.ioReqCnt
 	m.ioReqCnt++
+	m.activePreviewReqID = reqCnt
 	slog.Debug("Submitting file preview render request", "id", reqCnt,
 		"path", selectedItem.Location, "w", width, "h", height)
 

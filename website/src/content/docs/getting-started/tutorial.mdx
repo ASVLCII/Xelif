@@ -1,16 +1,16 @@
 ---
 title: Tutorial
-description: Quickly get started with superfile
+description: Quickly get started with Xelif while retaining the spf command.
 head:
   - tag: title
-    content: Tutorial | superfile
+    content: Tutorial | Xelif
 ---
 
-This tutorial will teach you how to use superfile step by step.
+This tutorial teaches the core Xelif workflow step by step.
 
 :::caution
 
-If you haven't installed superfile yet, please [click here](/getting-started/installation).
+If you haven't built Xelif yet, see the [installation and compatibility guide](/getting-started/installation).
 
 :::
 
@@ -22,7 +22,7 @@ A full list of hotkeys are available [here](/list/hotkey-list)
 
 ## Hotkeys tutorial
 
-Let's start by running superfile! Open a terminal, type `spf` and press `enter`.
+Start Xelif by opening a terminal, typing `spf`, and pressing `enter`. The executable keeps its upstream name for compatibility.
 
 To exit, press `q` or `esc`.
 
@@ -75,7 +75,7 @@ To move through multiple file panels, press `tab` or `L` (shift+l). To move to t
 
 ### Panel movement
 
-superfile provides multiple hotkeys to move through directories. The angle bracket cursor `>` tells you where you are.
+Xelif provides multiple hotkeys to move through directories. The angle bracket cursor `>` tells you where you are.
 
 While focused on the file panel, move the cursor up with `up` or `k` and down with `down` or `j`.
 
@@ -93,7 +93,7 @@ Press `o` to bring up the sort options menu. You can sort by:
 
 Press `enter` to confirm your sort option. Press `esc`, `o`, or `ctrl`+`c` to cancel. To reverse the order of the sort, press `R` (shift+r).
 
-Press `/` to bring up the search bar. Type the name (you may need to first delete the `/` if it auto-populates). superfile searches in the current directory and dynamically displays the results. To exit the search bar, press `ctrl`+`c` or `esc`.
+Press `/` to bring up the search bar. Type the name (you may need to first delete the `/` if it auto-populates). Xelif searches in the current directory and dynamically displays the results. To exit the search bar, press `ctrl`+`c` or `esc`.
 
 Press `.` to show or hide dotfiles.
 
@@ -192,7 +192,7 @@ If your directory editor does not support opening the current directory with an 
 
 ![file-operations-demo](../../../assets/demo/file-operations-demo.gif)
 
-### SPF Prompt
+### Xelif prompt (SPF mode)
 
 #### Shell Mode
 
@@ -206,13 +206,17 @@ You won't receive any stdout outputs. For now, this is meant for executing more 
 
 #### SPF Mode
 
-Press `>` to open the prompt in SPF mode. ![Prompt-SPF-Mode](../../../assets/tutorial/prompt_spf_mode.png)
+Press `>` to open the Xelif prompt. This is still called SPF mode in compatibility-oriented settings and older documentation. ![Prompt-SPF-Mode](../../../assets/tutorial/prompt_spf_mode.png)
 
 In this mode, you can execute these spf commands :
 
 - `split` - Open a new panel at the current file panel's path.
 - `open <PATH>` - Open a new panel at a specified path.
 - `cd <PATH>` - Change directory of current panel.
+- `workspace save <NAME>` - Save the current panels, tabs, and layout as a named workspace.
+- `workspace load <NAME>` - Restore a named workspace.
+- `workspace list` - List saved workspaces.
+- `workspace delete <NAME>` - Delete a named workspace.
 
 In this mode, you can substitute shell environment variables via `${}`, shell commands via `$()` and prefix path with `~` to get substituted to home directory. For example
 

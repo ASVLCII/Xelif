@@ -7,14 +7,23 @@ import (
 
 	"github.com/yorukot/superfile/src/internal/ui/helpmenu"
 
+	"github.com/yorukot/superfile/src/internal/ui/archiveviewer"
+	"github.com/yorukot/superfile/src/internal/ui/commandpalette"
 	"github.com/yorukot/superfile/src/internal/ui/filemodel"
+	"github.com/yorukot/superfile/src/internal/ui/globalsearch"
+	"github.com/yorukot/superfile/src/internal/ui/remoteviewer"
 	"github.com/yorukot/superfile/src/internal/ui/sortmodel"
+	"github.com/yorukot/superfile/src/internal/ui/textviewer"
 
 	"github.com/yorukot/superfile/src/internal/ui/metadata"
 	"github.com/yorukot/superfile/src/internal/ui/processbar"
 	"github.com/yorukot/superfile/src/internal/ui/sidebar"
 
+	variable "github.com/yorukot/superfile/src/config"
 	"github.com/yorukot/superfile/src/internal/common"
+	"github.com/yorukot/superfile/src/internal/gitstatus"
+	"github.com/yorukot/superfile/src/internal/savedsearch"
+	"github.com/yorukot/superfile/src/internal/session"
 	"github.com/yorukot/superfile/src/internal/ui/prompt"
 	zoxideui "github.com/yorukot/superfile/src/internal/ui/zoxide"
 )
@@ -31,20 +40,30 @@ import (
 func defaultModelConfig(toggleDotFile, toggleFooter, firstUse bool,
 	firstPanelPaths []string, zClient *zoxidelib.Client) *model {
 	return &model{
-		focusPanel:      nonePanelFocus,
-		processBarModel: processbar.New(),
-		clipboardWriter: clipboard.WriteAll,
-		sidebarModel:    sidebar.New(),
-		fileMetaData:    metadata.New(),
-		fileModel:       filemodel.New(firstPanelPaths, toggleDotFile),
-		helpMenu:        helpmenu.New(),
-		promptModal:     prompt.DefaultModel(prompt.PromptMinHeight, prompt.PromptMinWidth),
-		zoxideModal:     zoxideui.DefaultModel(zoxideui.ZoxideMinHeight, zoxideui.ZoxideMinWidth, zClient),
-		sortModal:       sortmodel.New(),
-		zClient:         zClient,
-		modelQuitState:  notQuitting,
-		toggleFooter:    toggleFooter,
-		firstUse:        firstUse,
-		hasTrash:        common.InitTrash(),
+		focusPanel:        nonePanelFocus,
+		processBarModel:   processbar.New(),
+		clipboardWriter:   clipboard.WriteAll,
+		sidebarModel:      sidebar.New(),
+		fileMetaData:      metadata.New(),
+		fileModel:         filemodel.New(firstPanelPaths, toggleDotFile),
+		globalSearchModal: globalsearch.New(globalsearch.NewDefaultSearchFunc()),
+		commandPalette:    commandpalette.New(nil),
+		textViewer:        textviewer.New(),
+		archiveViewer:     archiveviewer.New(),
+		remoteViewer:      remoteviewer.New(),
+		pluginCommandDir:  variable.CommandPluginDir,
+		sessionStore:      session.NewStore(variable.SessionFile, variable.WorkspaceDir),
+		savedSearchStore:  savedsearch.New(variable.SavedSearchFile),
+		catalogModel:      loadCatalog(variable.CatalogFile),
+		gitClient:         gitstatus.New(gitstatus.Options{}),
+		helpMenu:          helpmenu.New(),
+		promptModal:       prompt.DefaultModel(prompt.PromptMinHeight, prompt.PromptMinWidth),
+		zoxideModal:       zoxideui.DefaultModel(zoxideui.ZoxideMinHeight, zoxideui.ZoxideMinWidth, zClient),
+		sortModal:         sortmodel.New(),
+		zClient:           zClient,
+		modelQuitState:    notQuitting,
+		toggleFooter:      toggleFooter,
+		firstUse:          firstUse,
+		hasTrash:          common.InitTrash(),
 	}
 }

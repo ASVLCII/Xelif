@@ -3,6 +3,7 @@
 package trash
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"runtime"
@@ -67,8 +68,17 @@ const (
 	fofxRecycleOnDelete = 0x00080000
 	fofxEarlyFailure    = 0x00100000
 	fofxAddUndoRecord   = 0x20000000
+
+	hresultFailureBit       = 0x80000000
+	hresultMask             = 0xffffffff
+	comRelease              = 2
+	fileOperationSetFlags   = 5
+	fileOperationDeleteItem = 18
+	fileOperationPerform    = 21
+	fileOperationGetAborted = 22
 )
 
+//nolint:gochecknoglobals // Process-lifetime COM procedure handles, fixed GUIDs, and callback vtable must remain stable.
 var (
 	ole32   = syscall.NewLazyDLL("ole32.dll")
 	shell32 = syscall.NewLazyDLL("shell32.dll")
@@ -159,8 +169,14 @@ func recycleWithIFileOperation(path string) error {
 	if failed(hr) {
 		return hresultError("CoInitializeEx", hr)
 	}
-	defer procCoUninitialize.Call()
+	defer func() {
+		// CoUninitialize returns void; syscall return registers/last-error are not results.
+		_, _, _ = procCoUninitialize.Call()
+	}()
 
+	sink := newProgressSink()
+	// Keep the callback receiver alive through native object release on every return path.
+	defer runtime.KeepAlive(sink)
 	var fileOperation *comObject
 	hr, _, _ = procCoCreateInstance.Call(
 		uintptr(unsafe.Pointer(&clsidFileOperation)),
@@ -176,7 +192,7 @@ func recycleWithIFileOperation(path string) error {
 
 	flags := uintptr(fofSilent | fofNoConfirmation | fofAllowUndo | fofNoConfirmMkdir |
 		fofNoErrorUI | fofxRecycleOnDelete | fofxAddUndoRecord | fofxEarlyFailure)
-	if hr := fileOperation.call(5, flags); failed(hr) {
+	if hr := fileOperation.call(fileOperationSetFlags, flags); failed(hr) {
 		return hresultError("IFileOperation.SetOperationFlags", hr)
 	}
 
@@ -186,27 +202,31 @@ func recycleWithIFileOperation(path string) error {
 	}
 	defer item.release()
 
-	sink := newProgressSink()
-	if hr := fileOperation.call(18, uintptr(unsafe.Pointer(item)), uintptr(unsafe.Pointer(sink))); failed(hr) {
+	if hr := fileOperation.call(
+		fileOperationDeleteItem,
+		uintptr(unsafe.Pointer(item)),
+		uintptr(unsafe.Pointer(sink)),
+	); failed(
+		hr,
+	) {
 		return hresultError("IFileOperation.DeleteItem", hr)
 	}
-	if hr := fileOperation.call(21); failed(hr) {
+	if hr := fileOperation.call(fileOperationPerform); failed(hr) {
 		return hresultError("IFileOperation.PerformOperations", hr)
 	}
 	var aborted int32
-	if hr := fileOperation.call(22, uintptr(unsafe.Pointer(&aborted))); failed(hr) {
+	if hr := fileOperation.call(fileOperationGetAborted, uintptr(unsafe.Pointer(&aborted))); failed(hr) {
 		return hresultError("IFileOperation.GetAnyOperationsAborted", hr)
 	}
 	if aborted != 0 {
-		return fmt.Errorf("Recycle Bin operation was aborted")
+		return errors.New("recycle bin operation was aborted")
 	}
 	if sink.failedHR != 0 {
 		return hresultError("IFileOperation.PostDeleteItem", sink.failedHR)
 	}
 	if !sink.recycled {
-		return fmt.Errorf("Recycle Bin operation did not return a recycled item")
+		return errors.New("recycle bin operation did not return a recycled item")
 	}
-	runtime.KeepAlive(sink)
 	return nil
 }
 
@@ -237,16 +257,16 @@ func (obj *comObject) call(method uintptr, args ...uintptr) uintptr {
 
 func (obj *comObject) release() {
 	if obj != nil {
-		_ = obj.call(2)
+		_ = obj.call(comRelease)
 	}
 }
 
 func failed(hr uintptr) bool {
-	return int32(hr&0xffffffff) < 0
+	return hr&hresultFailureBit != 0
 }
 
 func hresultError(operation string, hr uintptr) error {
-	return fmt.Errorf("%s failed: HRESULT 0x%08X", operation, uint32(hr))
+	return fmt.Errorf("%s failed: HRESULT 0x%08X", operation, hr&hresultMask)
 }
 
 func newProgressSink() *fileOperationProgressSink {
@@ -256,41 +276,35 @@ func newProgressSink() *fileOperationProgressSink {
 	}
 }
 
-func progressSinkFromThis(this uintptr) *fileOperationProgressSink {
-	return (*fileOperationProgressSink)(unsafe.Pointer(this))
-}
-
-func progressSinkQueryInterface(this uintptr, iid uintptr, object uintptr) uintptr {
-	if object == 0 {
+func progressSinkQueryInterface(this *fileOperationProgressSink, iid *guid, object *unsafe.Pointer) uintptr {
+	if object == nil {
 		return ePointer
 	}
-	*(*uintptr)(unsafe.Pointer(object)) = 0
-	if iid == 0 {
+	*object = nil
+	if iid == nil {
 		return ePointer
 	}
 
-	requested := *(*guid)(unsafe.Pointer(iid))
+	requested := *iid
 	if requested != iidIUnknown && requested != iidIFileOperationProgressSink {
 		return eNoInterface
 	}
 
-	*(*uintptr)(unsafe.Pointer(object)) = this
+	*object = unsafe.Pointer(this)
 	_ = progressSinkAddRef(this)
 	return sOK
 }
 
-func progressSinkAddRef(this uintptr) uintptr {
-	sink := progressSinkFromThis(this)
-	sink.refs++
-	return sink.refs
+func progressSinkAddRef(this *fileOperationProgressSink) uintptr {
+	this.refs++
+	return this.refs
 }
 
-func progressSinkRelease(this uintptr) uintptr {
-	sink := progressSinkFromThis(this)
-	if sink.refs > 0 {
-		sink.refs--
+func progressSinkRelease(this *fileOperationProgressSink) uintptr {
+	if this.refs > 0 {
+		this.refs--
 	}
-	return sink.refs
+	return this.refs
 }
 
 func progressSinkStartOperations(_ uintptr) uintptr {
@@ -329,13 +343,18 @@ func progressSinkPreDeleteItem(_ uintptr, _ uintptr, _ uintptr) uintptr {
 	return sOK
 }
 
-func progressSinkPostDeleteItem(this uintptr, _ uintptr, _ uintptr, hrDelete uintptr, newlyCreated uintptr) uintptr {
-	sink := progressSinkFromThis(this)
+func progressSinkPostDeleteItem(
+	this *fileOperationProgressSink,
+	_ uintptr,
+	_ uintptr,
+	hrDelete uintptr,
+	newlyCreated uintptr,
+) uintptr {
 	if failed(hrDelete) {
-		sink.failedHR = hrDelete
+		this.failedHR = hrDelete
 		return sOK
 	}
-	sink.recycled = newlyCreated != 0
+	this.recycled = newlyCreated != 0
 	return sOK
 }
 

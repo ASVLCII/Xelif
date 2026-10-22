@@ -11,13 +11,13 @@ const (
 	MinHeight      = contentPadding + common.BorderPadding + 1
 	MinWidth       = 18 // minimal width for rename input to render
 
-	FileSizeColumnWidth       = 15
-	ModifyTimeSizeColumnWidth = 18
+	FileSizeColumnWidth       = 11
+	ModifyTimeSizeColumnWidth = 16
 	PermissionsColumnWidth    = 12
 	ColumnHeaderHeight        = 1
 
 	// Delimiter between columns in the file panel.
-	ColumnDelimiter      = "  "
+	ColumnDelimiter      = "   "
 	ReRenderChunkDivisor = 100
 	ReRenderMaxDelay     = 3
 

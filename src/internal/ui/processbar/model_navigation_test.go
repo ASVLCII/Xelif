@@ -2,6 +2,7 @@ package processbar
 
 import (
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,6 +30,7 @@ func genProcessBarModel(count int, cursor int, render int, viewHeight int) Model
 	}
 	return Model{
 		processes:   pMap,
+		processesMu: &sync.RWMutex{},
 		cursor:      cursor,
 		renderIndex: render,
 		width:       minWidth,

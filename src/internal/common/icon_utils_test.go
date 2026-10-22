@@ -16,13 +16,13 @@ func TestGetElementIcon(t *testing.T) {
 		expected icon.Style
 	}{
 		{
-			name:     "Non-nerdfont returns empty icon",
+			name:     "Non-nerdfont returns compact marker",
 			file:     "test.txt",
 			isDir:    false,
 			isLink:   false,
 			nerdFont: false,
 			expected: icon.Style{
-				Icon:  "",
+				Icon:  "≡",
 				Color: Theme.FilePanelFG,
 			},
 		},
@@ -114,7 +114,7 @@ func TestGetElementIcon(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := GetElementIcon(tt.file, tt.isDir, tt.isLink, tt.nerdFont)
+			result := getElementIcon(tt.file, tt.isDir, tt.isLink, tt.nerdFont)
 			if result.Icon != tt.expected.Icon || result.Color != tt.expected.Color {
 				t.Errorf("GetElementIcon() = %v, want %v", result, tt.expected)
 			}

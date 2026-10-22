@@ -75,39 +75,6 @@ func (m *model) panelCreateNewFile() {
 	m.firstTextInput = true
 }
 
-// TODO : This function does not needs the entire model. Only pass the panel object
-func (m *model) IsRenamingConflicting() bool {
-	// TODO : Replace this with m.getCurrentFilePanel() everywhere
-	panel := m.getFocusedFilePanel()
-	if panel.ElemCount() == 0 {
-		slog.Error("IsRenamingConflicting() being called on empty panel")
-		return false
-	}
-	oldPath := panel.GetFocusedItem().Location
-	newPath := filepath.Join(panel.Location, panel.Rename.Value())
-
-	if oldPath == newPath {
-		return false
-	}
-
-	_, err := os.Stat(newPath)
-	return err == nil
-}
-
-// TODO: Remove channel messaging and use tea.Cmd
-func (m *model) warnModalForRenaming() tea.Cmd {
-	reqID := m.nextIoReqCnt()
-	slog.Debug("Submitting rename notify model request", "reqID", reqID)
-	res := func() tea.Msg {
-		notifyModel := notify.New(true,
-			common.SameRenameWarnTitle,
-			common.SameRenameWarnContent,
-			notify.RenameAction)
-		return NewNotifyModalMsg(notifyModel, reqID)
-	}
-	return res
-}
-
 // Rename file where the cusror is located
 // TODO: Fix this. It doesn't do any rename, just opens the rename text input
 // Actual rename happens at confirmRename() in handle_modal.go
@@ -211,6 +178,8 @@ func makeDeleteProcessor(process processbar.Process,
 
 		if process.State != processbar.Failed {
 			process.State = processbar.Successful
+		}
+		if len(notProcessed) == 0 {
 			markProcessDone(process, processBarModel)
 		}
 		return process, notProcessed
@@ -275,6 +244,7 @@ func (m *model) getPasteItemCmd() tea.Cmd {
 	}
 
 	reqID := m.nextIoReqCnt()
+	clipboardGeneration := m.clipboard.Generation()
 	panelLocation := m.getFocusedFilePanel().Location
 
 	slog.Debug("Submitting pasteItems request", "id", reqID, "items cnt", len(copyItems), "dest", panelLocation)
@@ -284,7 +254,9 @@ func (m *model) getPasteItemCmd() tea.Cmd {
 			return NewNotifyModalMsg(notify.New(true, "Invalid paste location", err.Error(), notify.NoAction),
 				reqID)
 		}
-		return m.executePasteOperation(&m.processBarModel, panelLocation, copyItems, cut, reqID)
+		return m.executePasteOperation(
+			&m.processBarModel, panelLocation, copyItems, cut, clipboardGeneration, reqID,
+		)
 	}
 }
 
@@ -312,7 +284,7 @@ func validatePasteOperation(panelLocation string, copyItems []string, cut bool) 
 
 func makePasteProcessor(process processbar.Process,
 	processBarModel *processbar.Model,
-	panelLocation string, cut bool,
+	panelLocation string, cut bool, moves *[]pathMove,
 ) processbar.FileListProcessor {
 	processorFunction := func(items []string) (processbar.Process, []string) {
 		notProcessed := make([]string, 0)
@@ -323,14 +295,14 @@ func makePasteProcessor(process processbar.Process,
 		var err error
 		for i, filePath := range items {
 			errMessage := "cut item error"
-			if cut && !isExternalDiskPath(filePath) {
-				err = moveElement(filePath, filepath.Join(panelLocation, filepath.Base(filePath)))
+			if cut {
+				err = movePasteItem(filePath, panelLocation, moves)
 			} else {
 				// TODO : These error cases are hard to test. We have to somehow make the paste operations fail,
 				// which is time consuming and manual. We should test these with automated testcases
 				// UPD: use "chattr +i" for target catalog to fail past opeations
 				err = pasteDir(filePath, filepath.Join(panelLocation, filepath.Base(filePath)),
-					&process, cut, processBarModel)
+					&process, false, processBarModel)
 				if err != nil {
 					errMessage = "paste item error"
 				}
@@ -351,6 +323,8 @@ func makePasteProcessor(process processbar.Process,
 		if process.State != processbar.Failed {
 			process.State = processbar.Successful
 			process.Done = process.Total
+		}
+		if len(notProcessed) == 0 {
 			markProcessDone(process, processBarModel)
 		}
 		return process, notProcessed
@@ -358,8 +332,23 @@ func makePasteProcessor(process processbar.Process,
 	return processorFunction
 }
 
+func movePasteItem(filePath, panelLocation string, moves *[]pathMove) error {
+	destination := filepath.Join(panelLocation, filepath.Base(filePath))
+	destination, err := renameIfDuplicate(destination)
+	if err != nil {
+		return err
+	}
+	if err := moveElementNoReplace(filePath, destination); err != nil {
+		return err
+	}
+	if moves != nil {
+		*moves = append(*moves, pathMove{from: filePath, to: destination})
+	}
+	return nil
+}
+
 func (m *model) executePasteOperation(processBarModel *processbar.Model,
-	panelLocation string, items []string, cut bool, reqID int,
+	panelLocation string, items []string, cut bool, clipboardGeneration uint64, reqID int,
 ) tea.Msg {
 	if len(items) == 0 {
 		return NewPasteOperationMsg(processbar.Cancelled, reqID)
@@ -374,15 +363,25 @@ func (m *model) executePasteOperation(processBarModel *processbar.Model,
 	p, err := processBarModel.SendAddProcessMsg(
 		filepath.Base(items[0]),
 		operation,
-		getTotalFilesCnt(items), true)
+		getPasteProgressTotal(items, cut), true)
 	if err != nil {
 		slog.Error("Cannot spawn a new process", "error", err)
 		return NewPasteOperationMsg(processbar.Failed, reqID)
 	}
-	finalizer := func(state processbar.ProcessState, reqId int) tea.Msg { return NewPasteOperationMsg(state, reqId) }
-	processor := makePasteProcessor(p, processBarModel, panelLocation, cut)
+	moves := make([]pathMove, 0, len(items))
+	finalizer := func(state processbar.ProcessState, reqId int) tea.Msg {
+		return newPasteOperationMsgWithContext(state, reqId, cut, clipboardGeneration, moves)
+	}
+	processor := makePasteProcessor(p, processBarModel, panelLocation, cut, &moves)
 	msg := m.runFileProcessor(processor, finalizer, items, reqID)
 	return msg
+}
+
+func getPasteProgressTotal(items []string, cut bool) int {
+	if cut {
+		return len(items)
+	}
+	return getTotalFilesCnt(items)
 }
 
 func getTotalFilesCnt(copyItems []string) int {
@@ -463,9 +462,20 @@ func checkFileReadable(filename string) error {
 	return nil
 }
 
-func (m *model) chooserFileWriteAndQuit(path string) error {
+func (m *model) chooserPaths() []string {
+	panel := m.getFocusedFilePanel()
+	if panel.SelectedCount() > 0 {
+		return panel.GetSelectedLocationsSortedAsVisible()
+	}
+	if panel.Empty() {
+		return nil
+	}
+	return []string{panel.GetFocusedItem().Location}
+}
+
+func (m *model) chooserFileWriteAndQuit(paths ...string) error {
 	// Attempt to write to the file
-	err := os.WriteFile(variable.ChooserFile, []byte(path), utils.ConfigFilePerm)
+	err := os.WriteFile(variable.ChooserFile, []byte(strings.Join(paths, "\n")), utils.ConfigFilePerm)
 	if err != nil {
 		return err
 	}
@@ -482,7 +492,7 @@ func (m *model) openFileWithEditor() tea.Cmd {
 	}
 
 	if variable.ChooserFile != "" {
-		err := m.chooserFileWriteAndQuit(panel.GetFocusedItem().Location)
+		err := m.chooserFileWriteAndQuit(m.chooserPaths()...)
 		if err == nil {
 			return nil
 		}

@@ -24,25 +24,45 @@ func (m *Model) ChangeFilePanelMode() {
 // This should be the function that is always called whenever we are updating a directory.
 func (m *Model) UpdateCurrentFilePanelDir(path string) error {
 	slog.Debug("updateCurrentFilePanelDir", "panel.location", m.Location, "path", path)
-	// In case non Absolute path is passed, make sure to resolve it.
-	path = utils.ResolveAbsPath(m.Location, path)
+	path, err := m.resolveDirectory(path)
+	if err != nil {
+		return err
+	}
 
 	// Ignore if its the same directory. It prevents resetting of searchBar
 	if path == m.Location {
 		return nil
 	}
 
+	if m.hasActiveTab() {
+		tab := &m.tabs[m.activeTab]
+		tab.backHistory = append(tab.backHistory, m.Location)
+		tab.forwardHistory = nil
+	}
+	m.applyDirectory(path)
+	return nil
+}
+
+func (m *Model) resolveDirectory(path string) (string, error) {
+	// In case non Absolute path is passed, make sure to resolve it.
+	path = utils.ResolveAbsPath(m.Location, path)
+	if info, err := os.Stat(path); err != nil {
+		return "", fmt.Errorf("%s : no such file or directory, stats err : %w", path, err)
+	} else if !info.IsDir() {
+		return "", fmt.Errorf("%s is not a directory", path)
+	}
+	return path, nil
+}
+
+func (m *Model) applyDirectory(path string) {
+	m.ClearSelectionAnchor()
+	m.gitStates = nil
+
 	// NOTE: This could be a configurable feature
 	// Update the cursor and render status in case we switch back to this.
 	m.DirectoryRecords[m.Location] = directoryRecord{
 		directoryCursor: m.cursor,
 		directoryRender: m.renderIndex,
-	}
-
-	if info, err := os.Stat(path); err != nil {
-		return fmt.Errorf("%s : no such file or directory, stats err : %w", path, err)
-	} else if !info.IsDir() {
-		return fmt.Errorf("%s is not a directory", path)
 	}
 
 	// In case of switching to parent, explicitly set focus.
@@ -52,6 +72,9 @@ func (m *Model) UpdateCurrentFilePanelDir(path string) error {
 	}
 	// Switch to "path"
 	m.Location = path
+	if m.hasActiveTab() {
+		m.tabs[m.activeTab].location = path
+	}
 
 	// NOTE: We are fetching the cursor and render from cache, but this could become invalid
 	// in case user deletes some items in the directory via another file manager and then switch back
@@ -72,8 +95,6 @@ func (m *Model) UpdateCurrentFilePanelDir(path string) error {
 	// Reset the searchbar Value
 	// TODO(Refactoring) : Have a common searchBar type for sidebar and this search bar.
 	m.SearchBar.SetValue("")
-
-	return nil
 }
 
 func (m *Model) ParentDirectory() error {

@@ -87,6 +87,16 @@ func FilePanelItemRenderWithIcon(
 	bgColor color.Color,
 ) string {
 	style := GetElementIcon(name, isDir, isLink, Config.Nerdfont)
+	if isSelected {
+		bgColor = filePanelItemSelectedBGColor
+		if Config.ColorFileIcons && !Config.PlainMode {
+			if _, noColor := os.LookupEnv("NO_COLOR"); !noColor {
+				style.Color = fileTypeIconColorOnBackground(
+					name, isDir, isLink, Theme.FilePanelItemSelectedBG, Theme.FilePanelItemSelectedFG,
+				)
+			}
+		}
+	}
 	iconData := style.Icon + " "
 	filenameWidth := width - ansi.StringWidth(iconData)
 	if filenameWidth <= 0 {
@@ -108,6 +118,7 @@ func FilePanelItemRender(data string,
 	style := FilePanelStyle
 	if isSelected {
 		style = FilePanelItemSelectedStyle
+		bgColor = filePanelItemSelectedBGColor
 	}
 	return style.Background(bgColor).Width(width).Align(alignment).Render(outputData)
 }

@@ -19,5 +19,6 @@ type Model struct {
 	FilePreview          preview.Model
 	FocusedPanelIndex    int
 	ioReqCnt             int
+	activePreviewReqID   int
 	DisplayDotFiles      bool
 }

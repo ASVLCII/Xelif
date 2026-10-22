@@ -16,7 +16,7 @@ interface Props {
 
 const { entry, headings } = Astro.props;
 const h1Heading = headings.find(h => h.depth === 1);
-const title = entry.data.title ?? h1Heading?.text ?? "superfile";
+const title = entry.data.title ?? h1Heading?.text ?? "Xelif";
 const { description } = entry.data;
 
 // Determine locale and base slug
@@ -26,7 +26,7 @@ const baseSlug = isZhTw ? entry.id.replace(/^zh-tw\//, "") : entry.id;
 const locale = isZhTw ? "zh-tw" : "";
 const localePrefix = isZhTw ? "/zh-tw" : "";
 const enEntry = isZhTw ? await getEntry("docs", baseSlug) : entry;
-const giscusTerm = `${enEntry?.data.title ?? title} | superfile`;
+const giscusTerm = `${enEntry?.data.title ?? title} | Xelif`;
 
 // Current path for active detection
 const currentPath = Astro.url.pathname.replace(/\/$/, "");
@@ -60,10 +60,10 @@ const canonicalUrl = new URL(Astro.url.pathname, siteUrl).href;
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>{title} | superfile</title>
+		<title>{title} | Xelif</title>
 		{description && <meta name="description" content={description} />}
 		<link rel="canonical" href={canonicalUrl} />
-		<meta property="og:title" content={`${title} | superfile`} />
+		<meta property="og:title" content={`${title} | Xelif`} />
 		{description && <meta property="og:description" content={description} />}
 		<meta property="og:image" content={`${siteUrl}/og.png?v=1`} />
 		<meta name="twitter:card" content="summary_large_image" />

@@ -25,16 +25,20 @@ const (
 var errNotBinary = errors.New("not a recognized binary format")
 
 func GetBinaryArchitecture(filePath string) (string, error) {
-	if arch, err := getELFArchitecture(filePath); err == nil {
-		return arch, nil
-	}
-
-	if arch, err := getPEArchitecture(filePath); err == nil {
-		return arch, nil
-	}
-
-	if arch, err := getMachOArchitecture(filePath); err == nil {
-		return arch, nil
+	switch detectBinaryFormat(filePath) {
+	case formatELF:
+		if arch, err := getELFArchitecture(filePath); err == nil {
+			return arch, nil
+		}
+	case formatPE:
+		if arch, err := getPEArchitecture(filePath); err == nil {
+			return arch, nil
+		}
+	case formatMachO:
+		if arch, err := getMachOArchitecture(filePath); err == nil {
+			return arch, nil
+		}
+	case formatUnknown:
 	}
 
 	return "", errNotBinary

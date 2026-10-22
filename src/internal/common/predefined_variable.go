@@ -12,15 +12,9 @@ import (
 const (
 	// SidebarDividerLength defines the number of characters used for the horizontal divider in the sidebar.
 	SidebarDividerLength  = 20
-	WheelRunTime          = 5
 	DefaultCommandTimeout = 5000 * time.Millisecond
 	DateModifiedOption    = "Date Modified"
 	InvalidTypeString     = "InvalidType"
-)
-
-const (
-	SameRenameWarnTitle   = "There is already a file or directory with that name"
-	SameRenameWarnContent = "This operation will override the existing file"
 )
 
 const (
@@ -44,6 +38,7 @@ const (
 var (
 	SideBarSuperfileTitle string
 	SideBarHomeDivider    string
+	SideBarRecentDivider  string
 	SideBarPinnedDivider  string
 	SideBarDisksDivider   string
 	SideBarNoneText       string
@@ -128,10 +123,12 @@ func wrapFilePreviewErrorMsg(msg string) string {
 // This should be called after theme and icons are initialized.
 func LoadPrerenderedVariables() {
 	divider := " " + strings.Repeat("─", SidebarDividerLength)
-	SideBarSuperfileTitle = SidebarTitleStyle.Render(" " + icon.SuperfileIcon + icon.Space + "superfile")
+	SideBarSuperfileTitle = SidebarTitleStyle.Render(" " + icon.SuperfileIcon + icon.Space + "Xelif")
 	SideBarHomeDivider = SidebarTitleStyle.Render(icon.Home+icon.Space+"Home") + SidebarDividerStyle.Render(divider)
+	SideBarRecentDivider = SidebarTitleStyle.Render(icon.Directory+icon.Space+"Recent") +
+		SidebarDividerStyle.Render(divider)
 	SideBarPinnedDivider = SidebarTitleStyle.Render(
-		icon.Pinned+icon.Space+"Pinned",
+		icon.Pinned+icon.Space+"Favorites",
 	) + SidebarDividerStyle.Render(
 		divider,
 	)

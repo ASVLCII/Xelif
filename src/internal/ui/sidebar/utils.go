@@ -8,7 +8,7 @@ import (
 
 // isDivider returns true if the directory is one of the section dividers.
 func (d directory) isDivider() bool {
-	return d == homeDividerDir || d == pinnedDividerDir || d == diskDividerDir
+	return d == homeDividerDir || d == recentDividerDir || d == pinnedDividerDir || d == diskDividerDir
 }
 
 // requiredHeight returns the number of terminal lines required to render this item.
@@ -109,6 +109,7 @@ func (m *Model) SetHeight(height int) {
 		return
 	}
 	m.height = height
+	m.scrollRows(0)
 }
 
 // Disabled returns true if the sidebar is currently disabled.

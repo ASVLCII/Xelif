@@ -47,5 +47,7 @@ func New(location string, focused bool, targetFile string, sortKind sortmodel.So
 		width:            MinWidth,
 		height:           MinHeight,
 		selected:         make(map[string]int),
+		tabs:             []panelTab{{location: location}},
+		activeTab:        0,
 	}
 }

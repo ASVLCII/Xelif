@@ -266,8 +266,8 @@ func Test_updateRenderIndex(t *testing.T) {
 			name:                "Edge case: Large panel showing everything",
 			sidebar:             defaultTestModel(4, 2, 0, 1, 0, 5),
 			mainPanelHeight:     50, // Large enough to show all directories
-			expectedRenderIndex: 2,  // No change needed as everything is visible
-			explanation:         "With large panel showing all items, renderIndex should remain unchanged",
+			expectedRenderIndex: 0,
+			explanation:         "Growing to fit all items clamps viewport scrolling back to the top",
 		},
 		{
 			name:                "Edge case: Empty sidebar",

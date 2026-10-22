@@ -103,6 +103,70 @@ func TestModel_getPromptAction(t *testing.T) {
 			expectedErr:    true,
 			expectedErrMsg: "open command needs exactly one argument, received 2",
 		},
+		{
+			name:           "save named workspace",
+			text:           `workspace save "Project One"`,
+			shellMode:      false,
+			expectecAction: common.WorkspaceAction{Operation: common.WorkspaceSave, Name: "Project One"},
+		},
+		{
+			name:           "list workspaces",
+			text:           "workspace list",
+			shellMode:      false,
+			expectecAction: common.WorkspaceAction{Operation: common.WorkspaceList},
+		},
+		{
+			name:           "workspace operation missing",
+			text:           "workspace",
+			shellMode:      false,
+			expectecAction: common.NoAction{},
+			expectedErr:    true,
+			expectedErrMsg: "workspace needs an operation: save, load, delete, or list",
+		},
+		{
+			name:      "save named search",
+			text:      `search save Reports "type:file ext:pdf"`,
+			shellMode: false,
+			expectecAction: common.SearchAction{
+				Operation: common.SearchSave, Name: "Reports", Query: "type:file ext:pdf",
+			},
+		},
+		{
+			name:           "run named search",
+			text:           "search run Reports",
+			shellMode:      false,
+			expectecAction: common.SearchAction{Operation: common.SearchRun, Name: "Reports"},
+		},
+		{
+			name:           "preview batch replacement",
+			text:           `batch-rename replace " draft" ""`,
+			shellMode:      false,
+			expectecAction: common.BatchRenameAction{Operation: common.BatchRenameReplace, Find: " draft"},
+		},
+		{
+			name:           "apply batch rename",
+			text:           "batch-rename apply",
+			shellMode:      false,
+			expectecAction: common.BatchRenameAction{Operation: common.BatchRenameApply},
+		},
+		{
+			name:           "add tag",
+			text:           `tag add "Needs review"`,
+			shellMode:      false,
+			expectecAction: common.CatalogAction{Operation: common.TagAdd, Name: "Needs review"},
+		},
+		{
+			name:           "save collection",
+			text:           `collection save "Project files"`,
+			shellMode:      false,
+			expectecAction: common.CatalogAction{Operation: common.CollectionSave, Name: "Project files"},
+		},
+		{
+			name:           "preview modified time",
+			text:           "metadata modified 2026-07-31T12:00:00Z",
+			shellMode:      false,
+			expectecAction: common.MetadataAction{Operation: common.MetadataModified, Value: "2026-07-31T12:00:00Z"},
+		},
 	}
 
 	for _, tt := range testdata {

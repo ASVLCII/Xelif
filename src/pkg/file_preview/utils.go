@@ -71,14 +71,6 @@ func (tc *TerminalCapabilities) GetTerminalCellSize() TerminalCellSize {
 	return tc.cellSize
 }
 
-// winsize struct for ioctl TIOCGWINSZ
-type winsize struct {
-	Row    uint16
-	Col    uint16
-	Xpixel uint16
-	Ypixel uint16
-}
-
 // detectTerminalCellSize detects the terminal cell size using ioctl system calls
 // This method is non-blocking and doesn't interfere with stdin
 func (tc *TerminalCapabilities) detectTerminalCellSize() TerminalCellSize {

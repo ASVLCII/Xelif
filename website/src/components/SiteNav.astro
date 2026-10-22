@@ -1,5 +1,4 @@
 ---
-import logoNight from "../assets/superfile-night.svg";
 import Search from "./Search.astro";
 
 interface Props {
@@ -27,10 +26,10 @@ const installHref = `${localePrefix}/getting-started/installation`;
 const navLabels = {
 	videos: labels.videos ?? "Videos",
 	docs: labels.docs ?? "Docs",
-	github: labels.github ?? "GitHub",
+	github: labels.github ?? "Upstream",
 	discord: labels.discord ?? "Discord",
 	getStarted: labels.getStarted ?? "get started",
-	homeAria: labels.homeAria ?? "superfile home"
+	homeAria: labels.homeAria ?? "Xelif home"
 };
 
 // Homepage: EN / -> /zh-tw/      ZH /zh-tw/ -> /
@@ -54,7 +53,7 @@ const langLabel = isZhTw ? "English" : "繁體中文";
 		}
 
 		<a href={homeHref} class="site-nav-logo" aria-label={navLabels.homeAria}>
-			<img src={logoNight.src} alt="superfile" width="120" height="24" />
+			<span>Xelif</span>
 		</a>
 
 		<nav class="site-nav-links" role="navigation" aria-label="Main">
@@ -73,7 +72,7 @@ const langLabel = isZhTw ? "English" : "繁體中文";
 		<div class="site-nav-right">
 			<Search isZhTw={isZhTw} />
 
-			<a href="https://github.com/yorukot/superfile" class="site-nav-stars" id="nav-stars" target="_blank" rel="noopener noreferrer" aria-label="GitHub stars">
+			<a href="https://github.com/yorukot/superfile" class="site-nav-stars" id="nav-stars" target="_blank" rel="noopener noreferrer" aria-label="Upstream superfile stars">
 				<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 					<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
 				</svg>
@@ -157,10 +156,11 @@ const langLabel = isZhTw ? "English" : "繁體中文";
 	.site-nav-logo:hover {
 		opacity: 1;
 	}
-	.site-nav-logo img {
-		height: 1.25rem;
-		width: auto;
-		display: block;
+	.site-nav-logo span {
+		font-size: 1.125rem;
+		font-weight: 700;
+		letter-spacing: -0.02em;
+		color: var(--green);
 	}
 
 	/* ── Center links ─── */

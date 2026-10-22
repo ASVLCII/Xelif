@@ -28,6 +28,7 @@ func (m *Model) GetFirstElement() Element {
 func (m *Model) ResetSelected() {
 	m.selectOrderCounter = 0
 	m.selected = make(map[string]int)
+	m.ClearSelectionAnchor()
 }
 
 // For modification. Make sure to do a nil check

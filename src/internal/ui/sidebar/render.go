@@ -3,6 +3,8 @@ package sidebar
 import (
 	"log/slog"
 
+	"charm.land/lipgloss/v2"
+
 	"github.com/yorukot/superfile/src/internal/ui"
 
 	"github.com/yorukot/superfile/src/config/icon"
@@ -20,9 +22,7 @@ func (s *Model) Render(sidebarFocused bool, currentFilePanelLocation string) str
 
 	r.AddLines(common.SideBarSuperfileTitle, "")
 
-	if s.searchBar.Focused() || s.searchBar.Value() != "" || sidebarFocused {
-		r.AddLines(s.searchBar.View())
-	}
+	r.AddLines(s.searchBar.View())
 
 	if s.NoActualDir() {
 		r.AddLines(common.SideBarNoneText)
@@ -32,7 +32,22 @@ func (s *Model) Render(sidebarFocused bool, currentFilePanelLocation string) str
 	return r.Render()
 }
 
-// directoriesRender handles the iterative rendering of directories within the sidebar model.
+type sidebarViewport struct {
+	remaining, skip int
+}
+
+func (v *sidebarViewport) addRows(r *rendering.Renderer, lines ...string) {
+	for _, line := range lines {
+		if v.skip > 0 {
+			v.skip--
+		} else if v.remaining > 0 {
+			r.AddLineWithCustomTruncate(line, rendering.TailsTruncateRight)
+			v.remaining--
+		}
+	}
+}
+
+// directoriesRender clips entries and heading rows to the independent viewport.
 func (s *Model) directoriesRender(curFilePanelFileLocation string,
 	sideBarFocused bool, r *rendering.Renderer) {
 	// Cursor should always point to a valid directory at this point
@@ -42,40 +57,35 @@ func (s *Model) directoriesRender(curFilePanelFileLocation string,
 			"directory count", len(s.directories))
 	}
 
-	// TODO : This is not true when searchbar is not rendered(totalHeight is 2, not 3),
-	// so we end up underutilizing one line for our render. But it wont break anything.
-	totalHeight := sideBarInitialHeight
-	mainPanelHeight := s.height - common.BorderPadding
-	for i := s.renderIndex; i < len(s.directories); i++ {
-		if totalHeight+s.directories[i].requiredHeight() > mainPanelHeight {
-			break
-		}
-
-		totalHeight += s.directories[i].requiredHeight()
-
+	viewport := sidebarViewport{remaining: s.viewportRows(), skip: s.renderOffset}
+	for i := s.renderIndex; i < len(s.directories) && viewport.remaining > 0; i++ {
 		switch s.directories[i] {
 		case homeDividerDir:
-			r.AddLines("", common.SideBarHomeDivider, "")
+			viewport.addRows(r, "", common.SideBarHomeDivider, "")
+		case recentDividerDir:
+			viewport.addRows(r, "", common.SideBarRecentDivider, "")
 		case pinnedDividerDir:
-			r.AddLines("", common.SideBarPinnedDivider, "")
+			viewport.addRows(r, "", common.SideBarPinnedDivider, "")
 		case diskDividerDir:
-			r.AddLines("", common.SideBarDisksDivider, "")
+			viewport.addRows(r, "", common.SideBarDisksDivider, "")
 		default:
 			cursor := " "
 			if s.cursor == i && sideBarFocused && !s.searchBar.Focused() {
 				cursor = icon.Cursor
 			}
 			if s.renaming && s.cursor == i {
-				r.AddLines(s.rename.View())
+				viewport.addRows(r, s.rename.View())
 			} else {
 				renderStyle := common.SidebarStyle
 				if s.directories[i].Location == curFilePanelFileLocation {
 					renderStyle = common.SidebarSelectedStyle
 				}
 				line := common.FilePanelCursorStyle.Render(cursor+" ") +
-					renderStyle.Render(s.directories[i].Icon+" ") +
+					renderStyle.Foreground(lipgloss.Color(common.SidebarIconColor(
+						s.directories[i].Icon, s.directories[i].Location == curFilePanelFileLocation,
+					))).Render(s.directories[i].Icon+" ") +
 					renderStyle.Render(s.directories[i].Name)
-				r.AddLineWithCustomTruncate(line, rendering.TailsTruncateRight)
+				viewport.addRows(r, line)
 			}
 		}
 	}

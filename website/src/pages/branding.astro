@@ -18,25 +18,25 @@ const homeHref = isZhTw ? "/zh-tw/" : "/";
 
 const copy = {
 	en: {
-		title: "superfile branding",
-		description: "Download the superfile logo and wordmark, plus quick naming guidance for references to the project.",
+		title: "Xelif branding",
+		description: "Naming guidance for Xelif and attribution for visual assets inherited from superfile.",
 		nav: {
 			docs: "Docs",
-			github: "GitHub",
+			github: "Upstream",
 			discord: "Discord",
 			getStarted: "get started",
-			homeAria: "superfile home"
+			homeAria: "Xelif home"
 		},
 		label: "// brand assets",
-		headline: "Download the superfile logo",
-		intro: "Use these assets when writing about superfile, showing the app in a project list, or linking to the community.",
-		nameRule: "Write the project name as superfile, all lower case.",
-		nameNote: "Avoid Superfile, SuperFile, or SUPERFILE unless you are quoting a source that already wrote it that way.",
-		assetsTitle: "Logo downloads",
+		headline: "Call the fork Xelif",
+		intro: "Use Xelif for this working project. Use superfile when referring to yorukot's upstream project, compatibility names, inherited assets, or upstream packages and community.",
+		nameRule: "Write the fork name as Xelif, with a capital X.",
+		nameNote: "The executable remains spf and configuration directories remain named superfile for compatibility.",
+		assetsTitle: "Inherited upstream assets",
 		assets: [
 			{
 				title: "App icon",
-				description: "Standalone folder icon for avatars, lists, badges, and compact placements.",
+				description: "The upstream superfile app icon. Do not present it as an original Xelif mark.",
 				href: "/logo.svg",
 				download: "superfile-logo.svg",
 				preview: "/logo.svg",
@@ -44,7 +44,7 @@ const copy = {
 			},
 			{
 				title: "Wordmark for dark backgrounds",
-				description: "Full superfile wordmark with light lettering for dark layouts.",
+				description: "The upstream superfile wordmark for dark layouts, retained with attribution.",
 				href: logoNight.src,
 				download: "superfile-wordmark-dark.svg",
 				preview: logoNight.src,
@@ -52,7 +52,7 @@ const copy = {
 			},
 			{
 				title: "Wordmark for light backgrounds",
-				description: "Full superfile wordmark with dark lettering for light layouts.",
+				description: "The upstream superfile wordmark for light layouts, retained with attribution.",
 				href: logoDay.src,
 				download: "superfile-wordmark-light.svg",
 				preview: logoDay.src,
@@ -62,14 +62,14 @@ const copy = {
 		download: "Download SVG",
 		usageTitle: "Usage notes",
 		usage: [
-			"Keep the logo proportions intact.",
-			"Leave clear space around the mark so it does not touch nearby text or borders.",
-			"Do not recolor, stretch, rotate, or add effects to the logo.",
-			"Pair the logo with the lowercase name: superfile."
+			"Use Xelif for the fork and superfile for the upstream project.",
+			"Link upstream references to github.com/yorukot/superfile.",
+			"Keep upstream logo proportions intact and identify the asset as inherited from superfile.",
+			"Retain the MIT license and third-party notices when redistributing the project."
 		],
 		footer: {
 			license: "MIT License",
-			byPrefix: "by",
+			byPrefix: "based on work by",
 			byConnector: " & ",
 			contributorsText: "contributors",
 			bySuffixEnd: "",
@@ -83,21 +83,21 @@ const copy = {
 		}
 	},
 	"zh-tw": {
-		title: "superfile 品牌資源",
-		description: "下載 superfile 標誌與字標，並查看專案名稱的基本使用規範。",
+		title: "Xelif 品牌資源",
+		description: "Xelif 名稱使用方式，以及繼承自 superfile 的視覺資產標示。",
 		nav: {
 			docs: "文件",
-			github: "GitHub",
+			github: "上游專案",
 			discord: "Discord",
 			getStarted: "開始使用",
-			homeAria: "superfile 首頁"
+			homeAria: "Xelif 首頁"
 		},
 		label: "// 品牌資源",
-		headline: "下載 superfile 標誌",
-		intro: "撰寫 superfile 相關內容、整理專案清單，或連結到社群時，可以使用這些品牌資源。",
-		nameRule: "專案名稱請寫成 superfile，全部使用小寫。",
-		nameNote: "除非是在引用原文，否則請避免寫成 Superfile、SuperFile 或 SUPERFILE。",
-		assetsTitle: "標誌下載",
+		headline: "此分支稱為 Xelif",
+		intro: "此工作專案請使用 Xelif；提及 yorukot 的上游專案、相容名稱、繼承資產、套件或社群時則使用 superfile。",
+		nameRule: "分支名稱請寫成 Xelif，X 使用大寫。",
+		nameNote: "為了相容性，執行檔仍稱為 spf，設定目錄仍稱為 superfile。",
+		assetsTitle: "繼承的上游資產",
 		assets: [
 			{
 				title: "App 圖示",
@@ -126,10 +126,15 @@ const copy = {
 		],
 		download: "下載 SVG",
 		usageTitle: "使用提醒",
-		usage: ["請維持標誌原本的比例。", "標誌周圍保留足夠留白，避免緊貼文字或邊框。", "請勿重新上色、拉伸、旋轉，或替標誌加上特效。", "搭配文字時，請使用全小寫名稱：superfile。"],
+		usage: [
+			"此分支使用 Xelif，上游專案使用 superfile。",
+			"提及上游時請連結至 github.com/yorukot/superfile。",
+			"請維持上游標誌比例，並清楚標示該資產繼承自 superfile。",
+			"重新散布專案時請保留 MIT 授權及第三方聲明。"
+		],
 		footer: {
 			license: "MIT 授權",
-			byPrefix: "由",
+			byPrefix: "基於",
 			byConnector: " 與",
 			contributorsText: "貢獻者",
 			bySuffixEnd: "共同維護",
@@ -158,7 +163,7 @@ const copy = {
 
 			<aside class="brand-name-card" aria-label={copy.nameRule}>
 				<p class="brand-name-card-kicker">naming</p>
-				<p class="brand-name-card-name">superfile</p>
+				<p class="brand-name-card-name">Xelif</p>
 				<p class="brand-name-card-rule">{copy.nameRule}</p>
 				<p class="brand-name-card-note">{copy.nameNote}</p>
 			</aside>
@@ -203,7 +208,7 @@ const copy = {
 	<footer class="branding-footer">
 		<div class="branding-footer-inner">
 			<div class="branding-footer-left">
-				<a href={homeHref} class="branding-footer-brand">superfile</a>
+				<a href={homeHref} class="branding-footer-brand">Xelif</a>
 				<span class="branding-footer-sep" aria-hidden="true">·</span>
 				<span>{copy.footer.license}</span>
 				<span class="branding-footer-sep" aria-hidden="true">·</span>

@@ -19,6 +19,12 @@ pnpm-debug.log*
 coverage.out
 coverage.html
 
+# Legacy local build/test caches; current toolchains live in Xelif-work.
+.tmp/go-build/
+.tmp/go-cache/
+.tmp/test/
+.tmp/*.cover
+
 # environment variables
 .env
 .env.production

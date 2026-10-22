@@ -1,14 +1,14 @@
 ---
-title: superfile 設定
-description: 設定你的 superfile
+title: Xelif 設定
+description: 使用與 superfile 相容的設定檔來設定 Xelif
 head:
   - tag: title
-    content: superfile 設定 | superfile
+    content: Xelif 設定 | Xelif
 ---
 
 import CodeBlock from "../../../../components/code.astro";
 
-你可以使用以下指令編輯 superfile 設定檔：
+Xelif 目前刻意沿用 superfile 的設定檔名稱及位置。你可以使用以下指令編輯：
 
 ```bash
 $EDITOR config_path
@@ -120,6 +120,12 @@ notepad $PROFILE
 
 `false` => 執行 superfile 時隱藏檔案預覽視窗。
 
+- ###### restore_last_session
+
+`true` => 在一般啟動時還原上次的面板、分頁、排序、瀏覽記錄，以及預覽與頁尾配置。
+
+`false` => 從設定的目錄或目前目錄開始。命令列指定的路徑一律優先。
+
 - ###### show_image_preview
 
 `true` => 選取圖片檔案時，在 file preview panel 中顯示圖片預覽。
@@ -179,6 +185,16 @@ File panel 排序是否區分大小寫（如果為 `true`，大寫字母會排�
 `true` => 指令成功執行後關閉 shell
 
 `false` => 指令成功執行後保留 shell
+
+- ###### plain_mode
+
+`true` => 使用 ASCII 邊框、停用 Nerd Font 圖示，並停用圖片預覽。也可以獨立使用標準的 `NO_COLOR` 環境變數來停用色彩。
+
+`false` => 使用設定的邊框、圖示及預覽選項。
+
+- ###### language
+
+設定介面語言基礎。支援 `"auto"`、`"en"` 及 `"zh-TW"`。翻譯仍在逐步完善，部分介面文字可能仍為英文。
 
 - ###### debug
 
@@ -380,6 +396,6 @@ xopp = "xournalpp"
 conf = "nvim"
 ```
 
-### 預設 superfile 設定
+### 預設 Xelif 設定
 
 <CodeBlock file="src/superfile_config/config.toml" />

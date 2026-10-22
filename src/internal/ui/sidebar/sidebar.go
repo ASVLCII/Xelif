@@ -1,8 +1,10 @@
 package sidebar
 
 import (
+	"errors"
 	"log/slog"
 	"slices"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -33,6 +35,7 @@ func (s *Model) CancelSidebarRename() {
 
 // ConfirmSidebarRename finalizes the rename process and saves changes to the pinned directories file.
 func (s *Model) ConfirmSidebarRename() {
+	s.refreshDirty = true
 	itemLocation := s.directories[s.cursor].Location
 	newItemName := s.rename.Value()
 	// This is needed to update the current pinned directory data loaded into memory
@@ -83,15 +86,54 @@ func (s *Model) HandleSearchBarKey(msg string) {
 	}
 }
 
-// UpdateDirectories refreshes the list of directories based on the search query or section configuration.
-func (s *Model) UpdateDirectories() {
+// UpdateDirectoriesIfNeeded reuses the current snapshot for unrelated input events.
+// Search changes and in-app mutations are immediate; external changes are polled.
+func (s *Model) UpdateDirectoriesIfNeeded() {
+	s.updateDirectoriesIfNeeded(time.Now())
+}
+
+const directoryRefreshInterval = time.Second
+
+func (s *Model) updateDirectoriesIfNeeded(now time.Time) {
 	if s.Disabled() {
 		return
 	}
+	if s.refreshDirty || s.lastRefresh.IsZero() || s.lastSearch != s.searchBar.Value() ||
+		now.Sub(s.lastRefresh) >= directoryRefreshInterval {
+		s.refreshDirectories(now)
+	}
+}
+
+// UpdateDirectories explicitly refreshes, bypassing the routine input throttle.
+func (s *Model) UpdateDirectories() {
+	s.refreshDirectories(time.Now())
+}
+
+func (s *Model) refreshDirectories(now time.Time) {
+	if s.Disabled() {
+		return
+	}
+	selectedLocation := s.GetCurrentDirectoryLocation()
+	previous := s.directories
 	if s.searchBar.Value() != "" {
-		s.directories = getFilteredDirectories(s.searchBar.Value(), s.pinnedMgr, s.sections)
+		s.directories = getFilteredDirectories(s.searchBar.Value(), s.pinnedMgr, s.recentMgr, s.sections)
 	} else {
-		s.directories = getDirectories(s.pinnedMgr, s.sections)
+		s.directories = getDirectories(s.pinnedMgr, s.recentMgr, s.sections)
+	}
+	s.lastRefresh = now
+	s.lastSearch = s.searchBar.Value()
+	s.refreshDirty = false
+	if slices.Equal(previous, s.directories) {
+		return // input/timer refreshes must not undo independent wheel scrolling
+	}
+	if selectedLocation != "" {
+		for i := range s.directories {
+			if sameRecentPath(s.directories[i].Location, selectedLocation) {
+				s.cursor = i
+				s.updateRenderIndex()
+				return
+			}
+		}
 	}
 	// This is needed, as due to filtering, the cursor might be invalid
 	if s.isCursorInvalid() {
@@ -101,14 +143,26 @@ func (s *Model) UpdateDirectories() {
 
 // TogglePinnedDirectory adds or removes a directory from the pinned list.
 func (s *Model) TogglePinnedDirectory(dir string) error {
+	s.refreshDirty = true
 	return s.pinnedMgr.Toggle(dir)
+}
+
+// AddRecent records a directory as the most recently visited folder.
+func (s *Model) AddRecent(path string) error {
+	if s.recentMgr == nil {
+		return errors.New("recent directory manager is unavailable")
+	}
+	s.refreshDirty = true
+	return s.recentMgr.Add(path)
 }
 
 // New initializes and returns a new Model for the sidebar correctly set up with configuration.
 func New() Model {
+	recentMgr := NewRecentFileManager(variable.RecentFile)
 	if common.Config.SidebarWidth == 0 {
 		return Model{
-			disabled: true,
+			disabled:  true,
+			recentMgr: &recentMgr,
 		}
 	}
 	// pinnedMgr is created here, can be done higher up in the call chain
@@ -117,14 +171,15 @@ func New() Model {
 		renderIndex: 0,
 		searchBar:   common.GenerateSearchBar(),
 		pinnedMgr:   &pinnedMgr,
+		recentMgr:   &recentMgr,
 		width:       common.Config.SidebarWidth + common.BorderPadding,
 		height:      minHeight,
 		disabled:    false,
 		sections:    common.Config.SidebarSections,
 	}
 
-	s.directories = getDirectories(&pinnedMgr, s.sections)
+	s.UpdateDirectories()
 	s.searchBar.SetWidth(s.width - common.BorderPadding - searchBarPadding)
-	s.searchBar.Placeholder = "(" + common.Hotkeys.SearchBar[0] + ")" + " Search"
+	s.searchBar.Placeholder = "Search"
 	return s
 }

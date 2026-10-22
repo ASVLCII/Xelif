@@ -9,7 +9,7 @@ import (
 )
 
 // Return help menu for Hotkeys
-func getData() []hotkeydata { //nolint: funlen // This should be self contained
+func getData() []hotkeydata { //nolint:funlen,maintidx // Keep the flat hotkey catalog together for review and ordering.
 	data := []hotkeydata{
 		{
 			subTitle: "General",
@@ -65,6 +65,16 @@ func getData() []hotkeydata { //nolint: funlen // This should be self contained
 			hotkeyWorkType: globalType,
 		},
 		{
+			hotkey:         common.Hotkeys.OpenGlobalSearch,
+			description:    "Search files everywhere",
+			hotkeyWorkType: globalType,
+		},
+		{
+			hotkey:         common.Hotkeys.OpenCommandPalette,
+			description:    "Search and run every command",
+			hotkeyWorkType: globalType,
+		},
+		{
 			subTitle: "Panel navigation",
 		},
 		{
@@ -80,6 +90,36 @@ func getData() []hotkeydata { //nolint: funlen // This should be self contained
 		{
 			hotkey:         common.Hotkeys.CloseFilePanel,
 			description:    "Close the focused file panel",
+			hotkeyWorkType: globalType,
+		},
+		{
+			hotkey:         common.Hotkeys.NewFileTab,
+			description:    "Open a tab in the focused panel",
+			hotkeyWorkType: globalType,
+		},
+		{
+			hotkey:         common.Hotkeys.CloseFileTab,
+			description:    "Close the active tab",
+			hotkeyWorkType: globalType,
+		},
+		{
+			hotkey:         common.Hotkeys.NextFileTab,
+			description:    "Switch to the next tab",
+			hotkeyWorkType: globalType,
+		},
+		{
+			hotkey:         common.Hotkeys.PreviousFileTab,
+			description:    "Switch to the previous tab",
+			hotkeyWorkType: globalType,
+		},
+		{
+			hotkey:         common.Hotkeys.HistoryBack,
+			description:    "Go back in tab history",
+			hotkeyWorkType: globalType,
+		},
+		{
+			hotkey:         common.Hotkeys.HistoryForward,
+			description:    "Go forward in tab history",
 			hotkeyWorkType: globalType,
 		},
 		{
@@ -161,6 +201,26 @@ func getData() []hotkeydata { //nolint: funlen // This should be self contained
 			hotkeyWorkType: globalType,
 		},
 		{
+			hotkey:         common.Hotkeys.FilePanelSelectRange,
+			description:    "Select a range to the current item",
+			hotkeyWorkType: selectType,
+		},
+		{
+			hotkey:         common.Hotkeys.FilePanelInvertSelection,
+			description:    "Invert the visible selection",
+			hotkeyWorkType: selectType,
+		},
+		{
+			hotkey:         common.Hotkeys.FilePanelSelectFiles,
+			description:    "Select visible files",
+			hotkeyWorkType: selectType,
+		},
+		{
+			hotkey:         common.Hotkeys.FilePanelSelectDirectories,
+			description:    "Select visible folders",
+			hotkeyWorkType: selectType,
+		},
+		{
 			hotkey:         common.Hotkeys.FilePanelSelectModeItemsSelectUp,
 			description:    "Select up from your cursor",
 			hotkeyWorkType: globalType,
@@ -216,6 +276,11 @@ func getData() []hotkeydata { //nolint: funlen // This should be self contained
 		{
 			hotkey:         common.Hotkeys.PasteItems,
 			description:    "Paste clipboard items into the current file panel",
+			hotkeyWorkType: globalType,
+		},
+		{
+			hotkey:         common.Hotkeys.UndoLastFileOperation,
+			description:    "Undo the last rename or move",
 			hotkeyWorkType: globalType,
 		},
 		{

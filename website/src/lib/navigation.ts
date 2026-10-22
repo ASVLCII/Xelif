@@ -49,9 +49,9 @@ export const navigation: NavNode[] = [
 				zhLabel: "設定檔路徑"
 			},
 			{
-				label: "superfile config",
+				label: "Xelif config",
 				slug: "configure/superfile-config",
-				zhLabel: "superfile 設定"
+				zhLabel: "Xelif 設定"
 			},
 			{
 				label: "Custom Hotkeys",

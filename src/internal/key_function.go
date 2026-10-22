@@ -20,55 +20,27 @@ import (
 // mainKey handles most of key commands in the regular state of the application. For
 // keys that performs actions in multiple panels, like going up or down,
 // check the state of model m and handle properly.
-// TODO: This function has grown too big. It needs to be fixed, via major
-// updates and fixes in key handling code
-func (m *model) mainKey(msg string) tea.Cmd { //nolint: gocyclo,cyclop,funlen,gocognit // See above
+// Keep binding checks flat and ordered: custom hotkeys can overlap, and the
+// first matching action must win. Helpers handle focus-dependent operations.
+//
+//nolint:gocyclo,cyclop,funlen // Ordered binding dispatch preserves custom-key precedence.
+func (m *model) mainKey(msg string) tea.Cmd {
 	switch {
+	case msg == "shift+f10", msg == "menu":
+		m.openKeyboardContextMenu()
 	// If move up Key is pressed, check the current state and executes
 	case slices.Contains(common.Hotkeys.ListUp, msg):
-		switch m.focusPanel {
-		case sidebarFocus:
-			m.sidebarModel.ListUp()
-		case processBarFocus:
-			m.processBarModel.ListUp()
-		case metadataFocus:
-			m.fileMetaData.ListUp()
-		case nonePanelFocus:
-			m.getFocusedFilePanel().ListUp()
-		}
+		m.navigateListUp()
 
 		// If move down Key is pressed, check the current state and executes
 	case slices.Contains(common.Hotkeys.ListDown, msg):
-		switch m.focusPanel {
-		case sidebarFocus:
-			m.sidebarModel.ListDown()
-		case processBarFocus:
-			m.processBarModel.ListDown()
-		case metadataFocus:
-			m.fileMetaData.ListDown()
-		case nonePanelFocus:
-			m.getFocusedFilePanel().ListDown()
-		}
+		m.navigateListDown()
 
 	case slices.Contains(common.Hotkeys.PageUp, msg):
-		switch m.focusPanel {
-		case metadataFocus:
-			m.fileMetaData.PgUp()
-		case nonePanelFocus:
-			m.getFocusedFilePanel().PgUp()
-		case processBarFocus, sidebarFocus:
-			// These panels have no page scrolling, so page keys do nothing.
-		}
+		m.navigatePageUp()
 
 	case slices.Contains(common.Hotkeys.PageDown, msg):
-		switch m.focusPanel {
-		case metadataFocus:
-			m.fileMetaData.PgDown()
-		case nonePanelFocus:
-			m.getFocusedFilePanel().PgDown()
-		case processBarFocus, sidebarFocus:
-			// These panels have no page scrolling, so page keys do nothing.
-		}
+		m.navigatePageDown()
 
 	case slices.Contains(common.Hotkeys.ChangePanelMode, msg):
 		m.getFocusedFilePanel().ChangeFilePanelMode()
@@ -103,6 +75,20 @@ func (m *model) mainKey(msg string) tea.Cmd { //nolint: gocyclo,cyclop,funlen,go
 		return cmd
 	case slices.Contains(common.Hotkeys.ToggleFilePreviewPanel, msg):
 		return m.fileModel.ToggleFilePreviewPanel()
+	case slices.Contains(common.Hotkeys.NewFileTab, msg):
+		if err := m.getFocusedFilePanel().NewTab(m.getFocusedFilePanel().Location); err != nil {
+			m.showUserError("Could not open tab", err)
+		}
+	case slices.Contains(common.Hotkeys.CloseFileTab, msg):
+		m.finishTabNavigation(m.getFocusedFilePanel().CloseTab(), "Could not close tab")
+	case slices.Contains(common.Hotkeys.NextFileTab, msg):
+		m.finishTabNavigation(m.getFocusedFilePanel().NextTab(), "Could not switch tab")
+	case slices.Contains(common.Hotkeys.PreviousFileTab, msg):
+		m.finishTabNavigation(m.getFocusedFilePanel().PreviousTab(), "Could not switch tab")
+	case slices.Contains(common.Hotkeys.HistoryBack, msg):
+		m.finishTabNavigation(m.getFocusedFilePanel().Back(), "Could not go back")
+	case slices.Contains(common.Hotkeys.HistoryForward, msg):
+		m.finishTabNavigation(m.getFocusedFilePanel().Forward(), "Could not go forward")
 
 	case slices.Contains(common.Hotkeys.FocusOnSidebar, msg):
 		m.focusOnSideBar()
@@ -115,6 +101,8 @@ func (m *model) mainKey(msg string) tea.Cmd { //nolint: gocyclo,cyclop,funlen,go
 
 	case slices.Contains(common.Hotkeys.PasteItems, msg):
 		return m.getPasteItemCmd()
+	case slices.Contains(common.Hotkeys.UndoLastFileOperation, msg):
+		return m.getUndoLastFileOperationCmd()
 
 	case slices.Contains(common.Hotkeys.FilePanelItemCreate, msg):
 		m.panelCreateNewFile()
@@ -139,6 +127,10 @@ func (m *model) mainKey(msg string) tea.Cmd { //nolint: gocyclo,cyclop,funlen,go
 		m.promptModal.Open(false)
 	case slices.Contains(common.Hotkeys.OpenZoxide, msg):
 		return m.zoxideModal.Open()
+	case slices.Contains(common.Hotkeys.OpenGlobalSearch, msg):
+		return m.globalSearchModal.Open(m.getFocusedFilePanel().Location)
+	case slices.Contains(common.Hotkeys.OpenCommandPalette, msg):
+		return m.openCommandPalette()
 
 	case slices.Contains(common.Hotkeys.OpenHelpMenu, msg):
 		m.helpMenu.Open()
@@ -214,6 +206,14 @@ func (m *model) filePanelSelectModeKey(msg string) tea.Cmd {
 		m.copyPath()
 	case slices.Contains(common.Hotkeys.FilePanelSelectAllItem, msg):
 		panel.SelectAllItem()
+	case slices.Contains(common.Hotkeys.FilePanelSelectRange, msg):
+		panel.SelectRangeTo(panel.GetCursor())
+	case slices.Contains(common.Hotkeys.FilePanelInvertSelection, msg):
+		panel.InvertVisibleSelection()
+	case slices.Contains(common.Hotkeys.FilePanelSelectFiles, msg):
+		panel.SelectVisibleFiles()
+	case slices.Contains(common.Hotkeys.FilePanelSelectDirectories, msg):
+		panel.SelectVisibleDirectories()
 	}
 	return nil
 }
@@ -277,6 +277,10 @@ func (m *model) handleNotifyModelCancel(action notify.ConfirmActionType) tea.Cmd
 		m.cancelRename()
 	case notify.QuitAction:
 		m.modelQuitState = notQuitting
+	case notify.GitDiscardAction:
+		m.pendingGitDiscard = nil
+	case notify.DropPasteAction:
+		m.pendingDroppedPaths = nil
 	case notify.DeleteAction, notify.NoAction, notify.PermanentDeleteAction:
 		// Do nothing
 	default:
@@ -297,6 +301,16 @@ func (m *model) handleNotifyModelConfirm(action notify.ConfirmActionType) tea.Cm
 		m.modelQuitState = quitConfirmationReceived
 	case notify.NoAction:
 		// Ignore
+	case notify.GitDiscardAction:
+		paths := append([]string(nil), m.pendingGitDiscard...)
+		m.pendingGitDiscard = nil
+		return m.gitMutationCmd(gitMutationDiscard, paths)
+	case notify.DropPasteAction:
+		paths := append([]string(nil), m.pendingDroppedPaths...)
+		m.pendingDroppedPaths = nil
+		m.clipboard.Reset(false)
+		m.clipboard.SetItems(paths)
+		return m.getPasteItemCmd()
 	default:
 		slog.Error("Unknown type of action", "action", action)
 	}
@@ -342,18 +356,13 @@ func (m *model) sortOptionsKey(msg string) {
 	}
 }
 
-func (m *model) renamingKey(msg string) tea.Cmd {
+func (m *model) renamingKey(msg string) {
 	switch {
 	case slices.Contains(common.Hotkeys.CancelTyping, msg):
 		m.cancelRename()
 	case slices.Contains(common.Hotkeys.ConfirmTyping, msg):
-		if m.IsRenamingConflicting() {
-			return m.warnModalForRenaming()
-		}
 		m.confirmRename()
 	}
-
-	return nil
 }
 
 func (m *model) sidebarRenamingKey(msg string) {

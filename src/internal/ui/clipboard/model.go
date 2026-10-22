@@ -12,9 +12,10 @@ import (
 
 // The fact that its visible in UI or not, is controlled by the main model
 type Model struct {
-	width  int
-	height int
-	items  copyItems
+	width      int
+	height     int
+	items      copyItems
+	generation uint64
 }
 
 // Copied items
@@ -63,24 +64,31 @@ func (m *Model) IsCut() bool {
 }
 
 func (m *Model) Reset(cut bool) {
+	m.generation++
 	m.items.cut = cut
 	m.items.items = m.items.items[:0]
 }
 
 func (m *Model) Add(location string) {
+	m.generation++
 	m.items.items = append(m.items.items, location)
 }
 
 func (m *Model) SetItems(items []string) {
+	m.generation++
 	m.items.items = make([]string, len(items))
 	copy(m.items.items, items)
 }
 
 func (m *Model) pruneInaccessibleItems() {
+	previousLength := len(m.items.items)
 	m.items.items = slices.DeleteFunc(m.items.items, func(item string) bool {
 		_, err := os.Lstat(item)
 		return err != nil
 	})
+	if len(m.items.items) != previousLength {
+		m.generation++
+	}
 }
 
 func (m *Model) GetItems() []string {
@@ -115,4 +123,8 @@ func (m *Model) GetFirstItem() string {
 		return ""
 	}
 	return m.items.items[0]
+}
+
+func (m *Model) Generation() uint64 {
+	return m.generation
 }

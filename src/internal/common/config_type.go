@@ -74,6 +74,7 @@ type ConfigType struct {
 	AutoCheckUpdate        bool   `toml:"auto_check_update"         comment:"\nAuto check for update"`
 	CdOnQuit               bool   `toml:"cd_on_quit"                comment:"\nCd on quit (For more details, please check out https://superfile.dev/configure/superfile-config/#cd_on_quit)"`
 	DefaultOpenFilePreview bool   `toml:"default_open_file_preview" comment:"\nWhether to open file preview automatically every time superfile is opened."`
+	RestoreLastSession     bool   `toml:"restore_last_session"      comment:"\nRestore panels, tabs, layout, and navigation history from the previous session."`
 	ShowImagePreview       bool   `toml:"show_image_preview"        comment:"\nWhether to show image preview."`
 	ShowPanelFooterInfo    bool   `toml:"show_panel_footer_info"    comment:"\nWhether to show additional footer info for file panel."`
 	DefaultDirectory       string `toml:"default_directory"         comment:"\nThe path of the first file panel when superfile is opened."`
@@ -83,6 +84,8 @@ type ConfigType struct {
 	CaseSensitiveSort      bool   `toml:"case_sensitive_sort"       comment:"\nCase sensitive sort by name (capital \"B\" comes before \"a\" if true)."`
 	ShellCloseOnSuccess    bool   `toml:"shell_close_on_success"    comment:"\nWhether to close the shell on successful command execution."`
 	Debug                  bool   `toml:"debug"                     comment:"\nWhether to enable debug mode."`
+	PlainMode              bool   `toml:"plain_mode"                comment:"\nUse ASCII borders, no Nerd Font glyphs, and no image previews for accessibility."`
+	Language               string `toml:"language"                  comment:"\nUI language: auto, en, or zh-TW."`
 	// IgnoreMissingFields controls whether warnings about missing TOML fields are suppressed.
 	IgnoreMissingFields   bool `toml:"ignore_missing_fields"    comment:"\nWhether to ignore warnings about missing fields in the config file."`
 	PageScrollSize        int  `toml:"page_scroll_size"         comment:"\nNumber of lines to scroll for PgUp/PgDown keys (0: full page, default behavior)."`
@@ -90,13 +93,14 @@ type ConfigType struct {
 	FilePanelNamePercent  int  `toml:"file_panel_name_percent"  comment:"\nPercentage of file panel width allocated to file names (25-100). Higher values give more space to names, less to extra columns."`
 
 	Nerdfont                bool     `toml:"nerdfont"                   comment:"\n================   Style =================\n\n If you don't have or don't want Nerdfont installed you can turn this off"`
+	ColorFileIcons          bool     `toml:"color_file_icons"           comment:"\nColor file-type icons while keeping filenames and the interface neutral."`
 	ShowSelectIcons         bool     `toml:"show_select_icons"          comment:"\nShow checkbox icons in select mode (requires nerdfont)"`
 	TransparentBackground   bool     `toml:"transparent_background"     comment:"\nSet transparent background or not (this only work when your terminal background is transparent)"`
 	FilePreviewWidth        int      `toml:"file_preview_width"         comment:"\nFile preview width allow '0' (this mean same as file panel),'x' x must be less than 10 and greater than 1 (This means that the width of the file preview will be one xth of the total width.)"`
 	EnableFilePreviewBorder bool     `toml:"enable_file_preview_border" comment:"\nEnable border around the file preview panel (default: false)"`
 	CodePreviewer           string   `toml:"code_previewer"             comment:"\nWhether to use the builtin syntax highlighting with chroma or use bat. Values: \"\" for builtin chroma, \"bat\" for bat"`
 	SidebarWidth            int      `toml:"sidebar_width"              comment:"\nThe length of the sidebar(excluding borders). If you don't find to display the sidebar, you can input 0 directly. If you want to display the value, please place it in the range of 5-20."`
-	SidebarSections         []string `toml:"sidebar_sections"           comment:"\nOrder of sidebar sections (valid values: \"home\", \"pinned\", \"disks\").\nOnly sections included in this list will be displayed."`
+	SidebarSections         []string `toml:"sidebar_sections"           comment:"\nOrder of sidebar sections (valid values: \"home\", \"recent\", \"pinned\", \"disks\").\nOnly sections included in this list will be displayed."`
 
 	BorderTop         string `toml:"border_top"          comment:"\nBorder style"`
 	BorderBottom      string `toml:"border_bottom"`
@@ -138,6 +142,12 @@ type HotkeysType struct {
 	ToggleFilePreviewPanel []string `toml:"toggle_file_preview_panel"`
 	OpenSortOptionsMenu    []string `toml:"open_sort_options_menu"`
 	ToggleReverseSort      []string `toml:"toggle_reverse_sort"`
+	NewFileTab             []string `toml:"new_file_tab"`
+	CloseFileTab           []string `toml:"close_file_tab"`
+	NextFileTab            []string `toml:"next_file_tab"`
+	PreviousFileTab        []string `toml:"previous_file_tab"`
+	HistoryBack            []string `toml:"history_back"`
+	HistoryForward         []string `toml:"history_forward"`
 
 	FocusOnProcessBar []string `toml:"focus_on_process_bar" comment:"change focus"`
 	FocusOnSidebar    []string `toml:"focus_on_sidebar"`
@@ -149,6 +159,7 @@ type HotkeysType struct {
 	CopyItems              []string `toml:"copy_items"               comment:"file operate"`
 	PasteItems             []string `toml:"paste_items"`
 	CutItems               []string `toml:"cut_items"`
+	UndoLastFileOperation  []string `toml:"undo_last_file_operation"`
 	DeleteItems            []string `toml:"delete_items"`
 	PermanentlyDeleteItems []string `toml:"permanently_delete_items"`
 
@@ -158,13 +169,15 @@ type HotkeysType struct {
 	OpenFileWithEditor             []string `toml:"open_file_with_editor"              comment:"editor"`
 	OpenCurrentDirectoryWithEditor []string `toml:"open_current_directory_with_editor"`
 
-	PinnedDirectory []string `toml:"pinned_directory"  comment:"other"`
-	ToggleDotFile   []string `toml:"toggle_dot_file"`
-	ChangePanelMode []string `toml:"change_panel_mode"`
-	OpenHelpMenu    []string `toml:"open_help_menu"`
-	OpenCommandLine []string `toml:"open_command_line"`
-	OpenSPFPrompt   []string `toml:"open_spf_prompt"`
-	OpenZoxide      []string `toml:"open_zoxide"`
+	PinnedDirectory    []string `toml:"pinned_directory"     comment:"other"`
+	ToggleDotFile      []string `toml:"toggle_dot_file"`
+	ChangePanelMode    []string `toml:"change_panel_mode"`
+	OpenHelpMenu       []string `toml:"open_help_menu"`
+	OpenCommandLine    []string `toml:"open_command_line"`
+	OpenSPFPrompt      []string `toml:"open_spf_prompt"`
+	OpenZoxide         []string `toml:"open_zoxide"`
+	OpenGlobalSearch   []string `toml:"open_global_search"`
+	OpenCommandPalette []string `toml:"open_command_palette"`
 
 	CopyPath []string `toml:"copy_path"`
 	CopyPWD  []string `toml:"copy_present_working_directory"`
@@ -180,4 +193,8 @@ type HotkeysType struct {
 	FilePanelSelectModeItemsSelectDown []string `toml:"file_panel_select_mode_items_select_down" comment:"=================================================================================================\nSelect mode hotkeys (can conflict with other modes, cannot conflict with global hotkeys)"`
 	FilePanelSelectModeItemsSelectUp   []string `toml:"file_panel_select_mode_items_select_up"`
 	FilePanelSelectAllItem             []string `toml:"file_panel_select_all_items"`
+	FilePanelSelectRange               []string `toml:"file_panel_select_range"`
+	FilePanelInvertSelection           []string `toml:"file_panel_invert_selection"`
+	FilePanelSelectFiles               []string `toml:"file_panel_select_files"`
+	FilePanelSelectDirectories         []string `toml:"file_panel_select_directories"`
 }

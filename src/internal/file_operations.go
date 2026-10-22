@@ -44,82 +44,6 @@ func getDriveLetter(path string) string {
 	return strings.ToUpper(string(path[0]))
 }
 
-// moveElement moves a file or directory efficiently
-func moveElement(src, dst string) error {
-	// Check if source and destination are on the same partition
-	sameDev, err := isSamePartition(src, dst)
-	if err != nil {
-		return fmt.Errorf("failed to check partitions: %w", err)
-	}
-
-	// If on the same partition, attempt to rename (which will use the same inode)
-	if sameDev {
-		if err = os.Rename(src, dst); err == nil {
-			return nil
-		}
-		// If rename fails, fall back to copy+delete
-	}
-
-	// If on different partitions or rename failed, fall back to copy+delete
-	err = copyElement(src, dst)
-	if err != nil {
-		return fmt.Errorf("failed to copy: %w", err)
-	}
-
-	err = os.RemoveAll(src)
-	if err != nil {
-		return fmt.Errorf("failed to remove source after copy: %w", err)
-	}
-
-	return nil
-}
-
-// copyElement handles copying of both files and directories
-func copyElement(src, dst string) error {
-	srcInfo, err := os.Stat(src)
-	if err != nil {
-		return fmt.Errorf("failed to stat source: %w", err)
-	}
-
-	if srcInfo.IsDir() {
-		return copyDir(src, dst, srcInfo)
-	}
-	return copyFile(src, dst, srcInfo)
-}
-
-// copyDir recursively copies a directory
-func copyDir(src, dst string, srcInfo os.FileInfo) error {
-	err := os.MkdirAll(dst, srcInfo.Mode())
-	if err != nil {
-		return fmt.Errorf("failed to create destination directory: %w", err)
-	}
-
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		return fmt.Errorf("failed to read source directory: %w", err)
-	}
-
-	for _, entry := range entries {
-		srcPath := filepath.Join(src, entry.Name())
-		dstPath := filepath.Join(dst, entry.Name())
-
-		entryInfo, err := entry.Info()
-		if err != nil {
-			return fmt.Errorf("failed to get entry info: %w", err)
-		}
-
-		if entryInfo.IsDir() {
-			err = copyDir(srcPath, dstPath, entryInfo)
-		} else {
-			err = copyFile(srcPath, dstPath, entryInfo)
-		}
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // is an equivalent of "cp -P" command
 func copyLinkFile(src, dst string) error {
 	target, err := os.Readlink(src)
@@ -141,7 +65,9 @@ func copyFile(src, dst string, srcInfo os.FileInfo) error {
 	}
 	defer srcFile.Close()
 
-	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, srcInfo.Mode())
+	// The earlier duplicate-name check is not an ownership guarantee: another
+	// process may create this path before we open it. Never truncate that file.
+	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, srcInfo.Mode())
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
@@ -149,6 +75,9 @@ func copyFile(src, dst string, srcInfo os.FileInfo) error {
 
 	if _, err := io.Copy(dstFile, srcFile); err != nil {
 		return fmt.Errorf("failed to copy file contents: %w", err)
+	}
+	if err := dstFile.Close(); err != nil {
+		return fmt.Errorf("failed to close destination file: %w", err)
 	}
 	return nil
 }
@@ -266,7 +195,7 @@ func isAncestor(src, dst string) bool {
 	}
 
 	// On Windows, perform case-insensitive comparison
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == utils.OsWindows {
 		srcAbs = strings.ToLower(srcAbs)
 		dstAbs = strings.ToLower(dstAbs)
 	}

@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/yorukot/superfile/src/config/icon"
 	"github.com/yorukot/superfile/src/internal/common"
 	"github.com/yorukot/superfile/src/internal/ui"
@@ -34,10 +37,26 @@ func (m *Model) Render(focused bool) string {
 }
 
 func (m *Model) renderTopBar(r *rendering.Renderer) {
-	// TODO - Add ansitruncate left in renderer and remove truncation here
-	truncatedPath := common.TruncateTextBeginning(m.Location, m.GetContentWidth()-common.InnerPadding, "...")
-	r.AddLines(common.FilePanelTopDirectoryIcon + common.FilePanelTopPathStyle.Render(truncatedPath))
-	r.AddSection()
+	tabBar := m.renderTabBar()
+	prefixWidth := ansi.StringWidth(tabBar) + ansi.StringWidth(common.FilePanelTopDirectoryIcon)
+	availableWidth := m.GetContentWidth() - prefixWidth
+	if m.TabCount() == 1 {
+		availableWidth -= len(" [+]")
+	}
+	breadcrumbs := ""
+	if availableWidth > 0 {
+		breadcrumbs, _ = m.headerBreadcrumbs(availableWidth)
+	}
+	directoryColor := common.GetElementIcon("folder", true, false, common.Config.Nerdfont).Color
+	directoryIcon := common.FilePanelTopDirectoryIconStyle.Foreground(lipgloss.Color(directoryColor)).
+		Render(ansi.Strip(common.FilePanelTopDirectoryIcon))
+	line := tabBar + directoryIcon + common.FilePanelTopPathStyle.Render(breadcrumbs)
+	if m.TabCount() == 1 {
+		line += strings.Repeat(" ", max(1, m.GetContentWidth()-ansi.StringWidth(line)-len("[+]"))) + "[+]"
+	}
+	r.AddLines(line)
+	searchLabel, commandLabel := m.searchActionLabels()
+	r.AddLines(common.FilePanelTopPathStyle.Render(searchLabel + "  " + commandLabel))
 }
 
 func (m *Model) renderSearchBar(r *rendering.Renderer) {
@@ -46,6 +65,10 @@ func (m *Model) renderSearchBar(r *rendering.Renderer) {
 
 // TODO : Unit test this
 func (m *Model) renderFooter(r *rendering.Renderer, selectedCount uint) {
+	r.SetBorderInfoItems(m.footerInfoItems(selectedCount)...)
+}
+
+func (m *Model) footerInfoItems(selectedCount uint) []string {
 	sortLabel, sortIcon := m.getSortInfo()
 	modeLabel, modeIcon := m.getPanelModeInfo(selectedCount)
 	cursorStr := m.getCursorString()
@@ -59,14 +82,17 @@ func (m *Model) renderFooter(r *rendering.Renderer, selectedCount uint) {
 		sortLabel = sortIcon + " " + sortLabel
 	}
 
-	if common.Config.ShowPanelFooterInfo {
-		r.SetBorderInfoItems(sortLabel, modeLabel, cursorStr)
-		if r.AreInfoItemsTruncated() {
-			r.SetBorderInfoItems(sortIcon, modeIcon, cursorStr)
-		}
-	} else {
-		r.SetBorderInfoItems(cursorStr)
+	if !common.Config.ShowPanelFooterInfo {
+		return nil
 	}
+
+	items := []string{sortLabel, modeLabel, cursorStr}
+	border := rendering.NewBorderConfig(0, m.width)
+	border.SetInfoItems(items...)
+	if border.AreInfoItemsTruncated() {
+		return []string{sortIcon, modeIcon, cursorStr}
+	}
+	return items
 }
 
 func (m *Model) renderColumnHeaders(r *rendering.Renderer) {
@@ -126,8 +152,14 @@ func (m *Model) getCursorString() string {
 }
 
 func (m *Model) renderSelectBox(isSelected bool) string {
-	if !common.Config.ShowSelectIcons || !common.Config.Nerdfont || m.PanelMode != SelectMode {
+	if !common.Config.ShowSelectIcons || m.PanelMode != SelectMode {
 		return ""
+	}
+	if !common.Config.Nerdfont {
+		if isSelected {
+			return "[x] "
+		}
+		return "[ ] "
 	}
 
 	if m.IsFocused {

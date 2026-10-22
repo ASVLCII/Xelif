@@ -1,27 +1,27 @@
 {
 	"en": {
 		"lang": "en",
-		"title": "superfile - Terminal File Manager",
-		"description": "A fancy, modern terminal file manager. Complete your file operations with style.",
+		"title": "Xelif - Terminal File Manager",
+		"description": "A keyboard-first terminal file manager based on superfile, with searchable and safety-focused workflows.",
 		"nav": {
 			"videos": "Videos",
 			"docs": "Docs",
-			"github": "GitHub",
+			"github": "Upstream",
 			"discord": "Discord",
 			"getStarted": "get started",
-			"homeAria": "superfile home"
+			"homeAria": "Xelif home"
 		},
 		"hero": {
-			"tagline": ["A fancy, modern terminal file manager.", "Complete your file operations with style."],
+			"tagline": ["A keyboard-first terminal file manager.", "Search, organize, compare, and change files with confidence."],
 			"getStarted": "get started",
-			"viewOnGitHub": "view on github",
-			"terminalTitle": "superfile — ~/Documents",
+			"viewOnGitHub": "view upstream",
+			"terminalTitle": "Xelif — ~/Documents",
 			"terminalPill": "spf",
-			"demoAlt": "superfile terminal file manager showing multiple panels, file listing, and preview"
+			"demoAlt": "Xelif terminal file manager showing multiple panels, file listing, and preview"
 		},
 		"stats": {
 			"loading": "—",
-			"stars": "stars",
+			"stars": "upstream stars",
 			"separator": "·",
 			"platforms": "macOS · Linux · Windows",
 			"license": "MIT License",
@@ -31,8 +31,8 @@
 			"versionFallback": "latest"
 		},
 		"intro": {
-			"label": "// what is superfile",
-			"line1": "superfile is crafted for developers who live in the terminal.",
+			"label": "// what is Xelif",
+			"line1": "Xelif builds on superfile for developers who manage real projects from the terminal.",
 			"builtWithPrefix": "Built with",
 			"builtWithMiddle": "and",
 			"builtWithSuffix": ", combining obsessively refined UI with the raw speed and power of terminal tools."
@@ -42,31 +42,31 @@
 		"features": [
 			{
 				"title": "beautiful ui",
-				"desc": "Every pixel obsessively crafted. superfile looks as good as your favorite apps—but lives entirely in your terminal."
+				"desc": "A refined multi-panel interface with previews, tabs, navigation history, and automatic folder refresh."
 			},
 			{
-				"title": "complete functions",
-				"desc": "File copy, move, delete, rename, fuzzy search, bulk operations, image preview. Everything you need, nothing you don't."
+				"title": "search and commands",
+				"desc": "Open the command palette, search by file properties or text content, and save searches you use again."
 			},
 			{
-				"title": "fully customizable",
-				"desc": "Remap every hotkey. Choose any theme. Adjust every border and color. superfile adapts to your exact workflow."
+				"title": "safe file operations",
+				"desc": "Use richer selections, preview batch renames and directory sync, and extract ZIPs without overwriting files."
 			},
 			{
-				"title": "multiple panels",
-				"desc": "Split into multiple directory panes simultaneously. Copy and paste across panels with just a few keystrokes."
+				"title": "sessions and workspaces",
+				"desc": "Restore your last session or save named arrangements of panels, tabs, layout, sorting, and navigation history."
 			},
 			{
-				"title": "plugin support",
-				"desc": "Extend with community plugins: Git status integration, system monitoring, custom commands and more."
+				"title": "project tools",
+				"desc": "Inspect Git changes, find duplicates, compare folders, and organize paths with tags and collections."
 			},
 			{
-				"title": "rich themes",
-				"desc": "20+ built-in themes: Catppuccin, Nord, Tokyo Night, Dracula, Gruvbox, Rose Pine, and many more."
+				"title": "accessible foundation",
+				"desc": "Choose a localized UI foundation or plain mode with ASCII borders, no glyph dependency, and no image previews."
 			}
 		],
 		"install": {
-			"label": "$ install superfile",
+			"label": "$ install upstream superfile",
 			"aria": "Installation",
 			"tabsAria": "Install method",
 			"copyAriaPrefix": "Copy",
@@ -76,7 +76,7 @@
 			"guide": "full install guide →"
 		},
 		"demos": {
-			"label": "$ superfile --showcase",
+			"label": "$ Xelif --showcase",
 			"aria": "Feature demos",
 			"altSuffix": "demonstration",
 			"items": [
@@ -90,9 +90,9 @@
 		},
 		"videos": {
 			"aria": "Community videos",
-			"heading": "See superfile in the wild.",
+			"heading": "See the upstream interface in the wild.",
 			"play": "Play",
-			"dialogTitle": "superfile community video",
+			"dialogTitle": "upstream superfile community video",
 			"close": "Close video",
 			"openOn": "watch on"
 		},
@@ -100,10 +100,10 @@
 			"aria": "Community",
 			"label": "// join the community",
 			"starsLoading": "★ ——",
-			"subtext": "developers use superfile",
-			"descLine1": "Open source, MIT licensed. Built by developers, for developers.",
-			"descLine2": "Contributions, themes, plugins and feedback are always welcome.",
-			"starOnGitHub": "star on github",
+			"subtext": "stars on upstream superfile",
+			"descLine1": "Xelif is open source, MIT licensed, and derived from yorukot/superfile.",
+			"descLine2": "The current package and community links lead to the upstream project.",
+			"starOnGitHub": "star upstream",
 			"joinDiscord": "join discord"
 		},
 		"comments": {
@@ -113,7 +113,7 @@
 		},
 		"footer": {
 			"license": "MIT License",
-			"byPrefix": "by",
+			"byPrefix": "based on work by",
 			"byConnector": " & ",
 			"contributorsText": "contributors",
 			"bySuffixEnd": "",
@@ -131,23 +131,23 @@
 	},
 	"zh-tw": {
 		"lang": "zh-TW",
-		"title": "superfile - 終端機檔案管理器",
+		"title": "Xelif - 終端機檔案管理器",
 		"description": "精緻現代的終端機檔案管理器。優雅的完成你的檔案操作。",
 		"nav": {
 			"videos": "影片",
 			"docs": "文件",
-			"github": "GitHub",
+			"github": "上游專案",
 			"discord": "Discord",
 			"getStarted": "開始使用",
-			"homeAria": "superfile 首頁"
+			"homeAria": "Xelif 首頁"
 		},
 		"hero": {
-			"tagline": ["精緻現代的終端機檔案管理器。", "優雅的完成你的檔案操作。"],
+			"tagline": ["鍵盤優先的終端機檔案管理器。", "安心地搜尋、整理、比較及變更檔案。"],
 			"getStarted": "開始使用",
-			"viewOnGitHub": "在 GitHub 上查看",
-			"terminalTitle": "superfile — ~/Documents",
+			"viewOnGitHub": "查看上游專案",
+			"terminalTitle": "Xelif — ~/Documents",
 			"terminalPill": "spf",
-			"demoAlt": "superfile 終端機檔案管理器，顯示多面板、檔案列表與預覽"
+			"demoAlt": "Xelif 終端機檔案管理器，顯示多面板、檔案列表與預覽"
 		},
 		"stats": {
 			"loading": "—",
@@ -161,8 +161,8 @@
 			"versionFallback": "最新"
 		},
 		"intro": {
-			"label": "// superfile 是什麼",
-			"line1": "superfile 為每天活在終端機裡的開發者打造。",
+			"label": "// Xelif 是什麼",
+			"line1": "Xelif 以 superfile 為基礎，為每天在終端機中管理專案的開發者打造。",
 			"builtWithPrefix": "使用",
 			"builtWithMiddle": "與",
 			"builtWithSuffix": "構建，結合精雕細琢的介面設計，以及終端工具原生的速度與強大能力。"
@@ -172,31 +172,31 @@
 		"features": [
 			{
 				"title": "漂亮介面",
-				"desc": "每個像素都經過細心打磨。superfile 像你喜愛的 App 一樣好看，卻完全存在於終端機之中。"
+				"desc": "精緻的多面板介面，具備預覽、分頁、瀏覽記錄及資料夾自動更新。"
 			},
 			{
-				"title": "功能完整",
-				"desc": "複製、移動、刪除、重新命名、模糊搜尋、批次操作、圖片預覽。你需要的都有，不多不少。"
+				"title": "搜尋與指令",
+				"desc": "使用指令面板、依檔案屬性或文字內容搜尋，並儲存常用搜尋。"
 			},
 			{
-				"title": "完全自訂",
-				"desc": "重新映射所有快捷鍵，選擇任意主題，調整每一道邊框與顏色。superfile 會貼合你的工作流程。"
+				"title": "安全的檔案操作",
+				"desc": "使用進階選取、預覽批次重新命名與目錄同步，並在不覆寫檔案的情況下解壓縮 ZIP。"
 			},
 			{
-				"title": "多重面板",
-				"desc": "同時切分多個目錄面板，只要幾個按鍵就能在面板之間複製與貼上。"
+				"title": "工作階段與工作區",
+				"desc": "還原上次的工作階段，或儲存包含面板、分頁、配置、排序與瀏覽記錄的命名工作區。"
 			},
 			{
-				"title": "插件支援",
-				"desc": "透過社群插件擴充：Git 狀態整合、系統監控、自訂指令等更多能力。"
+				"title": "專案工具",
+				"desc": "檢視 Git 變更、尋找重複檔案、比較資料夾，並以標籤及集合整理路徑。"
 			},
 			{
-				"title": "豐富主題",
-				"desc": "內建 20+ 套主題：Catppuccin、Nord、Tokyo Night、Dracula、Gruvbox、Rose Pine，以及更多選擇。"
+				"title": "無障礙基礎",
+				"desc": "選擇介面語言基礎，或使用具有 ASCII 邊框、不依賴圖示且不顯示圖片預覽的純文字模式。"
 			}
 		],
 		"install": {
-			"label": "$ install superfile",
+			"label": "$ 安裝上游 superfile",
 			"aria": "安裝",
 			"tabsAria": "安裝方式",
 			"copyAriaPrefix": "複製",
@@ -206,7 +206,7 @@
 			"guide": "完整安裝指南 →"
 		},
 		"demos": {
-			"label": "$ superfile --showcase",
+			"label": "$ Xelif --showcase",
 			"aria": "功能展示",
 			"altSuffix": "展示",
 			"items": [
@@ -220,9 +220,9 @@
 		},
 		"videos": {
 			"aria": "社群影片",
-			"heading": "看看創作者怎麼使用 superfile。",
+			"heading": "看看社群如何使用上游介面。",
 			"play": "播放",
-			"dialogTitle": "superfile 社群影片",
+			"dialogTitle": "上游 superfile 社群影片",
 			"close": "關閉影片",
 			"openOn": "前往"
 		},
@@ -230,10 +230,10 @@
 			"aria": "社群",
 			"label": "// 加入社群",
 			"starsLoading": "★ ——",
-			"subtext": "位開發者使用 superfile",
-			"descLine1": "開源、MIT 授權。由開發者打造，為開發者而生。",
-			"descLine2": "我們隨時歡迎貢獻、主題、插件與回饋。",
-			"starOnGitHub": "在 GitHub 給星",
+			"subtext": "顆上游 superfile 星標",
+			"descLine1": "Xelif 是採用 MIT 授權、衍生自 yorukot/superfile 的開源專案。",
+			"descLine2": "目前的套件與社群連結會前往上游專案。",
+			"starOnGitHub": "為上游加星",
 			"joinDiscord": "加入 Discord"
 		},
 		"comments": {
@@ -243,7 +243,7 @@
 		},
 		"footer": {
 			"license": "MIT 授權",
-			"byPrefix": "由",
+			"byPrefix": "基於",
 			"byConnector": " 與",
 			"contributorsText": "貢獻者",
 			"bySuffixEnd": "共同維護",

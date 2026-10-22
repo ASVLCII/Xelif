@@ -280,18 +280,18 @@ func TestModel_Render(t *testing.T) {
 		m.setShellMode(true)
 		res := ansi.Strip(m.Render())
 		exp := "" +
-			"╭─┤ " + icon.Terminal + " superfile Prompt (Shell Mode) ├──╮\n" +
+			expectedPromptTitleLine("Shell", 40) +
 			// 23--------4------------56789012345678901234567890123456789
 			"│ :                                    │\n" +
 			// 23456789012345678901234567890123456789
 			"├──────────────────────────────────────┤\n" +
 			"│ '>' - Get into SPF mode              │\n" +
-			"╰──────────────────────────────────────╯"
+			"└──────────────────────────────────────┘"
 		assert.Equal(t, exp, res)
 		m.setShellMode(false)
 		res = ansi.Strip(m.Render())
 		exp = "" +
-			"╭─┤ " + icon.Terminal + " superfile Prompt (SPF Mode) ├────╮\n" +
+			expectedPromptTitleLine("SPF", 40) +
 			// 23--------4------------56789012345678901234567890123456789
 			"│ >                                    │\n" +
 			"├──────────────────────────────────────┤\n" +
@@ -299,7 +299,9 @@ func TestModel_Render(t *testing.T) {
 			"│ 'open <PATH>' - Open a new panel at a│\n" +
 			"│ 'split' - Open a new panel at the cur│\n" +
 			"│ 'cd <PATH>' - Change directory of cur│\n" +
-			"╰──────────────────────────────────────╯"
+			"│ 'workspace <save|load|delete|list> [N│\n" +
+			"│ 'search <save|run|delete|list> [NAME]│\n" +
+			"└──────────────────────────────────────┘"
 		assert.Equal(t, exp, res)
 	})
 
@@ -335,7 +337,7 @@ func TestModel_Render(t *testing.T) {
 		m.HandleShellCommandResults(0, "")
 		res := ansi.Strip(m.Render())
 		exp := "" +
-			"╭─┤ " + icon.Terminal + " superfile Prompt (Shell Mode) ├────────────╮\n" +
+			expectedPromptTitleLine("Shell", 50) +
 			// 23--------4------------567890123456789012345678901234567890123456789
 			"│ :                                              │\n" +
 			// 234567890123456789012345678901234567890123456789
@@ -343,12 +345,12 @@ func TestModel_Render(t *testing.T) {
 			"│ '>' - Get into SPF mode                        │\n" +
 			"├────────────────────────────────────────────────┤\n" +
 			"│ Success : Command exited with status 0 (No outp│\n" +
-			"╰────────────────────────────────────────────────╯"
+			"└────────────────────────────────────────────────┘"
 		assert.Equal(t, exp, res)
 		m.HandleShellCommandResults(1, "")
 		res = ansi.Strip(m.Render())
 		exp = "" +
-			"╭─┤ " + icon.Terminal + " superfile Prompt (Shell Mode) ├────────────╮\n" +
+			expectedPromptTitleLine("Shell", 50) +
 			// 23--------4------------567890123456789012345678901234567890123456789
 			"│ :                                              │\n" +
 			// 234567890123456789012345678901234567890123456789
@@ -356,13 +358,15 @@ func TestModel_Render(t *testing.T) {
 			"│ '>' - Get into SPF mode                        │\n" +
 			"├────────────────────────────────────────────────┤\n" +
 			"│ Error : Command exited with status 1 (No output│\n" +
-			"╰────────────────────────────────────────────────╯"
+			"└────────────────────────────────────────────────┘"
 		assert.Equal(t, exp, res)
 	})
 	shellModeSuggestion := "':' - Get into Shell mode"
 	var openCmdSuggestion string
 	var splitCmdSuggestion string
 	var cdCmdSuggestion string
+	var workspaceCmdSuggestion string
+	var searchCmdSuggestion string
 	for _, cmd := range defaultCommandSlice() {
 		curSuggestion := "'" + cmd.usage + "' - " + cmd.description
 
@@ -373,6 +377,10 @@ func TestModel_Render(t *testing.T) {
 			splitCmdSuggestion = curSuggestion
 		case CdCommand:
 			cdCmdSuggestion = curSuggestion
+		case WorkspaceCommand:
+			workspaceCmdSuggestion = curSuggestion
+		case SearchCommand:
+			searchCmdSuggestion = curSuggestion
 		default:
 			assert.Fail(t, "Unknow command")
 		}
@@ -391,6 +399,8 @@ func TestModel_Render(t *testing.T) {
 				openCmdSuggestion,
 				splitCmdSuggestion,
 				cdCmdSuggestion,
+				workspaceCmdSuggestion,
+				searchCmdSuggestion,
 			},
 		},
 		{
@@ -412,6 +422,20 @@ func TestModel_Render(t *testing.T) {
 			textInput: "open /abc",
 			expectedSuggestions: []string{
 				openCmdSuggestion,
+			},
+		},
+		{
+			name:      "Workspace command",
+			textInput: "workspace load Project",
+			expectedSuggestions: []string{
+				workspaceCmdSuggestion,
+			},
+		},
+		{
+			name:      "Saved search command",
+			textInput: "search run Reports",
+			expectedSuggestions: []string{
+				searchCmdSuggestion,
 			},
 		},
 		{
@@ -454,4 +478,10 @@ func TestModel_Render(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Keep title snapshots valid with both the portable default and Nerd Font icons.
+func expectedPromptTitleLine(mode string, width int) string {
+	prefix := "┌─┤ " + icon.Terminal + icon.Space + "Xelif Prompt (" + mode + " Mode) ├"
+	return prefix + strings.Repeat("─", width-ansi.StringWidth(prefix)-1) + "┐\n"
 }

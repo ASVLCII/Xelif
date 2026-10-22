@@ -10,6 +10,17 @@ func (m *Model) PreviousFilePanel() {
 	m.MoveFocusedPanelBy(-1)
 }
 
+// FocusPanel focuses the file panel at index.
+func (m *Model) FocusPanel(index int) bool {
+	if index < 0 || index >= m.PanelCount() {
+		return false
+	}
+	m.GetFocusedFilePanel().IsFocused = false
+	m.FocusedPanelIndex = index
+	m.FilePanels[index].IsFocused = true
+	return true
+}
+
 func (m *Model) MoveFocusedPanelBy(delta int) {
 	if m.PanelCount() == 0 {
 		slog.Error("Unexpected error: fileModel with 0 panels")

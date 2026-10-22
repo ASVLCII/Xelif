@@ -5,11 +5,17 @@ import "time"
 // These could as well be property of prompt Model vs being global consts
 // But its fine
 const (
-	promptHeadlineText = "superfile Prompt"
+	promptHeadlineText = "Xelif Prompt"
 
-	OpenCommand  = "open"
-	SplitCommand = "split"
-	CdCommand    = "cd"
+	OpenCommand        = "open"
+	SplitCommand       = "split"
+	CdCommand          = "cd"
+	WorkspaceCommand   = "workspace"
+	SearchCommand      = "search"
+	BatchRenameCommand = "batch-rename"
+	TagCommand         = "tag"
+	CollectionCommand  = "collection"
+	MetadataCommand    = "metadata"
 
 	// We could later make this configurable. But, not needed now.
 	spfPromptChar   = ">"
@@ -43,6 +49,10 @@ const (
 
 	// expectedArgCount is the expected number of prompt arguments
 	expectedArgCount = 2
+
+	operationOnlyArgCount     = 2
+	operationValueArgCount    = 3
+	operationTwoValueArgCount = 4
 )
 
 func modeString(shellMode bool) string {
@@ -75,6 +85,16 @@ func defaultCommandSlice() []promptCommand {
 			command:     CdCommand,
 			usage:       CdCommand + " <PATH>",
 			description: "Change directory of current panel",
+		},
+		{
+			command:     WorkspaceCommand,
+			usage:       WorkspaceCommand + " <save|load|delete|list> [NAME]",
+			description: "Save, restore, list, or delete named workspaces",
+		},
+		{
+			command:     SearchCommand,
+			usage:       SearchCommand + " <save|run|delete|list> [NAME] [QUERY]",
+			description: "Save and run named Search Everywhere queries",
 		},
 	}
 }

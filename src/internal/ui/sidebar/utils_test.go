@@ -12,7 +12,7 @@ import (
 func defaultTestModel(cursor int, renderIndex int, height int,
 	cntHome int, cntPinned int, cntDisk int) Model {
 	return testModel(cursor, renderIndex, height, defaultSectionSlice,
-		formDirctorySlice(dirSlice(cntHome), dirSlice(cntPinned), dirSlice(cntDisk), defaultSectionSlice))
+		formDirectorySlice(dirSlice(cntHome), nil, dirSlice(cntPinned), dirSlice(cntDisk), defaultSectionSlice))
 }
 
 func testModel(cursor int, renderIndex int, height int, sections []string,
@@ -180,8 +180,9 @@ func TestSidebarSectionsVisibility(t *testing.T) {
 
 	for _, tt := range testcases {
 		t.Run(tt.name, func(t *testing.T) {
-			dirs := formDirctorySlice(
+			dirs := formDirectorySlice(
 				dirSlice(tt.homeDirs),
+				nil,
 				dirSlice(tt.pinnedDirs),
 				dirSlice(tt.diskDirs),
 				tt.sections,

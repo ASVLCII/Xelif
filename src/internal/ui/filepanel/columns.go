@@ -21,9 +21,10 @@ func (m *Model) renderFileName(indexElement int, columnWidth int) string {
 	}
 
 	selectBox := m.renderSelectBox(isSelected)
+	gitBadge := m.gitStatusBadge(elem.Location)
 
 	// Calculate the actual prefix width for proper alignment
-	prefixWidth := ansi.StringWidth(cursor+" ") + ansi.StringWidth(selectBox)
+	prefixWidth := ansi.StringWidth(cursor+" ") + ansi.StringWidth(selectBox) + ansi.StringWidth(gitBadge)
 	isLink := false
 	if elem.Info != nil {
 		isLink = elem.Info.Mode()&os.ModeSymlink != 0
@@ -36,7 +37,8 @@ func (m *Model) renderFileName(indexElement int, columnWidth int) string {
 		isSelected,
 		common.FilePanelBGColor,
 	)
-	return common.FilePanelCursorStyle.Render(cursor+" ") + selectBox + renderedName
+	return common.FilePanelCursorStyle.Render(cursor+" ") + selectBox +
+		common.FilePanelTopPathStyle.Render(gitBadge) + renderedName
 }
 
 // The renderer of delimiter spaces. It has a strict fixed size that depends only on the delimiter string.
@@ -54,9 +56,9 @@ func (m *Model) renderDelimiter(indexElement int, columnWidth int) string {
 func (m *Model) renderFileSize(indexElement int, columnWidth int) string {
 	elem := m.GetElementAtIdx(indexElement)
 	isSelected := m.CheckSelected(elem.Location)
-	sizeValue := common.FormatFileSize(elem.Info.Size())
-	if elem.Info.IsDir() {
-		sizeValue = ""
+	sizeValue := unknownColumnValue()
+	if elem.Info != nil && !elem.Directory && !elem.Info.IsDir() {
+		sizeValue = common.FormatFileSize(elem.Info.Size())
 	}
 	return common.FilePanelItemRender(
 		sizeValue,
@@ -71,13 +73,16 @@ func (m *Model) renderFileSize(indexElement int, columnWidth int) string {
 func (m *Model) renderModifyTime(indexElement int, columnWidth int) string {
 	elem := m.GetElementAtIdx(indexElement)
 	isSelected := m.CheckSelected(elem.Location)
-	modifyTime := elem.Info.ModTime().Format("2006-01-02 15:04")
+	modifyTime := unknownColumnValue()
+	if elem.Info != nil {
+		modifyTime = elem.Info.ModTime().Format("2006-01-02 15:04")
+	}
 	return common.FilePanelItemRender(
 		modifyTime,
 		columnWidth,
 		isSelected,
 		common.FilePanelBGColor,
-		lipgloss.Right,
+		lipgloss.Left,
 	)
 }
 
@@ -115,19 +120,19 @@ func (m *Model) makeColumns(columnThreshold int, fileNameRatio int) []columnDefi
 			Name:         "Size",
 			columnRender: m.renderFileSize,
 			Size:         FileSizeColumnWidth,
-			HeaderAlign:  lipgloss.Center,
+			HeaderAlign:  lipgloss.Right,
 		},
 		{
-			Name:         "Modify time",
+			Name:         "Modified",
 			columnRender: m.renderModifyTime,
 			Size:         ModifyTimeSizeColumnWidth,
-			HeaderAlign:  lipgloss.Center,
+			HeaderAlign:  lipgloss.Left,
 		},
 		{
 			Name:         "Permission",
 			columnRender: m.renderPermissions,
 			Size:         PermissionsColumnWidth,
-			HeaderAlign:  lipgloss.Center,
+			HeaderAlign:  lipgloss.Right,
 		},
 	}
 	maxColumns := min(columnThreshold, len(extraColumns))
@@ -162,4 +167,11 @@ func (m *Model) makeColumns(columnThreshold int, fileNameRatio int) []columnDefi
 		}
 	}
 	return columns
+}
+
+func unknownColumnValue() string {
+	if common.Config.PlainMode {
+		return "-"
+	}
+	return "—"
 }

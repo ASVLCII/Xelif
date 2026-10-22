@@ -1,3 +1,49 @@
+# Xelif
+
+Xelif is a mouse- and keyboard-accessible terminal file manager built as a fork of [yorukot/superfile](https://github.com/yorukot/superfile). It keeps superfile's multi-panel workflow and adds searchable tools for larger file-management jobs.
+
+## Development status
+
+This repository is a development snapshot, not a stable Xelif release. Local tests,
+builds, performance results, and remaining live acceptance checks are documented in
+[the completion audit](docs/completion-audit.md) and
+[the latest performance report](docs/benchmarks/refresh-optimization.md).
+The inherited upstream screenshots and download links below are not Xelif releases.
+
+To build this checkout with the Go version specified in `go.mod`:
+
+```sh
+go build -o bin/xelif .
+```
+
+On Windows, use `go build -o bin/xelif.exe .` instead. The launcher setup described
+in `docs/local-launch.md` is specific to the original development machine.
+
+> [!IMPORTANT]
+> Xelif is still compatible with superfile's `spf` command, configuration directories, themes, hotkeys, and Go module path. Those technical names are intentionally unchanged while the fork evolves.
+
+## Xelif features
+
+- Start with a customizable monochrome theme. Click breadcrumbs, tabs, sidebar folders, sort columns, Search, and Commands, or use their keyboard equivalents. There is no persistent bottom action toolbar.
+- Search filenames through Everything's native Windows interface when its user-session application is running, with optional CLI and bounded current-folder fallbacks. Advanced filters use the local provider; no speed advantage over Everything is claimed.
+- Search and run actions from the command palette; search across files with type, extension, size, modified-time, and text-content filters, then save useful queries.
+- Restore the last session, save named workspaces, and use independent tabs and navigation history inside panels. Watched folders refresh when their contents change.
+- Select ranges, invert selections, or target visible files and folders; preview batch renames before applying them.
+- Browse ZIP archives without extracting them first, and extract without overwriting existing files.
+- See Git status in file panels, inspect working-tree or staged diffs, stage, unstage, and discard tracked changes only after confirmation.
+- Organize paths with tags and collections, find duplicate files, compare directories, and preview copy-missing synchronization before applying it.
+- Preview timestamp or permission changes, apply them explicitly, and restore the last metadata edit from its journal.
+- Use plain mode for an ASCII, no-color-friendly display and choose the initial UI language (`auto`, English, or Traditional Chinese).
+- Drop local paths into a supported terminal and confirm before Xelif copies them into the focused directory.
+- Add declarative command plugins to the command palette; Xelif invokes their executables directly with bounded time and output.
+- Browse configured rclone remotes without changing them, and download individual files without overwriting local files.
+
+See the [Xelif feature guide](./website/src/content/docs/features.md) for the exact commands, filters, and safety boundaries.
+
+## Upstream and license
+
+Xelif is derived from [superfile](https://github.com/yorukot/superfile), created by [yorukot](https://github.com/yorukot) and its contributors. The inherited `superfile` name, `spf` command, configuration paths, artwork, package links, and community links below refer to that upstream project. Xelif remains available under the repository's [MIT License](./LICENSE), with third-party notices in [NOTICE.md](./NOTICE.md).
+
 <div align="center">
 
 <h4>superfile is supported by the community.</h4>
@@ -33,6 +79,8 @@
 
 ## Content
 
+- [Xelif features](#xelif-features)
+- [Upstream and license](#upstream-and-license)
 - [Demo](#demo)
 - [Content](#content)
 - [Installation](#installation)
@@ -66,6 +114,9 @@
 - [༼ つ ◕\_◕ ༽つ Please share.](#-つ-_-つ-please-share)
 
 ## Installation
+
+> [!CAUTION]
+> Xelif does not yet have a separate packaged release. The scripts and package-manager commands below install upstream superfile. To run the Xelif features in this checkout, use the **Build** section.
 
 ### macOS and Linux
 
@@ -111,17 +162,7 @@ You can build the source code yourself by using these steps:
 
 **Build Steps**
 
-Clone this repository using the following command:
-
-```
-git clone https://github.com/yorukot/superfile.git --depth=1
-```
-
-Enter the downloaded directory:
-
-```bash
-cd superfile
-```
+Run these commands from the root of this Xelif checkout. The output binary remains named `spf` for compatibility.
 
 ### For macOS/Linux
 

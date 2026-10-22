@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"os"
@@ -22,6 +23,7 @@ import (
 	variable "github.com/yorukot/superfile/src/config"
 	"github.com/yorukot/superfile/src/config/icon"
 	"github.com/yorukot/superfile/src/internal/common"
+	"github.com/yorukot/superfile/src/internal/i18n"
 )
 
 // initialConfig load and handle all configuration files (spf config,Hotkeys
@@ -40,6 +42,10 @@ func initialConfig(firstPanelPaths []string) (toggleDotFile bool, //nolint: nona
 		utils.PrintfAndExitf("Error while opening superfile.log file : %v", err)
 	}
 	common.LoadConfigFile()
+	applyPlainModeConfig()
+	if languageErr := i18n.SetLanguage(common.Config.Language); languageErr != nil {
+		_ = i18n.SetLanguage("en")
+	}
 
 	logLevel := slog.LevelInfo
 	if common.Config.Debug {
@@ -89,9 +95,28 @@ func initialConfig(firstPanelPaths []string) (toggleDotFile bool, //nolint: nona
 	printRuntimeInfo()
 
 	toggleDotFile = utils.ReadBoolFile(variable.ToggleDotFile, false)
-	toggleFooter = utils.ReadBoolFile(variable.ToggleFooter, true)
+	toggleFooter = utils.ReadBoolFile(variable.ToggleFooter, false)
 
 	return toggleDotFile, toggleFooter, zClient
+}
+
+func applyPlainModeConfig() {
+	if !common.Config.PlainMode {
+		return
+	}
+	common.Config.Nerdfont = false
+	common.Config.ShowSelectIcons = false
+	common.Config.ShowImagePreview = false
+	common.Config.BorderTop = "-"
+	common.Config.BorderBottom = "-"
+	common.Config.BorderLeft = "|"
+	common.Config.BorderRight = "|"
+	common.Config.BorderTopLeft = "+"
+	common.Config.BorderTopRight = "+"
+	common.Config.BorderBottomLeft = "+"
+	common.Config.BorderBottomRight = "+"
+	common.Config.BorderMiddleLeft = "+"
+	common.Config.BorderMiddleRight = "+"
 }
 
 func updateFirstFilePanelPaths(firstPanelPaths []string, cwd string, zClient *zoxidelib.Client) {
@@ -136,6 +161,9 @@ func attemptZoxideForInitPath(originalPath string, zClient *zoxidelib.Client) (s
 }
 
 func printRuntimeInfo() {
+	if !slog.Default().Enabled(context.Background(), slog.LevelDebug) {
+		return
+	}
 	slog.Debug("Runtime information", "runtime.GOOS", runtime.GOOS)
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)

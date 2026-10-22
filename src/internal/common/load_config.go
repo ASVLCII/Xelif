@@ -4,6 +4,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -66,12 +67,13 @@ func ValidateConfig(c *ConfigType) error {
 
 	for _, order := range c.SidebarSections {
 		if order != utils.SidebarSectionHome &&
+			order != utils.SidebarSectionRecent &&
 			order != utils.SidebarSectionPinned &&
 			order != utils.SidebarSectionDisks {
 			return errors.New(
 				LoadConfigError(
 					"sidebar_sections",
-					"Sidebar sections contain an unsupported value. Allowed values are: home, pinned, disks.",
+					"Sidebar sections contain an unsupported value. Allowed values are: home, recent, pinned, disks.",
 				),
 			)
 		}
@@ -228,6 +230,15 @@ func LoadAllDefaultConfig(content embed.FS) {
 		slog.Error("Could not load default config from embed FS", "error", err)
 		return
 	}
+	// A fork can add a bundled theme without changing the upstream release
+	// version. Install it only when missing; preserve any user-edited copy.
+	if err = installMissingTheme(
+		filepath.Join(variable.ThemeFolder, "monochrome.toml"),
+		DefaultThemeString,
+	); err != nil {
+		slog.Error("Could not install monochrome theme", "error", err)
+		return
+	}
 
 	currentThemeVersion, err := os.ReadFile(variable.ThemeFileVersion)
 	if err != nil && !os.IsNotExist(err) {
@@ -272,7 +283,7 @@ func LoadConfigStringGlobals(content embed.FS) error {
 	}
 	ConfigTomlString = string(configData)
 
-	themeData, err := content.ReadFile(variable.EmbedThemeCatppuccinFile)
+	themeData, err := content.ReadFile(variable.EmbedThemeDefaultFile)
 	if err != nil {
 		return err
 	}
@@ -280,7 +291,7 @@ func LoadConfigStringGlobals(content embed.FS) error {
 	return nil
 }
 
-func WriteThemeFiles(content embed.FS) error {
+func WriteThemeFiles(content fs.FS) error {
 	_, err := os.Stat(variable.ThemeFolder)
 
 	if os.IsNotExist(err) {
@@ -290,7 +301,7 @@ func WriteThemeFiles(content embed.FS) error {
 		}
 	}
 
-	files, err := content.ReadDir(variable.EmbedThemeDir)
+	files, err := fs.ReadDir(content, variable.EmbedThemeDir)
 	if err != nil {
 		slog.Error("Error reading theme directory from embed", "error", err)
 		return err
@@ -301,20 +312,13 @@ func WriteThemeFiles(content embed.FS) error {
 			continue
 		}
 		// This will not break in windows. This is a relative path for Embed FS. It uses "/" only
-		src, err := content.ReadFile(variable.EmbedThemeDir + "/" + file.Name())
+		src, err := fs.ReadFile(content, variable.EmbedThemeDir+"/"+file.Name())
 		if err != nil {
 			slog.Error("Error reading theme file from embed", "error", err)
 			return err
 		}
 
-		curThemeFile, err := os.Create(filepath.Join(variable.ThemeFolder, file.Name()))
-		if err != nil {
-			slog.Error("Error creating theme file from embed", "error", err)
-			return err
-		}
-		defer curThemeFile.Close()
-		_, err = curThemeFile.Write(src)
-		if err != nil {
+		if err := installMissingTheme(filepath.Join(variable.ThemeFolder, file.Name()), string(src)); err != nil {
 			slog.Error("Error writing theme file from embed", "error", err)
 			return err
 		}

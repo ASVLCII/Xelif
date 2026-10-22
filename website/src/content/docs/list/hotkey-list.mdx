@@ -1,9 +1,9 @@
 ---
 title: Hotkey list
-description: superfile hotkey list
+description: Xelif hotkey list, including inherited superfile-compatible bindings.
 head:
   - tag: title
-    content: Hotkey list | superfile
+    content: Hotkey list | Xelif
 ---
 
 :::tip
@@ -14,22 +14,24 @@ These are the default hotkeys and you can [change](/configure/custom-hotkeys) th
 
 ## General
 
-| Function                                | Key                   | Variable name       |
-| --------------------------------------- | --------------------- | ------------------- |
-| Open superfile                          | `spf`                 |                     |
-| Confirm selected item                   | `enter`, `right`, `l` | `confirm`           |
-| Quit typing, modal or superfile         | `q`, `esc`            | `quit`              |
-| Quit superfile and cd to current folder | `Q`                   | `cd_quit`           |
-| Confirm typing                          | `enter`               | `confirm_typing`    |
-| Cancel typing                           | `ctrl+c`, `esc`       | `cancel_typing`     |
-| Open help menu (hotkey list)            | `?`                   | `open_help_menu`    |
-| Open prompt in shell mode               | `:`                   | `open_command_line` |
-| Open prompt in spf mode                 | `>`                   | `open_spf_prompt`   |
-| Open zoxide navigation modal            | `z`                   | `open_zoxide`       |
+| Function                            | Key                   | Variable name          |
+| ----------------------------------- | --------------------- | ---------------------- |
+| Open Xelif                          | `spf`                 |                        |
+| Confirm selected item               | `enter`, `right`, `l` | `confirm`              |
+| Quit typing, modal or Xelif         | `q`, `esc`            | `quit`                 |
+| Quit Xelif and cd to current folder | `Q`                   | `cd_quit`              |
+| Confirm typing                      | `enter`               | `confirm_typing`       |
+| Cancel typing                       | `ctrl+c`, `esc`       | `cancel_typing`        |
+| Open help menu (hotkey list)        | `?`                   | `open_help_menu`       |
+| Open prompt in shell mode           | `:`                   | `open_command_line`    |
+| Open prompt in spf mode             | `>`                   | `open_spf_prompt`      |
+| Open zoxide navigation modal        | `z`                   | `open_zoxide`          |
+| Search files everywhere             | `ctrl+g`              | `open_global_search`   |
+| Search and run every command        | `ctrl+shift+p`        | `open_command_palette` |
 
 :::note
 
-Quit superfile and cd to current folder "cd_quit" requires the same setup as ["cd_on_quit"](/configure/superfile-config/#cd_on_quit) setting
+Quit Xelif and cd to the current folder with `cd_quit` requires the same setup as the [`cd_on_quit`](/configure/superfile-config/#cd_on_quit) setting.
 
 :::
 
@@ -40,6 +42,12 @@ Quit superfile and cd to current folder "cd_quit" requires the same setup as ["c
 | Create new file panel            | `n`                        | `create_new_file_panel`     |
 | Split focused file panel         | `N` (shift+n)              | `split_file_panel`          |
 | Close the focused file panel     | `w`                        | `close_file_panel`          |
+| Open a tab in the focused panel  | `ctrl+t`                   | `new_file_tab`              |
+| Close the active tab             | `ctrl+shift+w`             | `close_file_tab`            |
+| Switch to the next tab           | `ctrl+right`               | `next_file_tab`             |
+| Switch to the previous tab       | `ctrl+left`                | `previous_file_tab`         |
+| Go back in tab history           | `alt+left`                 | `history_back`              |
+| Go forward in tab history        | `alt+right`                | `history_forward`           |
 | Toggle file preview panel        | `f`                        | `toggle_file_preview_panel` |
 | Open sort options menu           | `o`                        | `open_sort_options_menu`    |
 | Toggle reverse sort              | `R` (shift+r)              | `toggle_reverse_sort`       |
@@ -62,6 +70,10 @@ Quit superfile and cd to current folder "cd_quit" requires the same setup as ["c
 | Select all items in focused file panel             | `A` (shift+a)               | `file_panel_select_all_items` (selection mode only)              |
 | Select up from your cursor                         | `shift+up`, `K` (shift+k)   | `file_panel_select_mode_items_select_up` (selection mode only)   |
 | Select down from your cursor                       | `shift+down`, `J` (shift+j) | `file_panel_select_mode_items_select_down` (selection mode only) |
+| Select a range to the current item                 | `shift+space`               | `file_panel_select_range` (selection mode only)                  |
+| Invert the visible selection                       | `ctrl+shift+i`              | `file_panel_invert_selection` (selection mode only)              |
+| Select visible files                               | `ctrl+shift+f`              | `file_panel_select_files` (selection mode only)                  |
+| Select visible folders                             | `ctrl+shift+d`              | `file_panel_select_directories` (selection mode only)            |
 | Toggle dot file display                            | `.`                         | `toggle_dot_file`                                                |
 | Toggle active search bar                           | `/`                         | `search_bar`                                                     |
 | Change between selection mode or normal mode       | `v`                         | `change_panel_mode`                                              |
@@ -76,6 +88,7 @@ Quit superfile and cd to current folder "cd_quit" requires the same setup as ["c
 | Copy selected items to the clipboard                  | `ctrl+c`           | `copy_items`                                       |
 | Cut selected items to the clipboard                   | `ctrl+x`           | `cut_items`                                        |
 | Paste clipboard items into the current file panel     | `ctrl+v`, `ctrl+w` | `paste_items`                                      |
+| Undo the last rename or move                          | `ctrl+z`           | `undo_last_file_operation`                         |
 | Delete selected items                                 | `ctrl+d`, `delete` | `delete_items`                                     |
 | Permanently delete selected items                     | `D` (shift+d)      | `permanently_delete_items`                         |
 | Copy current or selected file/directory paths         | `ctrl+p`           | `copy_path`                                        |

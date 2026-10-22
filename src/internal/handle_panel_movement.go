@@ -13,14 +13,15 @@ import (
 	"github.com/yorukot/superfile/src/pkg/utils"
 
 	variable "github.com/yorukot/superfile/src/config"
+	"github.com/yorukot/superfile/src/internal/archivebrowser"
 	"github.com/yorukot/superfile/src/internal/common"
+	"github.com/yorukot/superfile/src/internal/ui/filepanel"
 )
 
 // Back to parent directory
 func (m *model) parentDirectory() {
-	err := m.getFocusedFilePanel().ParentDirectory()
-	if err != nil {
-		slog.Error("Error while changing to parent directory", "error", err)
+	if err := m.updateCurrentFilePanelDir(".."); err != nil {
+		m.showUserError("Could not open parent folder", err)
 	}
 }
 
@@ -33,45 +34,54 @@ func (m *model) enterPanel() {
 		return
 	}
 	selectedItem := panel.GetFocusedItem()
+	if variable.ChooserFile != "" && (!selectedItem.Directory || panel.SelectedCount() > 0) {
+		if err := m.chooserFileWriteAndQuit(m.chooserPaths()...); err == nil {
+			return
+		} else {
+			slog.Error("Error while writing to chooser file, continuing with file open", "error", err)
+		}
+	}
 	if selectedItem.Directory {
-		targetPath := selectedItem.Location
-
-		if selectedItem.Info.Mode()&os.ModeSymlink != 0 {
-			var symlinkErr error
-			targetPath, symlinkErr = filepath.EvalSymlinks(targetPath)
-			if symlinkErr != nil {
-				return
-			}
-
-			// targetPath shouldn't be a link now, so Stat and Lstat should be same
-			if targetInfo, lstatErr := os.Lstat(targetPath); lstatErr != nil || !targetInfo.IsDir() {
-				return
-			}
-		}
-		// TODO : Propagate error out from this this function. Return here, instead of logging
-		err := m.updateCurrentFilePanelDir(targetPath)
-		if err != nil {
-			slog.Error("Error while changing to directory", "error", err, "target", targetPath)
-		}
+		m.enterDirectoryItem(selectedItem)
 		return
 	}
 
-	if variable.ChooserFile != "" {
-		chooserErr := m.chooserFileWriteAndQuit(panel.GetFocusedItem().Location)
-		if chooserErr == nil {
-			return
+	if archivebrowser.Supported(selectedItem.Location) {
+		if err := m.openArchive(selectedItem.Location); err != nil {
+			m.showUserError("Could not browse archive", err)
 		}
-		// Continue with preview if file is not writable
-		slog.Error("Error while writing to chooser file, continuing with file open", "error", chooserErr)
+		return
 	}
 	m.executeOpenCommand()
 }
 
+func (m *model) enterDirectoryItem(selectedItem filepanel.Element) {
+	targetPath := selectedItem.Location
+	if selectedItem.Info.Mode()&os.ModeSymlink != 0 {
+		var symlinkErr error
+		targetPath, symlinkErr = filepath.EvalSymlinks(targetPath)
+		if symlinkErr != nil {
+			return
+		}
+		// The resolved target is no longer a link; retain the directory check.
+		if targetInfo, lstatErr := os.Lstat(targetPath); lstatErr != nil || !targetInfo.IsDir() {
+			return
+		}
+	}
+	if err := m.updateCurrentFilePanelDir(targetPath); err != nil {
+		slog.Error("Error while changing to directory", "error", err, "target", targetPath)
+	}
+}
+
 func (m *model) executeOpenCommand() {
 	panel := m.getFocusedFilePanel()
-
 	filePath := panel.GetFocusedItem().Location
+	if err := m.executeOpenPath(filePath); err != nil {
+		m.showUserError("Could not open item", err)
+	}
+}
 
+func (m *model) executeOpenPath(filePath string) error {
 	openCommand := "xdg-open"
 	switch runtime.GOOS {
 	case utils.OsDarwin:
@@ -82,12 +92,7 @@ func (m *model) executeOpenCommand() {
 
 		//nolint:gosec // Uses Windows system handler to open the selected file.
 		cmd := exec.Command(dllpath, dllfile, filePath)
-		err := cmd.Start()
-		if err != nil {
-			slog.Error("Error while open file with", "error", err)
-		}
-
-		return
+		return cmd.Start()
 	}
 
 	// For now open_with works only for mac and linux
@@ -99,11 +104,7 @@ func (m *model) executeOpenCommand() {
 
 	cmd := exec.Command(openCommand, filePath)
 	utils.DetachFromTerminal(cmd)
-	err := cmd.Start()
-	if err != nil {
-		// TODO: This kind of errors should go to user facing pop ups
-		slog.Error("Error while open file with", "error", err)
-	}
+	return cmd.Start()
 }
 
 // Switch to the directory where the sidebar cursor is located

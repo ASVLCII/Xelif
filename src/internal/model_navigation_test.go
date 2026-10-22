@@ -12,7 +12,9 @@ import (
 
 	"github.com/yorukot/superfile/src/pkg/utils"
 
+	variable "github.com/yorukot/superfile/src/config"
 	"github.com/yorukot/superfile/src/internal/common"
+	"github.com/yorukot/superfile/src/internal/ui/sidebar"
 )
 
 func TestFilePanelNavigation(t *testing.T) {
@@ -30,7 +32,7 @@ func TestFilePanelNavigation(t *testing.T) {
 	*/
 
 	curTestDir := t.TempDir()
-	dir1 := filepath.Join(curTestDir, "dir1")
+	dir1 := filepath.Join(curTestDir, "dir 1")
 	dir2 := filepath.Join(curTestDir, "dir2")
 	file1 := filepath.Join(curTestDir, "file1.txt")
 	// We >=3 files in dir1 and >=2 files in dir2
@@ -95,8 +97,7 @@ func TestFilePanelNavigation(t *testing.T) {
 			startCursor: 0,
 			keyInput: []string{
 				common.Hotkeys.OpenSPFPrompt[0],
-				// TODO : Have it quoted, once cd command supports quoted paths
-				"cd " + dir1,
+				`cd "` + dir1 + `"`,
 				common.Hotkeys.ConfirmTyping[0],
 			},
 			searchBarClear: true,
@@ -108,7 +109,6 @@ func TestFilePanelNavigation(t *testing.T) {
 			startCursor: 2,
 			keyInput: []string{
 				common.Hotkeys.OpenSPFPrompt[0],
-				// TODO : Have it quoted, once cd command supports quoted paths
 				"cd .",
 				common.Hotkeys.ConfirmTyping[0],
 			},
@@ -137,8 +137,9 @@ func TestFilePanelNavigation(t *testing.T) {
 			// Go back to original directory
 
 			TeaUpdate(m, utils.TeaRuneKeyMsg(common.Hotkeys.OpenSPFPrompt[0]))
-			TeaUpdate(m, utils.TeaRuneKeyMsg("cd "+tt.startDir))
+			TeaUpdate(m, utils.TeaRuneKeyMsg(`cd "`+tt.startDir+`"`))
 			TeaUpdate(m, tea.KeyPressMsg{Code: tea.KeyEnter})
+			require.Equal(t, tt.startDir, m.getFocusedFilePanel().Location)
 
 			// Make sure we have original cursor and render
 			assert.Equal(t, tt.startCursor, m.getFocusedFilePanel().GetCursor())
@@ -156,6 +157,52 @@ func TestFilePanelNavigation(t *testing.T) {
 				m.getFocusedFilePanel().GetCursor() == 1
 		}, DefaultTestTimeout, DefaultTestTick)
 	})
+}
+
+func TestSuccessfulNavigationIsAddedToRecents(t *testing.T) {
+	recentFile := filepath.Join(t.TempDir(), "recent.json")
+	originalRecentFile := variable.RecentFile
+	//nolint:reassign // Isolate navigation history writes from the user's recent-directory store.
+	variable.RecentFile = recentFile
+	t.Cleanup(func() {
+		//nolint:reassign // Restore the recent-directory store path after this test.
+		variable.RecentFile = originalRecentFile
+	})
+
+	root := t.TempDir()
+	destination := filepath.Join(root, "destination")
+	utils.SetupDirectories(t, destination)
+	m := defaultTestModel(root)
+
+	require.NoError(t, m.updateCurrentFilePanelDir(destination))
+
+	mgr := sidebar.NewRecentFileManager(recentFile)
+	recent := mgr.Load()
+	require.NotEmpty(t, recent)
+	assert.Equal(t, destination, recent[0].Location)
+}
+
+func TestParentNavigationIsAddedToRecents(t *testing.T) {
+	recentFile := filepath.Join(t.TempDir(), "recent.json")
+	originalRecentFile := variable.RecentFile
+	//nolint:reassign // Isolate navigation history writes from the user's recent-directory store.
+	variable.RecentFile = recentFile
+	t.Cleanup(func() {
+		//nolint:reassign // Restore the recent-directory store path after this test.
+		variable.RecentFile = originalRecentFile
+	})
+
+	parent := t.TempDir()
+	child := filepath.Join(parent, "child")
+	utils.SetupDirectories(t, child)
+	m := defaultTestModel(child)
+
+	TeaUpdate(m, utils.TeaRuneKeyMsg(common.Hotkeys.ParentDirectory[0]))
+
+	mgr := sidebar.NewRecentFileManager(recentFile)
+	recent := mgr.Load()
+	require.NotEmpty(t, recent)
+	assert.Equal(t, parent, recent[0].Location)
 }
 
 func TestCursorOutOfBoundsAfterDirectorySwitch(t *testing.T) {

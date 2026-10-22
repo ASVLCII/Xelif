@@ -16,6 +16,7 @@ func (m *Model) SetWidth(width int) {
 	m.width = width
 	m.SearchBar.SetWidth(m.width - common.InnerPadding)
 	m.columns = m.makeColumns(common.Config.FilePanelExtraColumns, common.Config.FilePanelNamePercent)
+	m.scrollToCursor(m.GetCursor())
 }
 
 func (m *Model) SetHeight(height int) {
@@ -53,5 +54,23 @@ func (m *Model) PanelElementHeight() int {
 	if m.NeedRenderHeaders() {
 		headerHeight = ColumnHeaderHeight
 	}
-	return m.GetMainPanelHeight() - contentPadding - headerHeight
+	return max(0, m.GetMainPanelHeight()-contentPadding-headerHeight)
+}
+
+func (m *Model) EntryStartY() int {
+	start := contentPadding + 1 // include the panel's top border
+	if m.NeedRenderHeaders() {
+		start += ColumnHeaderHeight
+	}
+	return start
+}
+
+// EntryIndexAtY shares the compact list geometry and excludes the blank tail.
+func (m *Model) EntryIndexAtY(y int) (int, bool) {
+	row := y - m.EntryStartY()
+	if row < 0 || row >= m.PanelElementHeight() {
+		return 0, false
+	}
+	index := m.renderIndex + row
+	return index, index < m.ElemCount()
 }

@@ -350,6 +350,30 @@ func TestScrollToCursor(t *testing.T) {
 	}
 }
 
+func TestFocusIndexMovesCursorAndScrollsIntoView(t *testing.T) {
+	panel := testModelWithElemCount(2, 0, 12, 20)
+
+	assert.True(t, panel.FocusIndex(15))
+	assert.Equal(t, 15, panel.GetCursor())
+	assert.Equal(t, 9, panel.GetRenderIndex())
+}
+
+func TestFocusIndexRejectsNegativeIndex(t *testing.T) {
+	panel := testModelWithElemCount(2, 0, 12, 20)
+
+	assert.False(t, panel.FocusIndex(-1))
+	assert.Equal(t, 2, panel.GetCursor())
+	assert.Equal(t, 0, panel.GetRenderIndex())
+}
+
+func TestFocusIndexRejectsIndexPastLastElement(t *testing.T) {
+	panel := testModelWithElemCount(2, 0, 12, 20)
+
+	assert.False(t, panel.FocusIndex(20))
+	assert.Equal(t, 2, panel.GetCursor())
+	assert.Equal(t, 0, panel.GetRenderIndex())
+}
+
 func TestApplyTargetFileCursor(t *testing.T) {
 	panel := testModel(0, 0, 8, BrowserMode, []Element{
 		{Name: "file1.txt", Location: "/tmp/file1.txt"},
