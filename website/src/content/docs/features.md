@@ -55,12 +55,12 @@ On Windows, simple filename searches query the running Everything application di
 - **ZIP browsing:** choose **Browse ZIP as a folder** in the command palette to inspect a ZIP without unpacking it. Extraction rejects unsafe paths and preserves existing destination names instead of overwriting them.
 - **Git:** file panels show repository status. The command palette can show working-tree or staged diffs, stage selected paths, unstage them, and discard tracked changes. Discard always requires confirmation.
 - **Duplicates:** **Find duplicate files here** scans regular files under the focused directory and groups byte-identical files by SHA-256. The scan can be cancelled.
-- **Directory compare:** with at least two panels open, compare the focused and next directories by metadata or content. Copy-missing synchronization is a one-way `focused → next` operation with separate preview and apply steps; existing destinations are not overwritten.
+- **Directory compare:** with at least two panels open, compare the focused and next directories by metadata or content. Copy-missing synchronization is a one-way `focused → next` operation with separate preview and apply steps; existing destinations are not overwritten. Apply is bound to the reviewed files and their content. Changed inputs or panel paths require another preview; complete files already created during a later failure are retained and reported.
 
 ## Organization and metadata
 
 - **Tags:** use `tag add <TAG>`, `tag remove <TAG>`, `tag list`, and `tag find <TAG>`. Add and remove operate on the focused item or current selection.
-- **Collections:** use `collection save <NAME>`, `collection open <NAME>`, `collection list`, and `collection delete <NAME>`. A collection is a saved virtual folder of the focused item or selection.
+- **Collections:** use `collection save <NAME>`, `collection open <NAME>`, `collection list`, and `collection delete <NAME>`. A collection saves the focused path or selection. Opening it shows a filterable result picker: use arrows and Enter, or click, to reveal any member in its local panel. Missing or filtered-out files show an inline error without losing the list. Tags use the same picker. Corrupt or unsupported catalog storage is preserved and writes are disabled rather than silently resetting it.
 - **Metadata editing:** preview a modification time with `metadata modified <RFC3339>`, an access time with `metadata accessed <RFC3339>`, or permissions with `metadata permissions <OCTAL>`. Run `metadata apply` to commit the preview or `metadata restore` to restore the last applied edit from its journal.
 
 Unix permission editing is available on Unix-like systems. Windows reports it as unsupported instead of pretending to apply POSIX mode bits; timestamp editing remains available.

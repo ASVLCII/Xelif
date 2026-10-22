@@ -321,7 +321,14 @@ func TestPublishTemporaryDoesNotReplaceExisting(t *testing.T) {
 
 func TestCopyRegularFileRejectsTypesCancellationAndExistingTarget(t *testing.T) {
 	directory := t.TempDir()
-	err := copyRegularFile(context.Background(), directory, filepath.Join(t.TempDir(), "target"), "directory", 0o600)
+	err := copyRegularFile(
+		context.Background(),
+		directory,
+		filepath.Join(t.TempDir(), "target"),
+		"directory",
+		0o600,
+		nil,
+	)
 	var unsupportedErr *UnsupportedTypeError
 	if !errors.As(err, &unsupportedErr) {
 		t.Fatalf("error = %v, want UnsupportedTypeError", err)
@@ -333,7 +340,7 @@ func TestCopyRegularFileRejectsTypesCancellationAndExistingTarget(t *testing.T) 
 	target := filepath.Join(destination, "target")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if copyErr := copyRegularFile(ctx, source, target, "target", 0o640); !errors.Is(copyErr, context.Canceled) {
+	if copyErr := copyRegularFile(ctx, source, target, "target", 0o640, nil); !errors.Is(copyErr, context.Canceled) {
 		t.Fatalf("error = %v, want context.Canceled", copyErr)
 	}
 	entries, err := os.ReadDir(destination)
@@ -342,7 +349,7 @@ func TestCopyRegularFileRejectsTypesCancellationAndExistingTarget(t *testing.T) 
 	}
 
 	mustWrite(t, target, "old", time.Now(), 0o600)
-	err = copyRegularFile(context.Background(), source, target, "target", 0o640)
+	err = copyRegularFile(context.Background(), source, target, "target", 0o640, nil)
 	var collisionErr *CollisionError
 	if !errors.As(err, &collisionErr) {
 		t.Fatalf("error = %v, want CollisionError", err)

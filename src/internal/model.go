@@ -142,7 +142,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.refreshPanelsAfterOperation(msg)
 
 	// This is needed for blink, etc to work
-	panelCmd = m.updateComponentState(msg)
+	panelCmd = m.updateComponentState(componentMessageAfterPicker(msg, globalSearchWasOpen || commandPaletteWasOpen))
 
 	m.updateModelStateAfterMsg()
 	folderWatchCmd = tea.Batch(folderWatchCmd, m.syncFolderWatcherCmd())
@@ -154,6 +154,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(sidebarCmd, helpMenuCmd, inputCmd, updateCmd,
 		panelCmd, metadataCmd, filePreviewCmd, resizeCmd, mouseCmd, globalSearchCmd, commandPaletteCmd,
 		folderWatchCmd, gitStatusCmd)
+}
+
+func componentMessageAfterPicker(msg tea.Msg, pickerWasOpen bool) tea.Msg {
+	if _, key := msg.(tea.KeyPressMsg); key && pickerWasOpen {
+		// A consumed key must not also submit a dialog the picker just opened.
+		// A nil update still clears the component's first-input guards.
+		return nil
+	}
+	return msg
 }
 
 func (m *model) handleMouseMsg(msg tea.MouseMsg) tea.Cmd {
@@ -732,6 +741,12 @@ func (m *model) applyPromptModalAction(action common.ModelAction) tea.Cmd {
 		m.promptModal.HandleSPFActionResults(false, actionErr.Error())
 	} else if successMsg != "" {
 		m.promptModal.HandleSPFActionResults(true, successMsg)
+		// A successful action that opens another surface hands focus to it even
+		// when the user keeps ordinary command results open. Otherwise the
+		// prompt hides the preview and consumes its navigation keys.
+		if promptOpensResults(action) {
+			m.promptModal.Close()
+		}
 	}
 	return cmd
 }

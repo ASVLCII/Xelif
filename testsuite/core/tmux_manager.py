@@ -1,4 +1,5 @@
 import libtmux
+import shlex
 import time 
 import logging
 import core.keys as keys
@@ -43,11 +44,16 @@ class TmuxSPFManager(BaseSPFManager):
         self.spf_pane : libtmux.Pane = None
 
     def start_spf(self, start_dir : str = None, args : list[str] = None) -> None:
-        spf_command = self.spf_path
+        spf_args = [self.spf_path]
         if args:
-            spf_command += " " + " ".join(args)
+            spf_args.extend(args)
+        if start_dir is not None:
+            # Changing the child cwd alone permits session restoration to reopen
+            # a previous testcase's location. Explicit paths take precedence.
+            spf_args.extend(["--", str(start_dir)])
+        spf_command = shlex.join(spf_args)
 
-        self.logger.debug("windows_command : %s", spf_command)
+        self.logger.debug("tmux_command : %s", spf_command)
         
 
         self.spf_session= self.server.new_session('spf_session',
@@ -80,7 +86,9 @@ class TmuxSPFManager(BaseSPFManager):
             raise Exception(f"Unknown key : {key}") 
             
     def get_rendered_output(self) -> str:
-        return "[Not supported yet]"
+        if self.spf_pane is None:
+            return "[No active pane]"
+        return "\n".join(self.spf_pane.capture_pane())
 
     def is_spf_running(self) -> bool:
         self._is_spf_running = (self.spf_session is not None) \

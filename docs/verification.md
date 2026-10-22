@@ -1,5 +1,72 @@
 # Xelif verification checkpoint
 
+## Finishing-pass verification (2026-10-22)
+
+This development snapshot preserves the approved compact layout and wheel
+behavior. It is not a claim that every recorded feature has completed native
+end-to-end acceptance. The scope and remaining live boundaries are tracked in
+[completion-audit.md](completion-audit.md).
+
+Final-source local checks passed:
+
+- Serialized full short suite: `go test -p=1 -short -count=1 -timeout=8m ./...`
+  (root package 80.885 seconds), plus a separate full `TestLayout` sweep
+  (25.674 seconds). Logs: `X:\Xelif-work\standout-serial-final-suite.log` and
+  `standout-final-layout.log`.
+- Raw `go vet ./...` and configured repository-wide golangci-lint 2.11.4:
+  both exited zero; lint reported **0 issues**. No global analyzer weakening
+  or new file exclusions were added. Logs: `standout-final-vet.log` and
+  `standout-final-source-lint.log` under `X:\Xelif-work`.
+- Five mocked Python harness tests passed from the same working directory and
+  command used by CI. They do not replace the native Linux tmux integration run.
+- Website production build passed: 42 static pages; Pagefind indexed 38 pages
+  in two languages. Log: `X:\Xelif-work\standout-website-build.log`.
+- Output parity and paired performance measurements are recorded in
+  [standout-render.md](benchmarks/standout-render.md): 24,334 sanitizer inputs
+  and the 96-frame display-mode matrix match the baseline. Checked root
+  navigation/render workloads allocate 3.6–3.7% fewer temporary bytes, with
+  approximately unchanged timing, not an established whole-app speedup.
+
+An earlier combined run overlapped project builds and failed compression
+completion waits and a shell-substitution assertion. Both groups then passed
+three isolated repeats with their original deadlines, followed by the passing
+serialized full suite above. Resource contention is plausible, not an established
+cause. These results do not establish universal flake-free or race-free tests;
+pre-existing tests still include direct model access around an event loop.
+
+The opt-in Windows Everything IPC smoke reported `everything is not running`.
+It did not silently use a CLI or local-search fallback. Successful live provider
+queries, renewed Windows Terminal mouse/paint checks and native macOS execution
+are therefore not claimed for this pass. Unit/integration fixtures and
+cross-compilation are distinct from those live boundaries.
+
+Installation and final artifact verification (2026-10-23): the Windows/amd64,
+Linux/amd64 and macOS/arm64 binaries were rebuilt from the final source. All
+302 non-test Go/module/embedded-asset inputs still match the build-start manifest,
+whose aggregate SHA-256 is
+`F5D5C6AC658E5AAE664E99FD11B53D9BC93EC84A783F7AFCE5BB1953CAD2F4C4`.
+Artifacts and input manifest are retained in
+`X:\Xelif-work\standout-final-builds\run-20261022-231407-5f51c2c8`.
+The Windows candidate rendered the welcome and file browser in an isolated PTY,
+then quit normally with exit code zero. This was not a native Windows Terminal
+mouse or visual acceptance run.
+
+The installed `X:\Xelif\bin\spf.exe` matches that verified Windows artifact,
+SHA-256 `627BA794157A1A96A59F2C7BFC3327F8C3FCE446CF454FD7297317EC44B241A1`.
+The previous executable was hash-verified and backed up as
+`X:\Xelif-work\spf-before-standout-20261023.exe`. The existing launcher dependency
+check passed; launcher scripts and the normal runtime profile were preserved.
+
+GitHub publication is explicitly authorized to `ASVLCII/Xelif` on `main`.
+Authentication was rechecked as `ASVLCII`; the fetched remote matched the starting
+commit before publication. This entry records local verification; hosted CI
+must be inspected separately for the published commit.
+
+The older records below are chronological checkpoints and may describe
+superseded repository, installation, lint or authorization state.
+
+## Earlier local checkpoint (2026-10-21)
+
 Local development checkpoint: 2026-10-21. This is not a release or a declaration that all requested work is finished. Later source edits require rerunning the affected checks.
 
 ## Verified locally
@@ -131,7 +198,7 @@ Launcher checking and diff whitespace checking passed. No new live desktop or
 Everything-provider check is claimed; the broader acceptance audit remains open.
 Nothing was committed or published.
 
-## GitHub state
+## Historical GitHub state (before publication)
 
 Read-only inspection authenticated as `ASVLCII`. Local branch: `xelif/p0-lovable-explorer`; origin still points to `yorukot/superfile`. No owned repository matching Xelif or superfile was found. Upstream main is ten commits beyond the checkout's original base; no wholesale merge was performed. No Xelif repository, commit, push, release, or remote CI run was created by this checkpoint.
 

@@ -96,5 +96,45 @@ func defaultCommandSlice() []promptCommand {
 			usage:       SearchCommand + " <save|run|delete|list> [NAME] [QUERY]",
 			description: "Save and run named Search Everywhere queries",
 		},
+		{
+			command:     BatchRenameCommand,
+			usage:       BatchRenameCommand + " replace FIND VALUE",
+			description: "Preview selected filename replacements",
+		},
+		{
+			command:     BatchRenameCommand,
+			usage:       BatchRenameCommand + " <prefix|suffix> VALUE",
+			description: "Preview adding text to selected names",
+		},
+		{
+			command:     BatchRenameCommand,
+			usage:       BatchRenameCommand + " <apply|cancel>",
+			description: "Apply or discard the preview",
+		},
+		{
+			command:     TagCommand,
+			usage:       TagCommand + " <add|remove|find> NAME; tag list",
+			description: "Labels and saved results",
+		},
+		{
+			command:     CollectionCommand,
+			usage:       CollectionCommand + " <save|open|delete> NAME; collection list",
+			description: "Saved path groups",
+		},
+		{
+			command:     MetadataCommand,
+			usage:       MetadataCommand + " <modified|accessed> RFC3339",
+			description: "Preview timestamp edit",
+		},
+		{
+			command:     MetadataCommand,
+			usage:       MetadataCommand + " permissions OCTAL",
+			description: "Preview permissions (0000-0777)",
+		},
+		{
+			command:     MetadataCommand,
+			usage:       MetadataCommand + " <apply|restore>",
+			description: "Apply preview or restore last edit",
+		},
 	}
 }

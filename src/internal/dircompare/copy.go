@@ -1,7 +1,9 @@
 package dircompare
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"io"
 	"os"
@@ -17,11 +19,28 @@ import (
 // On failure or cancellation, completed destination entries are retained and
 // reported through PartialCopyError; unpublished temporary files are cleaned up.
 func CopyMissing(ctx context.Context, sourceRoot, destinationRoot string, options CopyOptions) (CopyResult, error) {
-	plan, err := prepareCopy(ctx, sourceRoot, destinationRoot, options)
-	if err != nil {
+	if err := ctx.Err(); err != nil {
 		return CopyResult{}, err
 	}
+	plan, err := prepareCopy(ctx, sourceRoot, destinationRoot, options)
+	if err != nil {
+		if options.ApprovedPlan != nil && !errors.Is(err, context.Canceled) &&
+			!errors.Is(err, context.DeadlineExceeded) {
+			return CopyResult{}, &StalePlanError{Err: err}
+		}
+		return CopyResult{}, err
+	}
+	if options.ApprovedPlan != nil {
+		if err := plan.validateApproval(ctx, *options.ApprovedPlan); err != nil {
+			return CopyResult{}, err
+		}
+	}
 	if options.DryRun {
+		approval, err := freezeCopyPlan(ctx, plan)
+		if err != nil {
+			return CopyResult{}, err
+		}
+		plan.result.approval = approval
 		return plan.result, nil
 	}
 	executor := copyExecutor{ctx: ctx, options: options, copyPlan: plan}
@@ -30,8 +49,10 @@ func CopyMissing(ctx context.Context, sourceRoot, destinationRoot string, option
 
 type copyPlan struct {
 	source         map[string]treeEntry
+	sourceAbs      string
 	destinationAbs string
 	result         CopyResult
+	approval       *copyApproval
 }
 
 func prepareCopy(
@@ -75,6 +96,7 @@ func prepareCopy(
 	}
 	return copyPlan{
 		source:         source,
+		sourceAbs:      sourceAbs,
 		destinationAbs: destinationAbs,
 		result:         CopyResult{Actions: actions},
 	}, nil
@@ -179,6 +201,9 @@ func (e *copyExecutor) execute() (CopyResult, error) {
 func (e *copyExecutor) executeAction(action CopyAction) error {
 	sourceEntry := e.source[action.Path]
 	targetPath := e.targetPath(action.Path)
+	if err := e.validateApprovedAction(action); err != nil {
+		return err
+	}
 	if err := ensureSafeParents(e.destinationAbs, action.Path); err != nil {
 		return err
 	}
@@ -189,7 +214,12 @@ func (e *copyExecutor) executeAction(action CopyAction) error {
 	case CreateDirectory:
 		return createDirectory(targetPath, action)
 	case CopyFile:
-		return copyRegularFile(e.ctx, sourceEntry.absPath, targetPath, action.Path, action.Mode)
+		var expected *sourceFingerprint
+		if e.approval != nil {
+			fingerprint := e.approval.sources[action.Path]
+			expected = &fingerprint
+		}
+		return copyRegularFile(e.ctx, sourceEntry.absPath, targetPath, action.Path, action.Mode, expected)
 	default:
 		return &UnsupportedTypeError{Path: action.Path, Type: sourceEntry.metadata.Type}
 	}
@@ -269,12 +299,23 @@ func (e *copyExecutor) fail(cause error) (CopyResult, error) {
 	}
 }
 
-func copyRegularFile(ctx context.Context, sourcePath, targetPath, displayPath string, mode os.FileMode) error {
+func copyRegularFile(
+	ctx context.Context,
+	sourcePath, targetPath, displayPath string,
+	mode os.FileMode,
+	expected *sourceFingerprint,
+) error {
 	source, err := openStableSource(sourcePath, displayPath)
 	if err != nil {
+		if expected != nil {
+			return &StalePlanError{Path: displayPath, Err: err}
+		}
 		return err
 	}
 	defer source.Close()
+	if verifyErr := validateOpenApprovedSource(source, sourcePath, displayPath, expected); verifyErr != nil {
+		return verifyErr
+	}
 
 	temporary, err := os.CreateTemp(filepath.Dir(targetPath), tempPrefix)
 	if err != nil {
@@ -286,7 +327,10 @@ func copyRegularFile(ctx context.Context, sourcePath, targetPath, displayPath st
 		_ = os.Remove(temporaryPath)
 	}()
 
-	if err := copyToTemporary(ctx, temporary, source, displayPath); err != nil {
+	if err := copyToTemporary(ctx, temporary, source, displayPath, expected); err != nil {
+		return err
+	}
+	if err := validateOpenApprovedSource(source, sourcePath, displayPath, expected); err != nil {
 		return err
 	}
 	if err := temporary.Chmod(mode.Perm()); err != nil {
@@ -341,7 +385,17 @@ func openStableSource(sourcePath, displayPath string) (*os.File, error) {
 	return source, nil
 }
 
-func copyToTemporary(ctx context.Context, temporary, source *os.File, displayPath string) error {
+func copyToTemporary(
+	ctx context.Context,
+	temporary, source *os.File,
+	displayPath string,
+	expected *sourceFingerprint,
+) error {
+	var writer io.Writer = temporary
+	digest := sha256.New()
+	if expected != nil {
+		writer = io.MultiWriter(temporary, digest)
+	}
 	buffer := make([]byte, fileBufferSize)
 	for {
 		if err := ctx.Err(); err != nil {
@@ -349,7 +403,7 @@ func copyToTemporary(ctx context.Context, temporary, source *os.File, displayPat
 		}
 		n, readErr := source.Read(buffer)
 		if n > 0 {
-			if _, err := temporary.Write(buffer[:n]); err != nil {
+			if _, err := writer.Write(buffer[:n]); err != nil {
 				return &PathError{Op: "write temporary file", Path: displayPath, Err: err}
 			}
 		}
@@ -359,6 +413,9 @@ func copyToTemporary(ctx context.Context, temporary, source *os.File, displayPat
 		if readErr != nil {
 			return &PathError{Op: "read source", Path: displayPath, Err: readErr}
 		}
+	}
+	if expected != nil && !bytes.Equal(digest.Sum(nil), expected.hash[:]) {
+		return &StalePlanError{Path: displayPath, Err: errors.New("source content changed since preview")}
 	}
 	return nil
 }

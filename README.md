@@ -78,9 +78,10 @@ Bindings are customizable. Mouse-wheel handling advances one row per wheel event
 
 ## Performance and verification
 
-The latest local benchmark measured about **32–35% less time for navigation plus visible file/sidebar rendering** after avoiding redundant filesystem reads. That is not a claim about whole-app speed, terminal paint latency, or outperforming Everything. Forced reload costs were broadly unchanged in the measured run.
+The earlier refresh benchmark measured about **32–35% less time for navigation plus visible file/sidebar rendering** after avoiding redundant filesystem reads. That is not a claim about whole-app speed, terminal paint latency, or outperforming Everything. Forced reload costs were broadly unchanged in the measured run. The newer rendering pass reduces temporary allocations while ordinary navigation timing remains approximately unchanged; both comparisons are documented below.
 
 - [Reproducible performance comparison](docs/benchmarks/refresh-optimization.md)
+- [Rendering allocation and output-parity checks](docs/benchmarks/standout-render.md)
 - [Verification history and limitations](docs/verification.md)
 - [Remaining live acceptance checks](docs/completion-audit.md)
 - [Configuration reference](website/src/content/docs/configure/superfile-config.mdx)

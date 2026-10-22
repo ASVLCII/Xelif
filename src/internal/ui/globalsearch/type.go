@@ -32,6 +32,7 @@ type SearchFunc func(context.Context, string, string, int) Response
 // OpenResultAction asks the parent model to open the selected result.
 type OpenResultAction struct {
 	Result Result
+	Reveal bool
 }
 
 func (a OpenResultAction) String() string {
@@ -40,23 +41,25 @@ func (a OpenResultAction) String() string {
 
 // Model contains the global-search modal state.
 type Model struct {
-	open        bool
-	root        string
-	search      SearchFunc
-	textInput   textinput.Model
-	nextReqID   uint64
-	activeReqID uint64
-	cancel      context.CancelFunc
-	loading     bool
-	results     []Result
-	provider    string
-	partial     bool
-	notice      string
-	errText     string
-	cursor      int
-	renderIndex int
-	width       int
-	maxHeight   int
+	open         bool
+	root         string
+	search       SearchFunc
+	textInput    textinput.Model
+	nextReqID    uint64
+	activeReqID  uint64
+	cancel       context.CancelFunc
+	loading      bool
+	results      []Result
+	savedResults []Result
+	resultTitle  string
+	provider     string
+	partial      bool
+	notice       string
+	errText      string
+	cursor       int
+	renderIndex  int
+	width        int
+	maxHeight    int
 }
 
 type debounceMsg struct {

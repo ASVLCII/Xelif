@@ -15,6 +15,14 @@ func (m *model) applyGlobalSearchAction(action common.ModelAction) {
 	}
 
 	result := resultAction.Result
+	if resultAction.Reveal {
+		if err := m.revealCatalogPath(result.Path); err != nil {
+			m.globalSearchModal.ShowResultError(fmt.Sprintf("Could not reveal saved path: %v", err))
+		} else {
+			m.globalSearchModal.Close()
+		}
+		return
+	}
 	if result.Directory {
 		if err := m.updateCurrentFilePanelDir(result.Path); err != nil {
 			m.showUserError("Could not open search result", err)

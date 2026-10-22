@@ -20,11 +20,16 @@ const (
 func (m *Model) Render() string {
 	renderer := ui.PromptRenderer(m.maxHeight, m.width)
 	renderer.SetBorderTitle(icon.Search + icon.Space + i18n.T("search_everywhere"))
+	if m.resultTitle != "" {
+		renderer.SetBorderTitle(
+			icon.Search + icon.Space + common.TruncateText(m.resultTitle, m.width-horizontalMargin, "..."),
+		)
+	}
 	renderer.AddLines(" " + m.textInput.View())
 	renderer.AddSection()
 
 	switch {
-	case strings.TrimSpace(m.textInput.Value()) == "":
+	case m.savedResults == nil && strings.TrimSpace(m.textInput.Value()) == "":
 		renderer.AddLines(" "+i18n.T("type_to_search"), " "+i18n.T("search_filters"))
 	case m.loading && len(m.results) == 0:
 		renderer.AddLines(" " + i18n.T("searching"))

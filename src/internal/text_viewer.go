@@ -1,15 +1,30 @@
 package internal
 
 import (
+	"log/slog"
 	"slices"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/yorukot/superfile/src/internal/common"
 )
 
 func (m *model) setTextViewerSize() {
 	m.textViewer.SetDimensions(3*m.fullWidth/4, 3*m.fullHeight/4) //nolint:mnd // Details favor readable space.
+}
+
+// Failures must replace the progress surface, not hide a notification behind
+// it. Error paths can contain untrusted filenames: strip controls before wrap.
+func (m *model) showTextViewerError(title string, err error, summary string) {
+	slog.Error(title, "error", err)
+	content := err.Error()
+	if summary != "" {
+		content = summary + "\n\n" + content
+	}
+	m.setTextViewerSize()
+	content = common.MakePrintableWithEscCheck(content, false)
+	m.textViewer.Open(title, ansi.Hardwrap(content, max(m.textViewer.GetWidth()-common.BorderPadding, 1), false))
 }
 
 func (m *model) handleTextViewerKey(key string) {

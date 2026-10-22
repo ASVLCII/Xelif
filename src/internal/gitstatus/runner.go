@@ -64,7 +64,13 @@ func (c *Client) run(ctx context.Context, operation, path, dir string, readOnly 
 		return stdout.data, nil
 	}
 	var execErr *exec.Error
-	if errors.As(err, &execErr) && errors.Is(execErr.Err, exec.ErrNotFound) {
+	var pathErr *os.PathError
+	missingExecutable := errors.As(err, &execErr) && errors.Is(execErr.Err, exec.ErrNotFound)
+	// An absolute missing executable is a PathError on Unix. Do not mistake a
+	// missing working directory (chdir) for an unavailable Git installation.
+	missingExecutable = missingExecutable || (errors.As(err, &pathErr) &&
+		pathErr.Op != "chdir" && pathErr.Path == cmd.Path && errors.Is(pathErr.Err, os.ErrNotExist))
+	if missingExecutable {
 		return nil, newError(operation, path, GitUnavailable, err, string(stderr.data))
 	}
 	return nil, newError(operation, path, CommandFailed, fmt.Errorf("git command: %w", err), string(stderr.data))

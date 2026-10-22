@@ -53,6 +53,8 @@ func (m *model) executeMetadataAction(action common.MetadataAction) (string, tea
 		patch := *m.pendingMetadataPatch
 		journal := filepath.Join(variable.MetadataJournalDir,
 			fmt.Sprintf("metadata-%d.json", time.Now().UTC().UnixNano()))
+		m.textViewer.Open("Applying metadata", "Applying the reviewed edit in the background…")
+		m.setTextViewerSize()
 		return "Applying metadata", func() tea.Msg {
 			result, err := metadataedit.Apply(context.Background(), patch, journal)
 			return metadataOperationMsg{
@@ -64,6 +66,8 @@ func (m *model) executeMetadataAction(action common.MetadataAction) (string, tea
 			return "", nil, errors.New("no metadata journal is available to restore")
 		}
 		journal := m.lastMetadataJournal
+		m.textViewer.Open("Restoring metadata", "Restoring the journaled metadata in the background…")
+		m.setTextViewerSize()
 		return "Restoring metadata", func() tea.Msg {
 			result, err := metadataedit.Restore(context.Background(), journal)
 			return metadataOperationMsg{
@@ -105,7 +109,7 @@ func parseMetadataChanges(action common.MetadataAction) (metadataedit.Changes, e
 
 func (m *model) applyMetadataOperation(msg metadataOperationMsg) {
 	if msg.err != nil {
-		m.showUserError("Metadata operation failed", msg.err)
+		m.showTextViewerError("Metadata operation failed", msg.err, "")
 		return
 	}
 	switch msg.operation {

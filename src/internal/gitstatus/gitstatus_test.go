@@ -206,8 +206,14 @@ func TestErrorsAreTypedAndBounded(t *testing.T) {
 	assertErrorKind(t, err, GitUnavailable)
 
 	repo := newTestRepo(t)
-	writeFile(t, repo, "large.txt", strings.Repeat("x", 256))
-	_, err = New(Options{MaxOutput: 16}).Status(context.Background(), repo)
+	writeFile(t, repo, "large-output-file.txt", "untracked\n")
+	boundedClient := New(Options{MaxOutput: 16})
+	_, err = boundedClient.Status(context.Background(), repo)
+	assertErrorKind(t, err, OutputLimit)
+	// Also exercise status directly: a long temporary root can itself exceed
+	// this budget, so Status alone would only prove the root-command limit.
+	_, err = boundedClient.run(context.Background(), "read status", repo, repo, true,
+		"status", "--porcelain=v2", "-z", "--untracked-files=all")
 	assertErrorKind(t, err, OutputLimit)
 
 	cancelled, cancel := context.WithCancel(context.Background())
@@ -303,7 +309,11 @@ func newTestRepo(t *testing.T) string {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not available")
 	}
-	repo := t.TempDir()
+	// Git reports a physical root, not a symlink alias such as macOS /var.
+	repo, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	git(t, repo, "init", "--initial-branch=master")
 	git(t, repo, "config", "user.email", "gitstatus@example.test")
 	git(t, repo, "config", "user.name", "Git Status Tests")

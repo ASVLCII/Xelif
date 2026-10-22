@@ -41,18 +41,28 @@ type Action struct {
 	Member string
 }
 
+// Operation is an immutable request snapshot. Workers must use their own
+// archive handle so closing this viewer never waits for a read or extraction.
+type Operation struct {
+	Context     context.Context
+	ArchivePath string
+	RequestID   uint64
+}
+
 type Model struct {
-	archive     *archivebrowser.Archive
-	archivePath string
-	directory   string
-	entries     []archivebrowser.Entry
-	open        bool
-	cursor      int
-	renderIndex int
-	width       int
-	height      int
-	lastMember  string
-	lastClick   time.Time
+	archive         *archivebrowser.Archive
+	archivePath     string
+	directory       string
+	entries         []archivebrowser.Entry
+	open            bool
+	cursor          int
+	renderIndex     int
+	width           int
+	height          int
+	lastMember      string
+	lastClick       time.Time
+	operationID     uint64
+	operationCancel context.CancelFunc
 }
 
 func New() Model { return Model{width: minimumWidth, height: minimumHeight} }
@@ -77,6 +87,8 @@ func (m *Model) Open(archivePath string) error {
 }
 
 func (m *Model) Close() error {
+	m.cancelOperation()
+
 	var err error
 	if m.archive != nil {
 		err = m.archive.Close()
@@ -97,6 +109,38 @@ func (m *Model) IsOpen() bool        { return m.open }
 func (m *Model) GetWidth() int       { return m.width }
 func (m *Model) GetHeight() int      { return m.height }
 func (m *Model) ArchivePath() string { return m.archivePath }
+
+// StartOperation cancels previous work and binds a new request to this archive.
+// It is called on the UI goroutine, not from an asynchronous command.
+func (m *Model) StartOperation() (Operation, error) {
+	if !m.open || m.archive == nil {
+		return Operation{}, archivebrowser.ErrClosed
+	}
+	m.cancelOperation()
+	ctx, cancel := context.WithCancel(context.Background())
+	m.operationCancel = cancel
+	return Operation{Context: ctx, ArchivePath: m.archivePath, RequestID: m.operationID}, nil
+}
+
+// CompleteOperation accepts the current request once. Cancelled work, replaced
+// archives (even at the same path), and duplicate messages cannot change the UI.
+func (m *Model) CompleteOperation(operation Operation) bool {
+	if !m.open || m.operationCancel == nil || operation.RequestID != m.operationID ||
+		operation.ArchivePath != m.archivePath || operation.Context == nil || operation.Context.Err() != nil {
+		return false
+	}
+	m.operationCancel()
+	m.operationCancel = nil
+	return true
+}
+
+func (m *Model) cancelOperation() {
+	if m.operationCancel != nil {
+		m.operationCancel()
+		m.operationCancel = nil
+	}
+	m.operationID++
+}
 
 func (m *Model) SetDimensions(width, height int) {
 	m.width = max(width, minimumWidth)
@@ -188,20 +232,6 @@ func (m *Model) HandleClick(localX, localY int, now time.Time) Action {
 	m.lastMember = member
 	m.lastClick = now
 	return Action{}
-}
-
-func (m *Model) Read(ctx context.Context, member string, maxBytes int64) ([]byte, error) {
-	if m.archive == nil {
-		return nil, archivebrowser.ErrClosed
-	}
-	return m.archive.Read(ctx, member, maxBytes)
-}
-
-func (m *Model) Extract(ctx context.Context, member, destination string) error {
-	if m.archive == nil {
-		return archivebrowser.ErrClosed
-	}
-	return m.archive.Extract(ctx, []string{member}, destination)
 }
 
 func (m *Model) Render() string {

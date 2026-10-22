@@ -42,6 +42,8 @@ func (m *Model) Open(root string) tea.Cmd {
 	m.loading = false
 	m.activeReqID = 0
 	m.results = nil
+	m.savedResults = nil
+	m.resultTitle = ""
 	m.provider = ""
 	m.partial = false
 	m.notice = ""
@@ -61,6 +63,17 @@ func (m *Model) OpenQuery(root, query string) tea.Cmd {
 	return m.scheduleSearch(query)
 }
 
+// OpenResults reuses the search picker for a fixed set of saved paths. Filtering
+// stays in memory and never falls through to a filesystem or Everything search.
+func (m *Model) OpenResults(title string, results []Result) {
+	_ = m.Open("")
+	m.resultTitle = title
+	m.savedResults = make([]Result, len(results))
+	copy(m.savedResults, results)
+	m.results = append([]Result(nil), results...)
+	m.notice = "Enter or click to reveal · Esc to return"
+}
+
 // Close closes and clears the modal.
 func (m *Model) Close() {
 	if m.cancel != nil {
@@ -70,6 +83,13 @@ func (m *Model) Close() {
 	m.open = false
 	m.loading = false
 	m.activeReqID = 0
+	if m.savedResults != nil {
+		// Collections can be much larger than a capped live-search response.
+		// Release their extra snapshot/filter buffers when the picker closes.
+		m.savedResults = nil
+		m.results = nil
+		m.resultTitle = ""
+	}
 	m.textInput.Blur()
 	m.textInput.SetValue("")
 }
@@ -114,10 +134,19 @@ func (m *Model) HandleUpdate(msg tea.Msg) (common.ModelAction, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.handleKeyPress(msg)
 	default:
+		oldQuery := m.textInput.Value()
 		var cmd tea.Cmd
 		m.textInput, cmd = m.textInput.Update(msg)
+		if query := m.textInput.Value(); query != oldQuery {
+			return action, tea.Batch(cmd, m.scheduleSearch(query))
+		}
 		return action, cmd
 	}
+}
+
+// ShowResultError preserves the picker and filter when a saved path is missing.
+func (m *Model) ShowResultError(message string) {
+	m.notice = common.MakePrintableWithEscCheck(message, false)
 }
 
 func (m *Model) acceptSearchResult(msg searchResultMsg) {
@@ -171,8 +200,7 @@ func (m *Model) handleKeyPress(msg tea.KeyPressMsg) (common.ModelAction, tea.Cmd
 	case tea.KeyEnter:
 		if m.cursor >= 0 && m.cursor < len(m.results) {
 			selected := m.results[m.cursor]
-			m.Close()
-			return OpenResultAction{Result: selected}, nil
+			return m.selectResult(selected), nil
 		}
 		return action, nil
 	case tea.KeyUp:
@@ -204,6 +232,25 @@ func (m *Model) scheduleSearch(query string) tea.Cmd {
 		m.cancel()
 		m.cancel = nil
 	}
+	if m.savedResults != nil {
+		m.results = m.results[:0]
+		terms := strings.Fields(strings.ToLower(query))
+		for _, result := range m.savedResults {
+			path := strings.ToLower(result.Path)
+			matches := true
+			for _, term := range terms {
+				if !strings.Contains(path, term) {
+					matches = false
+					break
+				}
+			}
+			if matches {
+				m.results = append(m.results, result)
+			}
+		}
+		m.cursor, m.renderIndex = 0, 0
+		return nil
+	}
 	if strings.TrimSpace(query) == "" {
 		m.activeReqID = 0
 		m.loading = false
@@ -222,4 +269,14 @@ func (m *Model) scheduleSearch(query string) tea.Cmd {
 	return tea.Tick(searchDebounceDelay, func(time.Time) tea.Msg {
 		return debounceMsg{reqID: reqID, query: query}
 	})
+}
+
+func (m *Model) selectResult(result Result) common.ModelAction {
+	if m.savedResults != nil {
+		// The parent closes after a successful reveal. Missing paths leave the
+		// picker and its filter intact so the next result remains reachable.
+		return OpenResultAction{Result: result, Reveal: true}
+	}
+	m.Close()
+	return OpenResultAction{Result: result}
 }

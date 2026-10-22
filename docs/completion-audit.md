@@ -2,6 +2,43 @@
 
 Status: active development, not a completed release. This audit retains the recorded feature scope in README.md and the feature guide; it does not redefine completion as the latest UI fix. Historical passes in verification.md are checkpoints, not substitutes for a final-source run.
 
+## Current finishing pass (2026-10-22)
+
+This pass preserves the approved compact layout, monochrome default with purposeful
+file-icon colors, single-row wheel movement, and mouse/keyboard access. The
+interaction reference is OpenCode **v2**, specifically contextual commands and
+predictable dialog focus, not a chat-style layout or ornamental animation. The
+[v2 TUI guide](https://dev.opencode.ai/v2/docs/cli/tui/) and
+[v2 keybinding guide](https://dev.opencode.ai/v2/docs/cli/keybinds/) describe those
+command and dialog mechanics. Xelif retains its own configured bindings.
+
+Concrete finishing changes:
+
+- Commands opens workspace, saved-search, batch-rename, tags, collections and
+  metadata prompts with the appropriate command prefix and syntax help. A picker
+  confirmation cannot also submit the newly opened prompt. Successful previews
+  receive focus even when ordinary prompt results are configured to stay open.
+- Tag and collection results use the existing searchable, scrollable, clickable
+  result picker. Choosing a path reveals that exact item in its local panel;
+  missing or filtered-out files produce an inline error without losing the list.
+  Opening a collection no longer silently jumps to its first member.
+- Corrupt, unreadable or unsupported catalogs fail closed. Existing bytes are
+  preserved; catalog writes are unavailable instead of silently starting empty.
+- Copy-missing apply is bound to the reviewed action set and source identities,
+  metadata and SHA-256 content. Changed inputs require another preview. Only
+  reviewed actions execute; destination publication remains create-if-absent.
+  Preview hashing is a deliberate safety cost, not a claimed speed improvement.
+- ZIP work captures an immutable request and uses its own handle. Closing or
+  replacing the picker cancels and invalidates queued work without waiting on a
+  worker's read/extract lock. Stale/duplicate results cannot replace the current
+  view. Current archive/copy/compare failures are visible above progress views;
+  partial copies report retained creations.
+
+The regression tests exercise real root dispatch and rendered overlays, not just
+standalone package APIs. Final combined gates and measurement details belong in
+[verification.md](verification.md); do not treat this list as native-terminal,
+native macOS/Linux, live-remote or whole-application performance verification.
+
 ## Core requested experience
 
 | Requirement | Current evidence | Remaining gate |
@@ -34,7 +71,7 @@ using unchanged analyzer settings. The machine-readable report is
 `X:\Xelif-work\lint-cleanup-final.json`; see `docs/lint-cleanup.md` for retained
 intentional patterns and behavior/performance checks.
 
-- The latest serialized full short suite, raw vet and full layout sweep passed after lint cleanup. Earlier asynchronous-test failures and their synchronization changes are recorded in verification.md; a universal flake-free or race-free claim is not made. Final combined live acceptance and website verification remain open, and checks must be refreshed after further source changes.
+- The serialized full short suite, raw vet and full layout sweep passed after lint cleanup. Earlier asynchronous-test failures and their synchronization changes are recorded in verification.md; a universal flake-free or race-free claim is not made. The current finishing pass's website production build passed (42 pages, with 38 pages indexed in two languages). Final combined live acceptance remains open, and source checks must be refreshed after further changes.
 - Windows, Linux/amd64 and macOS/arm64 builds were refreshed after lint cleanup. Cross-compilation is not native runtime testing; rebuild again after further source changes.
 - Reconcile the chronological verification record with final results and inspect current GitHub state. No commit, repository creation, push, release, or remote CI run is authorized merely by this audit.
 
@@ -42,4 +79,10 @@ Completion requires evidence for all accepted requirements, not only a clean lau
 
 Safety correction after the serialized full-suite checkpoint: ordinary file copying now creates destination files exclusively rather than truncating a destination that appeared after duplicate-name selection. A regression test first reproduced the overwrite, then passed after the correction; new-destination copying, paste/compression/undo regressions, trash/dircompare/duplicates suites, raw full vet, and the Windows build passed. Three unreachable legacy copy/move helpers were removed. The rebuilt binary was installed and its hash matched the verified build. The full suite must be refreshed again after this and subsequent changes.
 
-GitHub refreshed during this audit: authenticated as ASVLCII; origin still points to yorukot/superfile. GitHub could not resolve ASVLCII/Xelif. No repository was created and nothing was committed or published.
+GitHub refreshed on 2026-10-22: authenticated as `ASVLCII`; origin is
+`https://github.com/ASVLCII/Xelif.git`, public, default branch `main`. Upstream is
+retained separately. The published tip checked was `76c3645` (README/demo), before
+this finishing pass. Its Go and Python workflows failed; module-tidy passed.
+Portability/harness fixes are part of this working-tree pass and still require
+hosted native validation after publishing. Older repository-state observations
+in the chronological verification log are historical, not the current state.

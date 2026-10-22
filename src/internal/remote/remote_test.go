@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -265,15 +266,20 @@ func TestDownloadPublishesOneRegularFileWithoutOverwrite(t *testing.T) {
 }
 
 func TestDownloadRejectsDirectoryAndUnsafeEntry(t *testing.T) {
-	client := testClient(&fakeRunner{})
+	runner := &fakeRunner{}
+	client := testClient(runner)
 	dir := t.TempDir()
 	for _, entry := range []Entry{
 		{Remote: "cloud", Path: "folder", Name: "folder", IsDir: true},
 		{Remote: "cloud", Path: "../escape", Name: "escape"},
 		{Remote: "cloud", Path: "safe/file.txt", Name: "../escape"},
+		{Remote: "cloud", Path: `dir\file`, Name: `dir\file`},
 	} {
 		_, err := client.Download(context.Background(), entry, dir)
 		assertErrorKind(t, err, InvalidPath)
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("invalid download entry ran commands: %v", runner.calls)
 	}
 }
 
@@ -357,10 +363,15 @@ func TestValidLocalName(t *testing.T) {
 	if !validLocalName("資料 final.txt") {
 		t.Fatal("valid Unicode filename rejected")
 	}
-	for _, name := range []string{"", ".", "..", "../escape", `dir\file`} {
+	for _, name := range []string{"", ".", "..", "../escape", "dir/file"} {
 		if validLocalName(name) {
 			t.Fatalf("unsafe local name accepted: %q", name)
 		}
+	}
+	// A backslash is a literal filename character on Unix, but a path separator
+	// on Windows. Remote object paths reject it before reaching this helper.
+	if got, want := validLocalName(`dir\file`), runtime.GOOS != "windows"; got != want {
+		t.Fatalf("validLocalName(backslash) = %v, want %v on %s", got, want, runtime.GOOS)
 	}
 }
 

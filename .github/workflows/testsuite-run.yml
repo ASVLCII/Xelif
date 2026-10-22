@@ -41,6 +41,11 @@ jobs:
       - name: Install Dependencies
         run: pip install -r testsuite/requirements.txt
 
+      - name: Test tmux harness
+        working-directory: testsuite
+        timeout-minutes: 2
+        run: python -m unittest discover -s unit -v
+
       - name: Run Tests
         run: python testsuite/main.py -d
       

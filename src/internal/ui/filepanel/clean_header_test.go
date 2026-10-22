@@ -11,9 +11,10 @@ import (
 
 func TestSingleTabCleanHeaderAndHitTargets(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "folder")
-	m := Model{width: 100, Location: path, tabs: []panelTab{{location: path}}}
+	fullWidth := ansi.StringWidth(path)
+	m := Model{width: fullWidth + 20, Location: path, tabs: []panelTab{{location: path}}}
 	require.Empty(t, m.renderTabBar())
-	line, spans := m.headerBreadcrumbs(80)
+	line, spans := m.headerBreadcrumbs(fullWidth)
 	require.Equal(t, path, line)
 	for _, span := range spans {
 		clicked, ok := breadcrumbPathAt(spans, span.Start)

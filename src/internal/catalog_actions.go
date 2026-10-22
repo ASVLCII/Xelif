@@ -12,6 +12,7 @@ import (
 
 	"github.com/yorukot/superfile/src/internal/catalog"
 	"github.com/yorukot/superfile/src/internal/common"
+	"github.com/yorukot/superfile/src/internal/ui/globalsearch"
 )
 
 func loadCatalog(path string) *catalog.Catalog {
@@ -19,18 +20,15 @@ func loadCatalog(path string) *catalog.Catalog {
 	if err == nil {
 		return model
 	}
-	slog.Warn("Could not load catalog; starting with an empty in-memory catalog", "error", err)
-	model, newErr := catalog.New(path)
-	if newErr != nil {
-		slog.Error("Could not initialize catalog", "error", newErr)
-		return nil
-	}
-	return model
+	// Open already initializes genuinely missing catalogs. Resetting any other
+	// load failure would let the next Save overwrite unreadable or newer data.
+	slog.Error("Catalog unavailable; existing storage preserved", "path", path, "error", err)
+	return nil
 }
 
 func (m *model) executeCatalogAction(action common.CatalogAction) (string, tea.Cmd, error) {
 	if m.catalogModel == nil {
-		return "", nil, errors.New("tag and collection storage is unavailable")
+		return "", nil, errors.New("tag and collection storage is unavailable; existing catalog preserved (see log)")
 	}
 	paths := m.gitOperationPaths()
 	switch action.Operation {
@@ -64,7 +62,6 @@ func (m *model) executeCatalogAction(action common.CatalogAction) (string, tea.C
 			return "", nil, err
 		}
 		m.openCatalogResults("Collection: "+action.Name, matches)
-		m.openFirstCatalogPath(matches)
 		return fmt.Sprintf("Opened collection with %d path(s)", len(matches)), nil, nil
 	case common.CollectionList:
 		names := m.catalogModel.ListCollections()
@@ -98,35 +95,38 @@ func (m *model) updateCatalogTags(paths []string, action common.CatalogAction) (
 }
 
 func (m *model) openCatalogResults(title string, paths []string) {
-	content := "No matching paths."
-	if len(paths) > 0 {
-		content = strings.Join(paths, "\n")
+	results := make([]globalsearch.Result, len(paths))
+	for index, path := range paths {
+		results[index] = globalsearch.Result{Path: path}
 	}
-	m.textViewer.Open(title, content)
-	m.setTextViewerSize()
+	m.globalSearchModal.OpenResults(title, results)
+	m.setGlobalSearchModelSize()
 }
 
-func (m *model) openFirstCatalogPath(paths []string) {
-	for _, catalogPath := range paths {
-		info, err := os.Stat(catalogPath)
-		if err != nil {
-			continue
-		}
-		directory := catalogPath
-		if !info.IsDir() {
-			directory = filepath.Dir(catalogPath)
-		}
-		if err := m.updateCurrentFilePanelDir(directory); err != nil {
-			continue
-		}
-		m.getFocusedFilePanel().UpdateElementsIfNeeded(true, m.fileModel.DisplayDotFiles)
-		if !info.IsDir() {
-			if index := m.getFocusedFilePanel().FindElementIndexByLocation(catalogPath); index >= 0 {
-				m.getFocusedFilePanel().FocusIndex(index)
-			}
-		}
-		return
+// Paths may disappear after a collection is saved. Check only the selected
+// item, rather than statting every saved path on open.
+func (m *model) revealCatalogPath(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
 	}
+	directory := path
+	if !info.IsDir() {
+		directory = filepath.Dir(path)
+	}
+	if err := m.updateCurrentFilePanelDir(directory); err != nil {
+		return err
+	}
+	panel := m.getFocusedFilePanel()
+	panel.UpdateElementsIfNeeded(true, m.fileModel.DisplayDotFiles)
+	if !info.IsDir() {
+		index := panel.FindElementIndexByLocation(path)
+		if index < 0 {
+			return errors.New("saved path is hidden by the current file filter or hidden-file setting")
+		}
+		panel.FocusIndex(index)
+	}
+	return nil
 }
 
 func (m *model) updateCatalogMoves(moves []pathMove) {

@@ -128,6 +128,9 @@ type CopyOptions struct {
 	MaxEntries int
 	MaxDepth   int
 	Progress   func(Progress)
+	// ApprovedPlan binds this invocation to an unchanged DryRun result. A stale
+	// or caller-modified preview fails before writes; new actions are never added.
+	ApprovedPlan *CopyResult
 }
 
 // CopyResult contains the deterministic plan and an audit of paths created.
@@ -140,7 +143,31 @@ type CopyResult struct {
 	// Deprecated: completed destination entries are retained on failure.
 	// RolledBack is always false.
 	RolledBack bool
+
+	// Only a successful dry run carries an immutable, content-verified approval.
+	approval *copyApproval
 }
+
+// StalePlanError requires a fresh preview before a copy can be approved again.
+// No destination creations occur when freshness validation fails before apply;
+// a later source change can instead be wrapped by PartialCopyError.
+type StalePlanError struct {
+	Path string
+	Err  error
+}
+
+func (e *StalePlanError) Error() string {
+	if e.Path == "" {
+		return fmt.Sprintf("dircompare: copy-missing preview is stale; preview again before applying: %v", e.Err)
+	}
+	return fmt.Sprintf(
+		"dircompare: copy-missing preview is stale at %q; preview again before applying: %v",
+		e.Path,
+		e.Err,
+	)
+}
+
+func (e *StalePlanError) Unwrap() error { return e.Err }
 
 // PartialCopyError reports a failure after at least one destination creation.
 // Created is an independent copy of the creation audit in CopyResult, containing

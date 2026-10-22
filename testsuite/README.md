@@ -71,6 +71,18 @@ Notes
 .venv\Scripts\python main.py
 ```
 
+## Harness unit tests
+
+Run from the `testsuite` directory after installing `requirements.txt`:
+
+```sh
+python -m unittest discover -s unit -v
+```
+
+These tests mock tmux and check the launch arguments without starting the app.
+Each integration test passes its fixture directory explicitly so saved sessions
+cannot redirect it to another test's files.
+
 ## Tips while running tests
 - Use `-d` or `--debug` to enable debug logs during test run.
 - If you see flakiness in test runs due to superfile being still open, consider using `--close-wait-time` options to increase wait time for superfile to close. Note : For now we have enforcing superfile to close within a specific time window in tests to reduce test flakiness

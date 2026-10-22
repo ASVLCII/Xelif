@@ -17,6 +17,5 @@ func (m *Model) HandleClick(localY int) common.ModelAction {
 	}
 
 	selected := m.results[index]
-	m.Close()
-	return OpenResultAction{Result: selected}
+	return m.selectResult(selected)
 }

@@ -362,28 +362,14 @@ func TestModel_Render(t *testing.T) {
 		assert.Equal(t, exp, res)
 	})
 	shellModeSuggestion := "':' - Get into Shell mode"
-	var openCmdSuggestion string
-	var splitCmdSuggestion string
-	var cdCmdSuggestion string
-	var workspaceCmdSuggestion string
-	var searchCmdSuggestion string
+	suggestions := make(map[string][]string)
+	allSuggestions := []string{shellModeSuggestion}
 	for _, cmd := range defaultCommandSlice() {
 		curSuggestion := "'" + cmd.usage + "' - " + cmd.description
-
-		switch cmd.command {
-		case OpenCommand:
-			openCmdSuggestion = curSuggestion
-		case SplitCommand:
-			splitCmdSuggestion = curSuggestion
-		case CdCommand:
-			cdCmdSuggestion = curSuggestion
-		case WorkspaceCommand:
-			workspaceCmdSuggestion = curSuggestion
-		case SearchCommand:
-			searchCmdSuggestion = curSuggestion
-		default:
-			assert.Fail(t, "Unknow command")
-		}
+		assert.Contains(t, []string{OpenCommand, SplitCommand, CdCommand, WorkspaceCommand,
+			SearchCommand, BatchRenameCommand, TagCommand, CollectionCommand, MetadataCommand}, cmd.command)
+		suggestions[cmd.command] = append(suggestions[cmd.command], curSuggestion)
+		allSuggestions = append(allSuggestions, curSuggestion)
 	}
 
 	testdataSuggestions := []struct {
@@ -392,58 +378,51 @@ func TestModel_Render(t *testing.T) {
 		expectedSuggestions []string
 	}{
 		{
-			name:      "No Input",
-			textInput: "",
-			expectedSuggestions: []string{
-				shellModeSuggestion,
-				openCmdSuggestion,
-				splitCmdSuggestion,
-				cdCmdSuggestion,
-				workspaceCmdSuggestion,
-				searchCmdSuggestion,
-			},
+			name: "No Input", textInput: "", expectedSuggestions: allSuggestions,
 		},
 		{
-			name:      "Command without args",
-			textInput: "cd",
-			expectedSuggestions: []string{
-				cdCmdSuggestion,
-			},
+			name:                "Command without args",
+			textInput:           "cd",
+			expectedSuggestions: suggestions[CdCommand],
 		},
 		{
 			name:      "Incomplete Command",
 			textInput: "c",
-			expectedSuggestions: []string{
-				cdCmdSuggestion,
-			},
+			expectedSuggestions: append(
+				append([]string(nil), suggestions[CdCommand]...),
+				suggestions[CollectionCommand]...),
 		},
 		{
-			name:      "Command with args",
-			textInput: "open /abc",
-			expectedSuggestions: []string{
-				openCmdSuggestion,
-			},
+			name:                "Command with args",
+			textInput:           "open /abc",
+			expectedSuggestions: suggestions[OpenCommand],
 		},
 		{
-			name:      "Workspace command",
-			textInput: "workspace load Project",
-			expectedSuggestions: []string{
-				workspaceCmdSuggestion,
-			},
+			name:                "Workspace command",
+			textInput:           "workspace load Project",
+			expectedSuggestions: suggestions[WorkspaceCommand],
 		},
 		{
-			name:      "Saved search command",
-			textInput: "search run Reports",
-			expectedSuggestions: []string{
-				searchCmdSuggestion,
-			},
+			name:                "Saved search command",
+			textInput:           "search run Reports",
+			expectedSuggestions: suggestions[SearchCommand],
 		},
 		{
-			name:      "Command with extra args",
-			textInput: "open /abc /abc",
-			expectedSuggestions: []string{
-				openCmdSuggestion,
-			},
+			name:                "Command with extra args",
+			textInput:           "open /abc /abc",
+			expectedSuggestions: suggestions[OpenCommand],
+		},
+		{
+			name: "Batch rename", textInput: "batch-rename ", expectedSuggestions: suggestions[BatchRenameCommand],
+		},
+		{
+			name: "Tags", textInput: "tag ", expectedSuggestions: suggestions[TagCommand],
+		},
+		{
+			name: "Collections", textInput: "collection ", expectedSuggestions: suggestions[CollectionCommand],
+		},
+		{
+			name: "Metadata", textInput: "metadata ", expectedSuggestions: suggestions[MetadataCommand],
 		},
 		{
 			name:                "Invalid command",

@@ -78,6 +78,7 @@ class GenericTestImpl(BaseTest):
             raise ValueError("wait times must be non-negative")
         self.start_wait_time = start_wait_time
         self.close_wait_time = close_wait_time
+        self._last_rendered_output = ""
     
     def setup(self) -> None:
         for dir_path in self.test_dirs:
@@ -97,6 +98,7 @@ class GenericTestImpl(BaseTest):
         assert self.env.spf_mgr.is_spf_running(), "superfile is not running"
 
     def end_execution(self) -> None:
+        self._last_rendered_output = self.env.spf_mgr.get_rendered_output()
         self.env.spf_mgr.send_special_input(keys.KEY_ESC)    
         time.sleep(self.close_wait_time)
         self.logger.debug("Finished Execution")
@@ -142,6 +144,7 @@ class GenericTestImpl(BaseTest):
                     assert not self.env.fs_mgr.check_exists(file_path), f"File {file_path} exists" 
         except AssertionError as ae:
             self.logger.debug("Test assertion failed : %s", ae, exc_info=True)
+            self.logger.debug("Rendered output before closing:\n%s", self._last_rendered_output)
             return False
                 
         return True

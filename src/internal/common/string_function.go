@@ -283,12 +283,18 @@ func IsTextFile(filename string) (bool, error) {
 // Also allow \x0b that is for escape sequences
 // This function should better not be broken into multiple functions
 func MakePrintableWithEscCheck(line string, allowEsc bool) string { //nolint: gocognit // See above
+	firstChange := firstPrintableChange(line, allowEsc)
+	if firstChange < 0 {
+		return line
+	}
 	var sb strings.Builder
+	sb.Grow(len(line))
+	sb.WriteString(line[:firstChange])
 	// where the current line starts in sb, so we can measure the column for tabs
 
-	lastSegmentStart := 0
+	lastSegmentStart := strings.LastIndexByte(line[:firstChange], '\n') + 1
 
-	for _, r := range line {
+	for _, r := range line[firstChange:] {
 		if r == utf8.RuneError {
 			continue
 		}
@@ -330,6 +336,23 @@ func MakePrintableWithEscCheck(line string, allowEsc bool) string { //nolint: go
 		}
 	}
 	return sb.String()
+}
+
+// Most rendered lines already contain only permitted text and styling. Keep
+// their original storage; allocate only at the first byte that needs changing.
+// The accepted prefix contains no tabs, so its last newline is sufficient to
+// restore the original sanitizer's tab-stop state when processing the suffix.
+func firstPrintableChange(line string, allowEsc bool) int {
+	for index, r := range line {
+		switch {
+		case r >= ' ' && r < ASCIIMax, r == '\n', r == NonBreakingSpace:
+		case r == EscapeChar && allowEsc:
+		case r > ASCIIMax && r != utf8.RuneError && !unicode.IsSpace(r):
+		default:
+			return index
+		}
+	}
+	return -1
 }
 
 func MakePrintable(line string) string {

@@ -10,6 +10,7 @@ import (
 	"github.com/yorukot/superfile/src/internal/common"
 	"github.com/yorukot/superfile/src/internal/ui/commandpalette"
 	"github.com/yorukot/superfile/src/internal/ui/filepanel"
+	"github.com/yorukot/superfile/src/internal/ui/prompt"
 	"github.com/yorukot/superfile/src/pkg/utils"
 )
 
@@ -78,6 +79,7 @@ const (
 	commandIDWorkspacePrompt     = "workspace_prompt"
 	commandIDSavedSearchPrompt   = "saved_search_prompt"
 	commandIDCatalogPrompt       = "catalog_prompt"
+	commandIDCollectionPrompt    = "collection_prompt"
 	commandIDHelp                = "help"
 	commandIDFocusSidebar        = "focus_sidebar"
 	commandIDFocusProcesses      = "focus_processes"
@@ -182,8 +184,9 @@ func (m *model) paletteItems() []commandpalette.Item {
 			common.Hotkeys.OpenSPFPrompt, "session", "layout", "save"),
 		paletteItem(commandIDSavedSearchPrompt, "Manage saved searches", "Search",
 			common.Hotkeys.OpenSPFPrompt, "query", "filter", "save"),
-		paletteItem(commandIDCatalogPrompt, "Manage tags and collections", "Organize",
+		paletteItem(commandIDCatalogPrompt, "Manage tags", "Organize",
 			common.Hotkeys.OpenSPFPrompt, "label", "virtual folder"),
+		paletteItem(commandIDCollectionPrompt, "Manage collections", "Organize", nil, "save", "virtual folder"),
 		paletteItem(commandIDHelp, "Open help", "General", common.Hotkeys.OpenHelpMenu),
 		paletteItem(commandIDFocusSidebar, "Focus sidebar", "Focus", common.Hotkeys.FocusOnSidebar),
 		paletteItem(commandIDFocusProcesses, "Focus processes", "Focus", common.Hotkeys.FocusOnProcessBar),
@@ -366,6 +369,24 @@ func (m *model) applyCommandPaletteAction(action common.ModelAction) tea.Cmd {
 
 func (m *model) applyPaletteLaunchCommand(id string) (tea.Cmd, bool) {
 	switch id {
+	case commandIDWorkspacePrompt:
+		m.promptModal.OpenCommand(prompt.WorkspaceCommand + " ")
+		return nil, true
+	case commandIDSavedSearchPrompt:
+		m.promptModal.OpenCommand(prompt.SearchCommand + " ")
+		return nil, true
+	case commandIDBatchRenamePrompt:
+		m.promptModal.OpenCommand(prompt.BatchRenameCommand + " ")
+		return nil, true
+	case commandIDCatalogPrompt:
+		m.promptModal.OpenCommand(prompt.TagCommand + " ")
+		return nil, true
+	case commandIDCollectionPrompt:
+		m.promptModal.OpenCommand(prompt.CollectionCommand + " ")
+		return nil, true
+	case commandIDMetadataPrompt:
+		m.promptModal.OpenCommand(prompt.MetadataCommand + " ")
+		return nil, true
 	case commandIDOpen:
 		m.enterPanel()
 		return nil, true

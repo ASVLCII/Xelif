@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -51,6 +52,7 @@ func (m *model) cancelDuplicateScan() {
 		m.duplicateScanCancel()
 		m.duplicateScanCancel = nil
 	}
+	m.duplicateScanReqID++
 }
 
 func (m *model) applyDuplicateScan(msg duplicateScanMsg) {
@@ -59,7 +61,10 @@ func (m *model) applyDuplicateScan(msg duplicateScanMsg) {
 	}
 	m.duplicateScanCancel = nil
 	if msg.err != nil {
-		m.showUserError("Duplicate scan failed", msg.err)
+		if errors.Is(msg.err, context.Canceled) {
+			return
+		}
+		m.showTextViewerError("Duplicate scan failed", msg.err, "")
 		return
 	}
 	m.textViewer.Open("Duplicate files", renderDuplicateResult(msg.root, msg.result))

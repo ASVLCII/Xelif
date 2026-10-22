@@ -174,6 +174,15 @@ func (m *Model) Open(shellMode bool) {
 	_ = m.textInput.Focus()
 }
 
+// OpenCommand starts an internal command with its syntax help already visible.
+func (m *Model) OpenCommand(command string) {
+	m.Open(false)
+	m.textInput.SetValue(command)
+	m.textInput.CursorEnd()
+	m.resultMsg = ""
+	m.actionSuccess = true
+}
+
 func (m *Model) setShellMode(shellMode bool) {
 	m.shellMode = shellMode
 	m.textInput.Prompt = shellPrompt(m.shellMode) + " "

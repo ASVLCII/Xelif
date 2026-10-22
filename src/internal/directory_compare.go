@@ -16,6 +16,7 @@ const minDirectoryComparePanels = 2
 type pendingDirectorySync struct {
 	source      string
 	destination string
+	plan        dircompare.CopyResult
 }
 
 type directoryCompareMsg struct {
@@ -80,15 +81,31 @@ func (m *model) previewDirectorySync() tea.Cmd {
 
 func (m *model) applyPendingDirectorySync() tea.Cmd {
 	if m.pendingSync == nil {
-		m.showUserError("Could not copy missing items", errors.New("no copy-missing preview is pending"))
+		m.textViewer.Open(
+			"Could not copy missing items",
+			"No copy-missing preview is pending; preview again before applying.",
+		)
+		m.setTextViewerSize()
 		return nil
 	}
 	plan := *m.pendingSync
+	source, destination, err := m.comparisonPanels()
+	if err != nil || source != plan.source || destination != plan.destination {
+		m.pendingSync = nil
+		m.textViewer.Open("Could not copy missing items", "The compared panels changed; preview again before applying.")
+		m.setTextViewerSize()
+		return nil
+	}
 	ctx, reqID := m.newDirectoryCompareContext()
 	m.textViewer.Open("Copying missing items", "Copying without overwriting or deleting destination items…")
 	m.setTextViewerSize()
 	return func() tea.Msg {
-		result, err := dircompare.CopyMissing(ctx, plan.source, plan.destination, dircompare.CopyOptions{})
+		result, err := dircompare.CopyMissing(
+			ctx,
+			plan.source,
+			plan.destination,
+			dircompare.CopyOptions{ApprovedPlan: &plan.plan},
+		)
 		return directorySyncMsg{reqID: reqID, result: result, err: err}
 	}
 }
@@ -97,6 +114,7 @@ func (m *model) newDirectoryCompareContext() (context.Context, int) {
 	if m.dirCompareCancel != nil {
 		m.dirCompareCancel()
 	}
+	m.pendingSync = nil
 	ctx, cancel := context.WithCancel(context.Background())
 	m.dirCompareCancel = cancel
 	m.dirCompareReqID++
@@ -108,6 +126,9 @@ func (m *model) cancelDirectoryCompare() {
 		m.dirCompareCancel()
 		m.dirCompareCancel = nil
 	}
+	m.pendingSync = nil
+	// Cancellation also invalidates an already queued result or completion.
+	m.dirCompareReqID++
 }
 
 func (m *model) applyDirectoryCompare(msg directoryCompareMsg) {
@@ -116,11 +137,13 @@ func (m *model) applyDirectoryCompare(msg directoryCompareMsg) {
 	}
 	m.dirCompareCancel = nil
 	if msg.err != nil {
-		m.showUserError("Directory comparison failed", msg.err)
+		if !errors.Is(msg.err, context.Canceled) {
+			m.showTextViewerError("Directory comparison failed", msg.err, "")
+		}
 		return
 	}
 	if msg.copyPlan != nil {
-		m.pendingSync = &pendingDirectorySync{source: msg.left, destination: msg.right}
+		m.pendingSync = &pendingDirectorySync{source: msg.left, destination: msg.right, plan: *msg.copyPlan}
 		m.textViewer.Open("Copy-missing preview", renderDirectorySyncPlan(msg.left, msg.right, *msg.copyPlan))
 	} else {
 		m.textViewer.Open("Directory comparison", renderDirectoryComparison(msg))
@@ -129,15 +152,23 @@ func (m *model) applyDirectoryCompare(msg directoryCompareMsg) {
 }
 
 func (m *model) applyDirectorySync(msg directorySyncMsg) {
+	// Even a superseded/cancelled copy may have published complete entries.
+	// Reconcile the visible filesystem without consuming a newer approval.
+	if len(msg.result.Created) > 0 {
+		m.fileModel.UpdateFilePanelsIfNeeded(true)
+	}
 	if msg.reqID != m.dirCompareReqID {
 		return
 	}
 	m.dirCompareCancel = nil
+	m.pendingSync = nil
 	if msg.err != nil {
-		m.showUserError("Copy-missing operation failed", msg.err)
+		if !errors.Is(msg.err, context.Canceled) {
+			m.showTextViewerError("Copy-missing operation failed", msg.err, fmt.Sprintf(
+				"Created %d item(s); completed entries are retained.", len(msg.result.Created)))
+		}
 		return
 	}
-	m.pendingSync = nil
 	m.fileModel.UpdateFilePanelsIfNeeded(true)
 	m.textViewer.Open("Copy-missing complete",
 		fmt.Sprintf("Created %d missing item(s). Existing destination items were not overwritten; nothing was deleted.",
@@ -177,7 +208,7 @@ func renderDirectorySyncPlan(source, destination string, result dircompare.CopyR
 	var builder strings.Builder
 	fmt.Fprintf(
 		&builder,
-		"No files have been changed.\nSource (focused): %s\nDestination (next panel): %s\n\n",
+		"No files have been changed.\nSource (focused): %s\nDestination (next panel): %s\nChanged inputs require a fresh preview before applying.\n\n",
 		source,
 		destination,
 	)

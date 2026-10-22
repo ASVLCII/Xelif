@@ -45,6 +45,8 @@ func (m *model) executeBatchRenameAction(action common.BatchRenameAction) (strin
 			return "", nil, errors.New("no batch rename preview is pending")
 		}
 		plan := m.pendingBatchRename
+		m.textViewer.Open("Applying batch rename", "Renaming the reviewed items in the background…")
+		m.setTextViewerSize()
 		return "Applying batch rename", func() tea.Msg {
 			err := batchrename.Apply(context.Background(), *plan, moveElementNoReplace)
 			return batchRenameOperationMsg{plan: plan, err: err}
@@ -62,7 +64,7 @@ func (m *model) applyBatchRenameOperation(msg batchRenameOperationMsg) {
 		return
 	}
 	if msg.err != nil {
-		m.showUserError("Batch rename failed", msg.err)
+		m.showTextViewerError("Batch rename failed", msg.err, "")
 		return
 	}
 	moves := make([]pathMove, len(msg.plan.Entries))

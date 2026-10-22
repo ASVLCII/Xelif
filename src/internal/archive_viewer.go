@@ -2,12 +2,14 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/yorukot/superfile/src/internal/archivebrowser"
 	"github.com/yorukot/superfile/src/internal/common"
 	"github.com/yorukot/superfile/src/internal/ui/archiveviewer"
 )
@@ -18,10 +20,11 @@ const (
 )
 
 type archiveOperationMsg struct {
-	kind    archiveviewer.ActionKind
-	member  string
-	content []byte
-	err     error
+	operation archiveviewer.Operation
+	kind      archiveviewer.ActionKind
+	member    string
+	content   []byte
+	err       error
 }
 
 func (m *model) openArchive(path string) error {
@@ -76,27 +79,51 @@ func (m *model) handleArchiveAction(action archiveviewer.Action) tea.Cmd {
 	case archiveviewer.CloseAction:
 		_ = m.archiveViewer.Close()
 		return nil
-	case archiveviewer.PreviewAction:
-		member := action.Member
-		return func() tea.Msg {
-			content, err := m.archiveViewer.Read(context.Background(), member, archivePreviewLimit)
-			return archiveOperationMsg{kind: action.Kind, member: member, content: content, err: err}
+	case archiveviewer.PreviewAction, archiveviewer.ExtractAction:
+		operation, err := m.archiveViewer.StartOperation()
+		if err != nil {
+			m.showUserError("Archive operation failed", err)
+			return nil
 		}
-	case archiveviewer.ExtractAction:
-		member := action.Member
 		destination := m.getFocusedFilePanel().Location
-		return func() tea.Msg {
-			err := m.archiveViewer.Extract(context.Background(), member, destination)
-			return archiveOperationMsg{kind: action.Kind, member: member, err: err}
-		}
+		return archiveOperationCmd(operation, action, destination)
 	default:
 		return nil
 	}
 }
 
+func archiveOperationCmd(operation archiveviewer.Operation, action archiveviewer.Action, destination string) tea.Cmd {
+	return func() tea.Msg {
+		msg := archiveOperationMsg{operation: operation, kind: action.Kind, member: action.Member}
+		if err := operation.Context.Err(); err != nil {
+			msg.err = err
+			return msg
+		}
+		archive, err := archivebrowser.Open(operation.ArchivePath)
+		if err != nil {
+			msg.err = err
+			return msg
+		}
+		defer archive.Close()
+
+		switch action.Kind {
+		case archiveviewer.PreviewAction:
+			msg.content, msg.err = archive.Read(operation.Context, action.Member, archivePreviewLimit)
+		case archiveviewer.ExtractAction:
+			msg.err = archive.Extract(operation.Context, []string{action.Member}, destination)
+		case archiveviewer.NoAction, archiveviewer.CloseAction:
+			return msg
+		}
+		return msg
+	}
+}
+
 func (m *model) applyArchiveOperation(msg archiveOperationMsg) {
+	if !m.archiveViewer.CompleteOperation(msg.operation) || errors.Is(msg.err, context.Canceled) {
+		return
+	}
 	if msg.err != nil {
-		m.showUserError("Archive operation failed", msg.err)
+		m.showTextViewerError("Archive operation failed", msg.err, "")
 		return
 	}
 	switch msg.kind {
