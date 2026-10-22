@@ -287,3 +287,9 @@ Replacement preserved the running user's process and retained the old executable
 at `X:\Xelif-work\spf-before-favourites-20261023.exe`. Launcher dependency
 checking passed. Existing running instances still need a normal relaunch to use
 the new executable. Hosted CI remains distinct from these local results.
+
+Hosted Linux lint on `2e9b71d` caught two test-only annotation issues: an implicit
+JSON field mapping and intentional use of the shared temporary directory for
+the orphan fixture. The follow-up adds the explicit JSON tag and a documented,
+line-local `usetesting` exception; using `t.TempDir()` there would recreate the
+Windows cleanup lock. No production source or analyzer settings change.

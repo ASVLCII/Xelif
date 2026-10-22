@@ -44,7 +44,7 @@ func TestHelperProcess(t *testing.T) {
 		cmd := exec.Command(os.Args[0], "-test.run=^TestHelperProcess$", "--", "pipe-holder")
 		// Keep the intended inherited-pipe lifetime without locking the parent's
 		// test-owned working directory during Windows TempDir cleanup.
-		cmd.Dir = os.TempDir()
+		cmd.Dir = os.TempDir() //nolint:usetesting // The orphan must not hold a test-owned directory during cleanup.
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Start(); err != nil {

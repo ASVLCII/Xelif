@@ -34,7 +34,9 @@ func savedFavouritePaths(t *testing.T) []string {
 	t.Helper()
 	content, err := os.ReadFile(variable.PinnedFile)
 	require.NoError(t, err)
-	var entries []struct{ Location string }
+	var entries []struct {
+		Location string `json:"location"`
+	}
 	require.NoError(t, json.Unmarshal(content, &entries))
 	paths := make([]string, len(entries))
 	for i := range entries {
