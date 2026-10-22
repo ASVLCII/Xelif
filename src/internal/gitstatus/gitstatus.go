@@ -14,6 +14,7 @@ import (
 const (
 	defaultTimeout   = 5 * time.Second
 	defaultMaxOutput = int64(8 << 20)
+	literalPathspecs = "--literal-pathspecs"
 )
 
 // Options controls the resource bounds used for each Git command. Zero values
@@ -78,7 +79,7 @@ func (c *Client) Status(ctx context.Context, path string) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 	out, err := c.run(ctx, "read status", root, root, true,
-		"--literal-pathspecs", "status", "--porcelain=v2", "-z",
+		literalPathspecs, "status", "--porcelain=v2", "-z",
 		"--untracked-files=all", "--ignored=matching")
 	if err != nil {
 		return Snapshot{}, err
@@ -108,7 +109,7 @@ func (c *Client) Diff(ctx context.Context, path string, options DiffOptions) ([]
 	if err != nil {
 		return nil, err
 	}
-	args := []string{"--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "--no-color"}
+	args := []string{literalPathspecs, "diff", "--no-ext-diff", "--no-textconv", "--no-color"}
 	if options.Staged {
 		args = append(args, "--cached")
 	}
@@ -120,7 +121,7 @@ func (c *Client) Diff(ctx context.Context, path string, options DiffOptions) ([]
 // Stage adds only the explicitly supplied literal paths to the index.
 func (c *Client) Stage(ctx context.Context, path string, paths ...string) error {
 	return c.mutate(ctx, "stage", path, paths, func(root string, normalized []string) error {
-		args := append([]string{"--literal-pathspecs", "add", "--"}, normalized...)
+		args := append([]string{literalPathspecs, "add", "--"}, normalized...)
 		_, err := c.run(ctx, "stage", root, root, false, args...)
 		return err
 	})
@@ -133,7 +134,7 @@ func (c *Client) Unstage(ctx context.Context, path string, paths ...string) erro
 	return c.mutate(ctx, "unstage", path, paths, func(root string, normalized []string) error {
 		_, headErr := c.run(ctx, "inspect HEAD", root, root, true, "rev-parse", "--verify", "--quiet", "HEAD")
 		if headErr == nil {
-			args := append([]string{"--literal-pathspecs", "reset", "-q", "HEAD", "--"}, normalized...)
+			args := append([]string{literalPathspecs, "reset", "-q", "HEAD", "--"}, normalized...)
 			_, err := c.run(ctx, "unstage", root, root, false, args...)
 			return err
 		}
@@ -141,7 +142,7 @@ func (c *Client) Unstage(ctx context.Context, path string, paths ...string) erro
 		if !errors.As(headErr, &gitErr) || gitErr.Kind != CommandFailed {
 			return headErr
 		}
-		args := append([]string{"--literal-pathspecs", "rm", "--cached", "--ignore-unmatch", "-q", "--"}, normalized...)
+		args := append([]string{literalPathspecs, "rm", "--cached", "--ignore-unmatch", "-q", "--"}, normalized...)
 		_, err := c.run(ctx, "unstage", root, root, false, args...)
 		return err
 	})
@@ -151,7 +152,7 @@ func (c *Client) Unstage(ctx context.Context, path string, paths ...string) erro
 // never removes untracked files.
 func (c *Client) Discard(ctx context.Context, path string, paths ...string) error {
 	return c.mutate(ctx, "discard", path, paths, func(root string, normalized []string) error {
-		args := append([]string{"--literal-pathspecs", "restore", "--worktree", "--"}, normalized...)
+		args := append([]string{literalPathspecs, "restore", "--worktree", "--"}, normalized...)
 		_, err := c.run(ctx, "discard", root, root, false, args...)
 		return err
 	})

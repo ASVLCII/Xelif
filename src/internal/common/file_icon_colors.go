@@ -20,7 +20,10 @@ const (
 	iconOther
 )
 
-const iconContrastTarget = 4.5
+const (
+	iconContrastTarget = 4.5
+	folderIconName     = "folder"
+)
 
 type iconPaletteColor struct {
 	hex       string
@@ -95,7 +98,7 @@ func SidebarIconColor(glyph string, selected bool) string {
 	if !Config.ColorFileIcons || Config.PlainMode || glyph == "" {
 		return fg
 	}
-	file, directory := "folder", true
+	file, directory := folderIconName, true
 	switch glyph {
 	case icon.Documents, icon.Templates:
 		file, directory = "document.txt", false

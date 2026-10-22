@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
@@ -97,11 +98,16 @@ func TestPluginCommandPaletteExecutionUsesSelectionAndCurrentDirectory(t *testin
 	require.NoError(t, msg.err, "output: %s", msg.result.Output)
 	assert.FileExists(t, marker)
 	output := string(msg.result.Output)
-	// Child processes report their physical working directory on macOS, where
-	// the temporary directory may be reached through the /var symlink.
-	physicalRoot, err := filepath.EvalSymlinks(root)
+	// Compare directory identity: macOS may resolve /var, while Windows may
+	// preserve the runner's short-path alias instead of its expanded spelling.
+	cwdLine, _, _ := strings.Cut(output, "\n")
+	cwd, hasPrefix := strings.CutPrefix(strings.TrimSuffix(cwdLine, "\r"), "cwd=")
+	require.True(t, hasPrefix)
+	actualDirectory, err := os.Stat(cwd)
 	require.NoError(t, err)
-	assert.Contains(t, output, "cwd="+physicalRoot)
+	expectedDirectory, err := os.Stat(root)
+	require.NoError(t, err)
+	assert.True(t, os.SameFile(expectedDirectory, actualDirectory), "plugin used a different working directory")
 	assert.Contains(t, output, "path="+first)
 	assert.Contains(t, output, "path="+second)
 
@@ -110,7 +116,7 @@ func TestPluginCommandPaletteExecutionUsesSelectionAndCurrentDirectory(t *testin
 	content := renderPluginCommandResult(msg)
 	assert.Contains(t, content, "Status: completed")
 	assert.Contains(t, content, "Exit code: 0")
-	assert.Contains(t, content, "cwd="+physicalRoot)
+	assert.Contains(t, content, cwdLine)
 	assert.False(t, m.notifyModel.IsOpen())
 }
 

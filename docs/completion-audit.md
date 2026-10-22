@@ -66,10 +66,14 @@ The following are implemented in the working tree but are not accepted as global
 
 ## Open quality gates
 
-The lint gate now passes with zero active findings after the careful cleanup,
-using unchanged analyzer settings. The machine-readable report is
+The earlier local Windows cleanup passed with zero active findings under
+golangci-lint 2.11.4, using unchanged analyzer settings. Its report is
 `X:\Xelif-work\lint-cleanup-final.json`; see `docs/lint-cleanup.md` for retained
-intentional patterns and behavior/performance checks.
+intentional patterns and behavior/performance checks. Hosted 2.12.2 checks later
+found additional duplicate literals and Unix-only findings. The portability
+follow-up and its verification boundaries are recorded in
+[verification.md](verification.md); the earlier report is not a final hosted
+lint result.
 
 - The serialized full short suite, raw vet and full layout sweep passed after lint cleanup. Earlier asynchronous-test failures and their synchronization changes are recorded in verification.md; a universal flake-free or race-free claim is not made. The current finishing pass's website production build passed (42 pages, with 38 pages indexed in two languages). Final combined live acceptance remains open, and source checks must be refreshed after further changes.
 - Windows, Linux/amd64 and macOS/arm64 builds were refreshed after lint cleanup. Cross-compilation is not native runtime testing; rebuild again after further source changes.

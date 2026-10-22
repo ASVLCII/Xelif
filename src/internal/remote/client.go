@@ -19,6 +19,7 @@ const (
 	defaultTimeout        = 30 * time.Second
 	defaultMaxOutputBytes = int64(4 << 20)
 	maxStderrBytes        = int64(64 << 10)
+	nullJSON              = "null"
 )
 
 var errOutputTooLarge = errors.New("rclone output exceeded the configured limit")
@@ -97,7 +98,7 @@ func (c *Client) Remotes(ctx context.Context) ([]Remote, error) {
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(string(output)) == "null" {
+	if strings.TrimSpace(string(output)) == nullJSON {
 		return nil, newError("remotes", "", InvalidOutput, errors.New("rclone returned null JSON"), "")
 	}
 	var remotes []Remote
@@ -155,7 +156,7 @@ func (c *Client) List(ctx context.Context, location RemotePath) ([]Entry, error)
 }
 
 func decodeEntries(location RemotePath, output []byte) ([]Entry, error) {
-	if strings.TrimSpace(string(output)) == "null" {
+	if strings.TrimSpace(string(output)) == nullJSON {
 		return nil, newError("list", location.String(), InvalidOutput, errors.New("rclone returned null JSON"), "")
 	}
 	var raw []jsonEntry

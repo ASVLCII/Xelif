@@ -5,9 +5,11 @@ package plugincommands
 import "time"
 
 const (
-	pathPlaceholder  = "{path}"
-	pathsPlaceholder = "{paths}"
-	dirPlaceholder   = "{dir}"
+	pathPlaceholder   = "{path}"
+	pathsPlaceholder  = "{paths}"
+	dirPlaceholder    = "{dir}"
+	windowsOS         = "windows"
+	manifestArgsField = "args"
 
 	maxManifestArguments = 128
 

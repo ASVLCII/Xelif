@@ -1,5 +1,33 @@
 # Xelif verification checkpoint
 
+## Hosted-CI portability follow-up (2026-10-23)
+
+The first finishing-pass push, `c6288dc`, passed the website, module-tidy and
+Python terminal integration workflows. Linux and macOS Go tests also passed,
+but their golangci-lint **2.12.2** gate found additional duplicate literals plus
+Unix-only shadow/error-wording findings that the local Windows 2.11.4 run had
+not reported. Windows exposed a test assertion that expanded the runner's
+short-path alias even though the child correctly preserved it; its concurrent
+package run also logged PowerShell startup deadlines in substitution tests.
+
+The follow-up compares the plugin working-directory filesystem identity, while
+still checking that its actual output is presented in the result viewer.
+Repeated literals are named constants with identical values; Unix test error
+variables no longer shadow one another. The non-Windows Everything-unavailable
+message retains the product name but starts with a lowercase descriptive word.
+The Go CI job now serializes packages with `-p=1`, matching the local isolation
+strategy without skipping tests, weakening assertions or increasing deadlines.
+No app controls, operation semantics, shell launch arguments or refresh timings
+are changed by these corrections.
+
+The corrected source passed the full serialized suite without short mode:
+`go test -p=1 -count=1 -timeout=8m ./...` (root package, including layout cases,
+98.250 seconds). Log: `X:\Xelif-work\ci-followup-full-suite.log`.
+Configured formatting and diff whitespace checks passed. The local 2.12.2
+checker did not return a result after its configured deadline and was stopped;
+it is not recorded as a clean local lint run. Exact-version lint remains a
+required hosted-CI gate rather than being disabled or replaced with 2.11.4.
+
 ## Finishing-pass verification (2026-10-22)
 
 This development snapshot preserves the approved compact layout and wheel

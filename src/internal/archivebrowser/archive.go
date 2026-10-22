@@ -18,6 +18,11 @@ import (
 const (
 	defaultDirectoryPerm fs.FileMode = 0o755
 	defaultFilePerm      fs.FileMode = 0o644
+	operationIndex                   = "index"
+	operationList                    = "list"
+	operationStat                    = "stat"
+	operationRead                    = "read"
+	operationExtract                 = "extract"
 )
 
 // Entry describes one normalized member of an archive. Path always uses '/'
@@ -86,14 +91,14 @@ func Open(archivePath string) (*Archive, error) {
 func (a *Archive) index(file *zip.File) error {
 	normalized, directory, err := normalizePath(file.Name, false)
 	if err != nil {
-		return &Error{Op: "index", Archive: a.path, Member: file.Name, Err: err}
+		return &Error{Op: operationIndex, Archive: a.path, Member: file.Name, Err: err}
 	}
 	parts := strings.Split(normalized, "/")
 	for i := 1; i < len(parts); i++ {
 		ancestor := strings.Join(parts[:i], "/")
 		if existing := a.nodes[ancestor]; existing != nil {
 			if !existing.entry.IsDir {
-				return &Error{Op: "index", Archive: a.path, Member: normalized, Err: ErrDuplicatePath}
+				return &Error{Op: operationIndex, Archive: a.path, Member: normalized, Err: ErrDuplicatePath}
 			}
 			continue
 		}
@@ -114,7 +119,7 @@ func (a *Archive) index(file *zip.File) error {
 	directory = directory || mode.IsDir()
 	if existing := a.nodes[normalized]; existing != nil {
 		if !directory || !existing.entry.IsDir || !existing.entry.Implicit {
-			return &Error{Op: "index", Archive: a.path, Member: normalized, Err: ErrDuplicatePath}
+			return &Error{Op: operationIndex, Archive: a.path, Member: normalized, Err: ErrDuplicatePath}
 		}
 		existing.entry = entryFromFile(file, normalized, true)
 		existing.file = file
@@ -176,18 +181,18 @@ func (a *Archive) List(directory string) ([]Entry, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	if a.closed {
-		return nil, &Error{Op: "list", Archive: a.path, Member: directory, Err: ErrClosed}
+		return nil, &Error{Op: operationList, Archive: a.path, Member: directory, Err: ErrClosed}
 	}
 	normalized, _, err := normalizePath(directory, true)
 	if err != nil {
-		return nil, &Error{Op: "list", Archive: a.path, Member: directory, Err: err}
+		return nil, &Error{Op: operationList, Archive: a.path, Member: directory, Err: err}
 	}
 	n := a.nodes[normalized]
 	if n == nil {
-		return nil, &Error{Op: "list", Archive: a.path, Member: normalized, Err: fs.ErrNotExist}
+		return nil, &Error{Op: operationList, Archive: a.path, Member: normalized, Err: fs.ErrNotExist}
 	}
 	if !n.entry.IsDir {
-		return nil, &Error{Op: "list", Archive: a.path, Member: normalized, Err: ErrNotDirectory}
+		return nil, &Error{Op: operationList, Archive: a.path, Member: normalized, Err: ErrNotDirectory}
 	}
 	entries := make([]Entry, 0, len(n.children))
 	for child := range n.children {
@@ -210,15 +215,15 @@ func (a *Archive) Stat(member string) (Entry, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	if a.closed {
-		return Entry{}, &Error{Op: "stat", Archive: a.path, Member: member, Err: ErrClosed}
+		return Entry{}, &Error{Op: operationStat, Archive: a.path, Member: member, Err: ErrClosed}
 	}
 	normalized, _, err := normalizePath(member, true)
 	if err != nil {
-		return Entry{}, &Error{Op: "stat", Archive: a.path, Member: member, Err: err}
+		return Entry{}, &Error{Op: operationStat, Archive: a.path, Member: member, Err: err}
 	}
 	n := a.nodes[normalized]
 	if n == nil {
-		return Entry{}, &Error{Op: "stat", Archive: a.path, Member: normalized, Err: fs.ErrNotExist}
+		return Entry{}, &Error{Op: operationStat, Archive: a.path, Member: normalized, Err: fs.ErrNotExist}
 	}
 	return n.entry, nil
 }
@@ -229,39 +234,39 @@ func (a *Archive) Read(ctx context.Context, member string, maxBytes int64) ([]by
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	if a.closed {
-		return nil, &Error{Op: "read", Archive: a.path, Member: member, Err: ErrClosed}
+		return nil, &Error{Op: operationRead, Archive: a.path, Member: member, Err: ErrClosed}
 	}
 	if ctx == nil {
 		return nil, &Error{
-			Op:      "read",
+			Op:      operationRead,
 			Archive: a.path,
 			Member:  member,
 			Err:     errors.Join(ErrInvalidArgument, errors.New("nil context")),
 		}
 	}
 	if err := ctx.Err(); err != nil {
-		return nil, &Error{Op: "read", Archive: a.path, Member: member, Err: err}
+		return nil, &Error{Op: operationRead, Archive: a.path, Member: member, Err: err}
 	}
 	if maxBytes < 0 {
-		return nil, &Error{Op: "read", Archive: a.path, Member: member, Err: ErrInvalidLimit}
+		return nil, &Error{Op: operationRead, Archive: a.path, Member: member, Err: ErrInvalidLimit}
 	}
 	normalized, _, err := normalizePath(member, false)
 	if err != nil {
-		return nil, &Error{Op: "read", Archive: a.path, Member: member, Err: err}
+		return nil, &Error{Op: operationRead, Archive: a.path, Member: member, Err: err}
 	}
 	n := a.nodes[normalized]
 	if n == nil {
-		return nil, &Error{Op: "read", Archive: a.path, Member: normalized, Err: fs.ErrNotExist}
+		return nil, &Error{Op: operationRead, Archive: a.path, Member: normalized, Err: fs.ErrNotExist}
 	}
 	if n.entry.IsDir {
-		return nil, &Error{Op: "read", Archive: a.path, Member: normalized, Err: ErrIsDirectory}
+		return nil, &Error{Op: operationRead, Archive: a.path, Member: normalized, Err: ErrIsDirectory}
 	}
 	if n.entry.Size > uint64(maxBytes) {
-		return nil, &Error{Op: "read", Archive: a.path, Member: normalized, Err: ErrLimitExceeded}
+		return nil, &Error{Op: operationRead, Archive: a.path, Member: normalized, Err: ErrLimitExceeded}
 	}
 	reader, err := n.file.Open()
 	if err != nil {
-		return nil, &Error{Op: "read", Archive: a.path, Member: normalized, Err: err}
+		return nil, &Error{Op: operationRead, Archive: a.path, Member: normalized, Err: err}
 	}
 	defer reader.Close()
 
@@ -274,10 +279,10 @@ func (a *Archive) Read(ctx context.Context, member string, maxBytes int64) ([]by
 		if errors.Is(err, zip.ErrChecksum) || errors.Is(err, io.ErrUnexpectedEOF) {
 			err = errors.Join(ErrInvalidArchive, err)
 		}
-		return nil, &Error{Op: "read", Archive: a.path, Member: normalized, Err: err}
+		return nil, &Error{Op: operationRead, Archive: a.path, Member: normalized, Err: err}
 	}
 	if int64(len(data)) > maxBytes {
-		return nil, &Error{Op: "read", Archive: a.path, Member: normalized, Err: ErrLimitExceeded}
+		return nil, &Error{Op: operationRead, Archive: a.path, Member: normalized, Err: ErrLimitExceeded}
 	}
 	return data, nil
 }

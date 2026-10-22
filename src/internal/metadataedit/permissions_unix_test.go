@@ -22,8 +22,8 @@ func TestApplyAndRestorePermissions(t *testing.T) {
 		t.Fatal(err)
 	}
 	journal := filepath.Join(t.TempDir(), "permissions.json")
-	if _, err := Apply(context.Background(), patch, journal); err != nil {
-		t.Fatal(err)
+	if _, applyErr := Apply(context.Background(), patch, journal); applyErr != nil {
+		t.Fatal(applyErr)
 	}
 	info, err := os.Stat(target)
 	if err != nil {
@@ -32,8 +32,8 @@ func TestApplyAndRestorePermissions(t *testing.T) {
 	if info.Mode().Perm() != 0o600 {
 		t.Fatalf("permissions = %04o, want 0600", info.Mode().Perm())
 	}
-	if _, err := Restore(context.Background(), journal); err != nil {
-		t.Fatal(err)
+	if _, restoreErr := Restore(context.Background(), journal); restoreErr != nil {
+		t.Fatal(restoreErr)
 	}
 	info, err = os.Stat(target)
 	if err != nil {

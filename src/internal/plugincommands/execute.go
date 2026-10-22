@@ -125,14 +125,14 @@ func expandArguments(template, paths []string) []string {
 
 func minimalEnvironment(allowlist []string) []string {
 	names := append([]string(nil), allowlist...)
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == windowsOS {
 		names = append(names, "PATH", "SystemRoot")
 	}
 	seen := make(map[string]struct{}, len(names))
 	environment := make([]string, 0, len(names))
 	for _, name := range names {
 		canonical := name
-		if runtime.GOOS == "windows" {
+		if runtime.GOOS == windowsOS {
 			canonical = strings.ToUpper(name)
 		}
 		if _, exists := seen[canonical]; exists {

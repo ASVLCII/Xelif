@@ -13,6 +13,8 @@ import (
 	"unicode/utf8"
 )
 
+const windowsOS = "windows"
+
 var (
 	ErrInvalidName        = errors.New("invalid catalog name")
 	ErrInvalidPath        = errors.New("catalog path must be absolute")
@@ -342,7 +344,7 @@ func canonicalPath(path string) (string, string, error) {
 	}
 	clean := filepath.Clean(path)
 	key := clean
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == windowsOS {
 		key = strings.ToLower(clean)
 	}
 	return clean, key, nil
@@ -414,7 +416,7 @@ func splitPath(path string) (string, []string) {
 }
 
 func pathEqual(left, right string) bool {
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == windowsOS {
 		return strings.EqualFold(left, right)
 	}
 	return left == right

@@ -101,7 +101,7 @@ func validateManifest(manifest *Manifest) (string, error) {
 		{field: "id", validate: func() error { return validateManifestID(manifest.ID) }},
 		{field: "name", validate: func() error { return validateManifestName(manifest.Name) }},
 		{field: "executable", validate: func() error { return validateExecutable(manifest.Executable) }},
-		{field: "args", validate: func() error { return validateArguments(manifest.Args) }},
+		{field: manifestArgsField, validate: func() error { return validateArguments(manifest.Args) }},
 		{field: "extensions", validate: func() error { return validateExtensions(manifest) }},
 		{field: "timeout_ms", validate: func() error { return validateTimeout(manifest.TimeoutMS) }},
 		{field: "max_output_bytes", validate: func() error { return validateOutputLimit(manifest.MaxOutputBytes) }},
@@ -250,7 +250,7 @@ func validateEnvironment(names []string) error {
 			return fmt.Errorf("invalid environment-variable name %q", name)
 		}
 		canonical := name
-		if runtime.GOOS == "windows" {
+		if runtime.GOOS == windowsOS {
 			canonical = strings.ToUpper(name)
 		}
 		if _, exists := seen[canonical]; exists {

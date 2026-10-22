@@ -25,23 +25,23 @@ func (a *Archive) Extract(ctx context.Context, members []string, destination str
 	defer a.mu.RUnlock()
 
 	if a.closed {
-		return &Error{Op: "extract", Archive: a.path, Destination: destination, Err: ErrClosed}
+		return &Error{Op: operationExtract, Archive: a.path, Destination: destination, Err: ErrClosed}
 	}
 	if ctx == nil {
 		return &Error{
-			Op:          "extract",
+			Op:          operationExtract,
 			Archive:     a.path,
 			Destination: destination,
 			Err:         errors.Join(ErrInvalidArgument, errors.New("nil context")),
 		}
 	}
 	if err := ctx.Err(); err != nil {
-		return &Error{Op: "extract", Archive: a.path, Destination: destination, Err: err}
+		return &Error{Op: operationExtract, Archive: a.path, Destination: destination, Err: err}
 	}
 
 	opts, err := parseExtractOptions(options)
 	if err != nil {
-		return &Error{Op: "extract", Archive: a.path, Destination: destination, Err: err}
+		return &Error{Op: operationExtract, Archive: a.path, Destination: destination, Err: err}
 	}
 	root, err := inspectDestination(destination)
 	if err != nil {
@@ -49,7 +49,7 @@ func (a *Archive) Extract(ctx context.Context, members []string, destination str
 		if root != "" {
 			errorDestination = root
 		}
-		return &Error{Op: "extract", Archive: a.path, Destination: errorDestination, Err: err}
+		return &Error{Op: operationExtract, Archive: a.path, Destination: errorDestination, Err: err}
 	}
 	selected, err := a.selectedNodes(members)
 	if err != nil {
@@ -103,18 +103,24 @@ func (a *Archive) preflightExtraction(
 ) error {
 	for _, n := range selected {
 		if err := ctx.Err(); err != nil {
-			return &Error{Op: "extract", Archive: a.path, Member: n.entry.Path, Destination: root, Err: err}
+			return &Error{Op: operationExtract, Archive: a.path, Member: n.entry.Path, Destination: root, Err: err}
 		}
 		modeType := n.entry.Mode.Type()
 		if (n.entry.IsDir && modeType != fs.ModeDir) || (!n.entry.IsDir && modeType != 0) {
-			return &Error{Op: "extract", Archive: a.path, Member: n.entry.Path, Destination: root, Err: ErrUnsafeType}
+			return &Error{
+				Op:          operationExtract,
+				Archive:     a.path,
+				Member:      n.entry.Path,
+				Destination: root,
+				Err:         ErrUnsafeType,
+			}
 		}
 		target, err := extractionTarget(root, n.entry.Path)
 		if err != nil {
-			return &Error{Op: "extract", Archive: a.path, Member: n.entry.Path, Destination: root, Err: err}
+			return &Error{Op: operationExtract, Archive: a.path, Member: n.entry.Path, Destination: root, Err: err}
 		}
 		if err := inspectTarget(root, target, n.entry.IsDir, overwrite); err != nil {
-			return &Error{Op: "extract", Archive: a.path, Member: n.entry.Path, Destination: target, Err: err}
+			return &Error{Op: operationExtract, Archive: a.path, Member: n.entry.Path, Destination: target, Err: err}
 		}
 	}
 	return nil
@@ -130,14 +136,14 @@ func (a *Archive) extractSelected(
 	for _, n := range selected {
 		if err := ctx.Err(); err != nil {
 			rollbackExtraction(created)
-			return &Error{Op: "extract", Archive: a.path, Member: n.entry.Path, Destination: root, Err: err}
+			return &Error{Op: operationExtract, Archive: a.path, Member: n.entry.Path, Destination: root, Err: err}
 		}
 		target, _ := extractionTarget(root, n.entry.Path)
 		newPaths, err := a.extractNode(ctx, n, root, target, overwrite)
 		created = append(created, newPaths...)
 		if err != nil {
 			rollbackExtraction(created)
-			return &Error{Op: "extract", Archive: a.path, Member: n.entry.Path, Destination: target, Err: err}
+			return &Error{Op: operationExtract, Archive: a.path, Member: n.entry.Path, Destination: target, Err: err}
 		}
 	}
 	return nil

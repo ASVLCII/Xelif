@@ -53,7 +53,9 @@ jobs:
           GOMODCACHE: ${{ runner.temp }}/gomodcache
 
       - name: Test
-        run: go test -v ./...
+        # Shell-startup tests have strict deadlines; avoid competing packages
+        # spawning PowerShell at once on shared Windows runners.
+        run: go test -p=1 -v ./...
         env:
           GOMODCACHE: ${{ runner.temp }}/gomodcache
 

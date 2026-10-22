@@ -8,5 +8,5 @@ import (
 )
 
 func searchEverythingDirect(context.Context, string, int) ([]Result, error) {
-	return nil, errors.New("Everything IPC is only available on Windows")
+	return nil, errors.New("native Everything IPC is only available on Windows")
 }

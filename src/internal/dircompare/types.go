@@ -15,6 +15,8 @@ const (
 	maximumMaxDepth   = 1_024
 	tempPrefix        = ".dircompare-"
 	fileBufferSize    = 64 * 1024
+	optionMaxEntries  = "MaxEntries"
+	optionMaxDepth    = "MaxDepth"
 )
 
 // Classification describes the relationship between entries at one path.
@@ -289,14 +291,14 @@ type boundedOptions struct {
 func normalizeBounds(maxEntries, maxDepth int) (boundedOptions, error) {
 	if maxEntries < 0 || maxEntries > maximumMaxEntries {
 		return boundedOptions{}, &OptionError{
-			Option: "MaxEntries",
+			Option: optionMaxEntries,
 			Value:  maxEntries,
 			Reason: fmt.Sprintf("must be between 0 and %d", maximumMaxEntries),
 		}
 	}
 	if maxDepth < 0 || maxDepth > maximumMaxDepth {
 		return boundedOptions{}, &OptionError{
-			Option: "MaxDepth",
+			Option: optionMaxDepth,
 			Value:  maxDepth,
 			Reason: fmt.Sprintf("must be between 0 and %d", maximumMaxDepth),
 		}

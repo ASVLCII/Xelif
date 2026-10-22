@@ -188,10 +188,10 @@ func (s *treeScanner) scanEntry(absDir, relDir, name string, depth int) error {
 
 func (s *treeScanner) reserveEntry(path string, depth int) error {
 	if depth > s.state.bounds.maxDepth {
-		return &LimitExceededError{Option: "MaxDepth", Limit: s.state.bounds.maxDepth, Path: path}
+		return &LimitExceededError{Option: optionMaxDepth, Limit: s.state.bounds.maxDepth, Path: path}
 	}
 	if s.state.count >= s.state.bounds.maxEntries {
-		return &LimitExceededError{Option: "MaxEntries", Limit: s.state.bounds.maxEntries, Path: path}
+		return &LimitExceededError{Option: optionMaxEntries, Limit: s.state.bounds.maxEntries, Path: path}
 	}
 	s.state.count++
 	return nil
