@@ -12,14 +12,14 @@ import (
 )
 
 const (
-	CurrentVersion = "v1.6.0"
+	CurrentVersion = "v0.1.0-preview.1"
 	// Allowing pre-releases with non production version
 	// Set this to "" for production releases
 	PreReleaseSuffix = ""
 
 	// This gives most recent non-prerelease, non-draft release
-	LatestVersionURL    = "https://api.github.com/repos/yorukot/superfile/releases/latest"
-	LatestVersionGithub = "github.com/yorukot/superfile/releases/latest"
+	LatestVersionURL    = "https://api.github.com/repos/ASVLCII/Xelif/releases/latest"
+	LatestVersionGithub = "github.com/ASVLCII/Xelif/releases/latest"
 
 	// This will not break in windows. This is a relative path for Embed FS. It uses "/" only
 	EmbedConfigDir        = "src/superfile_config"

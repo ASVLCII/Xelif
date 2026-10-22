@@ -1,5 +1,7 @@
 *.log
 bin/
+# This is launcher source, not a generated binary directory.
+!packaging/npm/bin/
 dist/
 .idea/
 
