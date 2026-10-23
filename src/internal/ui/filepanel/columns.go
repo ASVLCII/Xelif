@@ -156,6 +156,7 @@ func (m *Model) makeColumns(columnThreshold int, fileNameRatio int) []columnDefi
 		// This condition checks that can we borrow some width from first column for additional columns?
 		if columns[0].Size-widthExtraColumn > minWidthForNameColumn {
 			delimiterCol := columnDefinition{
+				isDelimiter:  true,
 				Name:         "",
 				columnRender: m.renderDelimiter,
 				Size:         ansi.StringWidth(ColumnDelimiter),

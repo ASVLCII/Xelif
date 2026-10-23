@@ -109,18 +109,42 @@ func (m *Model) renderFileEntries(r *rendering.Renderer) {
 		return
 	}
 	end := min(m.renderIndex+m.PanelElementHeight(), m.ElemCount())
+	// Separators depend only on column width and selection, not the row's
+	// contents. Keep their styled strings local to this frame so theme and
+	// background changes never require cache invalidation.
+	type delimiterRender struct {
+		text  [2]string
+		ready [2]bool
+	}
+	delimiters := make([]delimiterRender, len(m.columns))
+	columns := make([]string, len(m.columns))
 
 	for itemIndex := m.renderIndex; itemIndex < end; itemIndex++ {
 		if m.Renaming && itemIndex == m.GetCursor() {
 			r.AddLines(m.Rename.View())
 			continue
 		}
-		var builder strings.Builder
-		for _, column := range m.columns {
-			colData := column.Render(itemIndex)
-			builder.WriteString(colData)
+		for columnIndex, column := range m.columns {
+			var colData string
+			if column.isDelimiter {
+				selection := 0
+				if m.CheckSelected(m.GetElementAtIdx(itemIndex).Location) {
+					selection = 1
+				}
+				cached := &delimiters[columnIndex]
+				if !cached.ready[selection] {
+					cached.text[selection] = column.Render(itemIndex)
+					cached.ready[selection] = true
+				}
+				colData = cached.text[selection]
+			} else {
+				colData = column.Render(itemIndex)
+			}
+			columns[columnIndex] = colData
 		}
-		r.AddLines(builder.String())
+		// Join sizes the row once, avoiding repeated builder growth and copies
+		// when later columns contain ANSI styling.
+		r.AddLines(strings.Join(columns, ""))
 	}
 }
 

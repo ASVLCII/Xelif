@@ -95,6 +95,7 @@ type sliceOrderFunc func(i, j int) bool
 type columnRenderer func(indexElement int, columnWidth int) string
 
 type columnDefinition struct {
+	isDelimiter  bool
 	Name         string
 	Size         int
 	HeaderAlign  lipgloss.Position

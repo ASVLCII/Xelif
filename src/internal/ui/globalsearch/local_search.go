@@ -89,6 +89,13 @@ func (walker *localSearchWalker) visit(path string, entry fs.DirEntry, walkErr e
 	if entry.Type()&fs.ModeSymlink != 0 {
 		return walker.enforceVisitLimit()
 	}
+	// Most selective name queries reject entries using only directory data.
+	// Do this before Info, which may require an extra filesystem request for
+	// every entry (especially expensive on remote or large directories). Returning
+	// nil for nonmatching directories still lets WalkDir search their children.
+	if !nameMatches(entry.Name(), walker.query.Terms) {
+		return walker.enforceVisitLimit()
+	}
 	info, err := entry.Info()
 	if err != nil {
 		walker.skippedErrors++
@@ -162,9 +169,6 @@ func localEntryMatches(
 	query Query,
 	options LocalSearchOptions,
 ) (bool, error) {
-	if !nameMatches(entry.Name(), query.Terms) {
-		return false, nil
-	}
 	if query.Type == EntryTypeFile && !info.Mode().IsRegular() {
 		return false, nil
 	}

@@ -118,8 +118,10 @@ func TestReturnDirElement(t *testing.T) {
 			dotFiles: false,
 			sortKind: sortmodel.SortBySize,
 			reversed: true,
-			expectedElemNames: []string{"dirNatural", "dir1", "dir2", "file2.txt", "abc", "xyz.json",
-				"file1.txt", "aBcD", "1.json"},
+			// Equal-sized entries compare equal even when descending. The old
+			// comparator inverted equality too and spuriously reversed these ties.
+			expectedElemNames: []string{"dirNatural", "dir1", "dir2", "file2.txt", "abc", "1.json",
+				"aBcD", "file1.txt", "xyz.json"},
 		},
 		// This one could be flakey if files are created to quickly, or maybe created in
 		// parallel

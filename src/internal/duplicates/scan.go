@@ -33,8 +33,9 @@ type scanner struct {
 	options   Options
 	result    Result
 	files     []candidate
-	seenFiles []os.FileInfo
-	seenDirs  []os.FileInfo
+	seenPaths map[string]struct{}
+	seenFiles identitySet
+	seenDirs  identitySet
 }
 
 type hashOutcome struct {
@@ -162,10 +163,9 @@ func (s *scanner) inspect(path string, explicitRoot bool) (os.FileInfo, bool) {
 }
 
 func (s *scanner) walkDirectory(path string, info os.FileInfo) error {
-	if containsIdentity(s.seenDirs, info) {
+	if s.seenDirs.containsOrAdd(info) {
 		return nil
 	}
-	s.seenDirs = append(s.seenDirs, info)
 	entries, err := os.ReadDir(path)
 	if err != nil {
 		s.warn(path, OperationReadDir, err)
@@ -183,7 +183,14 @@ func (s *scanner) addFile(path string, info os.FileInfo) error {
 	if !info.Mode().IsRegular() {
 		return nil
 	}
-	if !s.options.IncludeHardLinks && containsIdentity(s.seenFiles, info) {
+	// IncludeHardLinks permits distinct paths to the same file, never the same
+	// path twice when an explicit file root overlaps a directory root.
+	if s.options.IncludeHardLinks {
+		if _, seen := s.seenPaths[path]; seen {
+			return nil
+		}
+	}
+	if !s.options.IncludeHardLinks && s.seenFiles.containsOrAdd(info) {
 		return nil
 	}
 	if s.options.MaxFiles > 0 && len(s.files) >= s.options.MaxFiles {
@@ -192,20 +199,16 @@ func (s *scanner) addFile(path string, info os.FileInfo) error {
 		return errStopFileLimit
 	}
 
-	s.seenFiles = append(s.seenFiles, info)
+	if s.options.IncludeHardLinks {
+		if s.seenPaths == nil {
+			s.seenPaths = make(map[string]struct{})
+		}
+		s.seenPaths[path] = struct{}{}
+	}
 	s.files = append(s.files, candidate{path: path, info: info})
 	s.result.FilesScanned++
 	emit(s.options.Progress, Progress{Phase: PhaseDiscovered, Path: path, Files: s.result.FilesScanned})
 	return nil
-}
-
-func containsIdentity(seen []os.FileInfo, info os.FileInfo) bool {
-	for _, previous := range seen {
-		if os.SameFile(previous, info) {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *scanner) hashCandidates() {
@@ -274,12 +277,19 @@ func hashWorker(
 	wait *sync.WaitGroup,
 ) {
 	defer wait.Done()
+	var buffer []byte
 	for {
 		index := int(next.Add(1) - 1)
 		if index >= len(jobs) {
 			return
 		}
-		outcomes[index] = hashFile(ctx, jobs[index])
+		// Reuse one buffer per worker rather than allocating 128 KiB for every
+		// file. Empty files need no buffer and small files need only their size.
+		needed := int(min(jobs[index].info.Size(), int64(hashBufferSize)))
+		if len(buffer) < needed {
+			buffer = make([]byte, needed)
+		}
+		outcomes[index] = hashFile(ctx, jobs[index], buffer)
 	}
 }
 
@@ -315,7 +325,7 @@ func (s *scanner) appendDuplicateGroups(grouped map[groupKey][]File) {
 	}
 }
 
-func hashFile(ctx context.Context, file candidate) hashOutcome {
+func hashFile(ctx context.Context, file candidate, buffer []byte) hashOutcome {
 	if ctx.Err() != nil {
 		return hashOutcome{}
 	}
@@ -337,7 +347,6 @@ func hashFile(ctx context.Context, file candidate) hashOutcome {
 	}
 
 	hasher := sha256.New()
-	buffer := make([]byte, hashBufferSize)
 	remaining := file.info.Size()
 	var read int64
 	for remaining > 0 {

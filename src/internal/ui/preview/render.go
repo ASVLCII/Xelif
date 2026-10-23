@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 
 	"charm.land/lipgloss/v2"
 	"github.com/alecthomas/chroma/v2/lexers"
@@ -23,7 +22,7 @@ import (
 )
 
 func renderDirectoryPreview(r *rendering.Renderer, itemPath string, previewHeight int) string {
-	files, err := os.ReadDir(itemPath)
+	files, err := directoryPreviewEntries(itemPath, previewHeight)
 	if err != nil {
 		slog.Error("Error render directory preview", "error", err)
 		r.AddLines(common.FilePreviewDirectoryUnreadableText)
@@ -34,16 +33,6 @@ func renderDirectoryPreview(r *rendering.Renderer, itemPath string, previewHeigh
 		r.AddLines(common.FilePreviewEmptyText)
 		return r.Render()
 	}
-
-	sort.Slice(files, func(i, j int) bool {
-		if files[i].IsDir() && !files[j].IsDir() {
-			return true
-		}
-		if !files[i].IsDir() && files[j].IsDir() {
-			return false
-		}
-		return files[i].Name() < files[j].Name()
-	})
 
 	for i := 0; i < previewHeight && i < len(files); i++ {
 		file := files[i]

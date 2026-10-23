@@ -135,6 +135,7 @@ func moveElementNoReplace(source, destination string) error {
 }
 
 func copyElementNoReplace(source, destination string) error {
+	//nolint:gosec // G703: This is the user-selected file-manager source, not an untrusted sandbox-relative member.
 	info, err := os.Lstat(source)
 	if err != nil {
 		return fmt.Errorf("inspect source: %w", err)
@@ -154,23 +155,30 @@ func copyElementNoReplace(source, destination string) error {
 	if info.IsDir() {
 		return copyDirectoryNoReplace(source, destination, info.Mode())
 	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("cannot copy %s with mode %s: %w", source, info.Mode(), errors.ErrUnsupported)
+	}
 
+	//nolint:gosec // G703: The selected regular source is intentionally allowed outside the current directory.
 	sourceFile, err := os.Open(source)
 	if err != nil {
 		return fmt.Errorf("open source file: %w", err)
 	}
 	defer sourceFile.Close()
 
+	//nolint:gosec // G703: The selected paste destination is unrestricted; O_EXCL prevents replacing existing files.
 	destinationFile, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, info.Mode())
 	if err != nil {
 		return fmt.Errorf("create destination file without replacing: %w", err)
 	}
 	if _, err = io.Copy(destinationFile, sourceFile); err != nil {
 		_ = destinationFile.Close()
+		//nolint:gosec // G703: Remove only the incomplete destination this call created with O_EXCL.
 		_ = os.Remove(destination)
 		return fmt.Errorf("copy source file: %w", err)
 	}
 	if err = destinationFile.Close(); err != nil {
+		//nolint:gosec // G703: Remove only the incomplete destination this call created with O_EXCL.
 		_ = os.Remove(destination)
 		return fmt.Errorf("close destination file: %w", err)
 	}
@@ -178,11 +186,14 @@ func copyElementNoReplace(source, destination string) error {
 }
 
 func copyDirectoryNoReplace(source, destination string, mode os.FileMode) error {
-	if err := os.Mkdir(destination, mode); err != nil {
+	// Delay restrictive directory modes until their descendants exist.
+	//nolint:gosec // G703: The selected destination is unrestricted; Mkdir refuses an existing directory.
+	if err := os.Mkdir(destination, mode|0o700); err != nil {
 		return fmt.Errorf("create destination directory without replacing: %w", err)
 	}
 	entries, err := os.ReadDir(source)
 	if err != nil {
+		//nolint:gosec // G703: Roll back the incomplete directory created exclusively by this copy.
 		_ = os.RemoveAll(destination)
 		return fmt.Errorf("read source directory: %w", err)
 	}
@@ -191,9 +202,14 @@ func copyDirectoryNoReplace(source, destination string, mode os.FileMode) error 
 			filepath.Join(source, entry.Name()),
 			filepath.Join(destination, entry.Name()),
 		); err != nil {
+			//nolint:gosec // G703: Roll back the incomplete directory created exclusively by this copy.
 			_ = os.RemoveAll(destination)
 			return err
 		}
+	}
+	//nolint:gosec // G703: Restore source permissions on the destination directory created by this copy.
+	if err := os.Chmod(destination, mode); err != nil {
+		return fmt.Errorf("restore destination directory permissions: %w", err)
 	}
 	return nil
 }

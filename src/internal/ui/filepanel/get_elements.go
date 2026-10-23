@@ -23,9 +23,9 @@ func (m *Model) getDirectoryElements(displayDotFile bool) []Element {
 	}
 
 	dirEntries = slices.DeleteFunc(dirEntries, func(e os.DirEntry) bool {
-		// Entries not needed to be considered
-		_, err := e.Info()
-		return err != nil || (strings.HasPrefix(e.Name(), ".") && !displayDotFile)
+		// Filter using the directory entry before fetching metadata. The sorter
+		// fetches Info exactly once and skips vanished/unreadable entries.
+		return strings.HasPrefix(e.Name(), ".") && !displayDotFile
 	})
 
 	// No files/directories to process
@@ -52,11 +52,7 @@ func (m *Model) getDirectoryElementsBySearch(displayDotFile bool) []Element {
 	fileAndDirectories := []string{}
 
 	for _, item := range items {
-		fileInfo, err := item.Info()
-		if err != nil {
-			continue
-		}
-		if !displayDotFile && strings.HasPrefix(fileInfo.Name(), ".") {
+		if !displayDotFile && strings.HasPrefix(item.Name(), ".") {
 			continue
 		}
 
@@ -107,8 +103,21 @@ func (m *Model) UpdateElementsIfNeeded(force bool, displayDotFile bool) {
 		caseSensitiveSort: common.Config.CaseSensitiveSort,
 	}
 	if force || inputs != m.lastElementInputs || !m.shouldSkipPanelUpdate(nowTime) {
+		// Polling and watcher refreshes can insert/remove rows before the
+		// cursor. Keep focus on the file, so a refresh cannot silently redirect
+		// the next open/delete action. Directory navigation and new queries
+		// retain their own cursor rules; explicit target requests win below.
+		focusedPath := ""
+		if inputs.location == m.lastElementInputs.location && inputs.search == m.lastElementInputs.search {
+			focusedPath = m.GetFocusedItem().Location
+		}
 		// Load elements for this panel (with/without search filter)
 		m.element = m.getElements(displayDotFile)
+		if focusedPath != "" && m.TargetFile == "" && m.GetFocusedItem().Location != focusedPath {
+			if index := m.FindElementIndexByLocation(focusedPath); index >= 0 {
+				m.scrollToCursor(index)
+			}
+		}
 		m.clearMissingSelectionAnchor()
 		// Update file panel list
 		m.LastTimeGetElement = nowTime

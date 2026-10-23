@@ -2,13 +2,17 @@ package duplicates
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"slices"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -376,5 +380,49 @@ func TestDefaultWorkerCountIsUsable(t *testing.T) {
 	result, err := Scan(context.Background(), []string{root}, Options{})
 	if err != nil || len(result.Groups) != 1 {
 		t.Fatalf("default workers result = %#v, %v", result, err)
+	}
+}
+
+func TestScanDoesNotReportOnePathAsItsOwnDuplicate(t *testing.T) {
+	root := t.TempDir()
+	file := filepath.Join(root, "one")
+	writeFile(t, file, "same")
+	for _, includeLinks := range []bool{false, true} {
+		result, err := Scan(context.Background(), []string{root, file}, Options{IncludeHardLinks: includeLinks})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.FilesScanned != 1 || result.FilesHashed != 0 || len(result.Groups) != 0 {
+			t.Fatalf("IncludeHardLinks=%t counted the overlapping file twice: %#v", includeLinks, result)
+		}
+	}
+}
+
+func TestScanWorkerBufferGrowthPreservesDigests(t *testing.T) {
+	root := t.TempDir()
+	sizes := []int{0, 1, 31, hashBufferSize - 1, hashBufferSize, hashBufferSize + 1}
+	for _, size := range sizes {
+		content := strings.Repeat("x", size)
+		writeFile(t, filepath.Join(root, fmt.Sprintf("%d-a", size)), content)
+		writeFile(t, filepath.Join(root, fmt.Sprintf("%d-b", size)), content)
+	}
+	result, err := Scan(context.Background(), []string{root}, Options{Workers: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Groups) != len(sizes) || result.FilesHashed != 2*len(sizes) {
+		t.Fatalf("unexpected groups after buffer growth: %#v", result)
+	}
+	var total int64
+	for i, group := range result.Groups {
+		size := sizes[i]
+		digest := sha256.Sum256([]byte(strings.Repeat("x", size)))
+		if group.Size != int64(size) || group.Digest != hex.EncodeToString(digest[:]) || len(group.Files) != 2 {
+			t.Fatalf("incorrect group: %#v", group)
+		}
+		total += 2 * int64(size)
+	}
+	if result.BytesHashed != total {
+		t.Fatalf("hashed %d bytes, want %d", result.BytesHashed, total)
 	}
 }

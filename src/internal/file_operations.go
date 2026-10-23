@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -12,37 +13,6 @@ import (
 	"github.com/yorukot/superfile/src/internal/ui/processbar"
 	"github.com/yorukot/superfile/src/pkg/utils"
 )
-
-// isSamePartition checks if two paths are on the same filesystem partition
-func isSamePartition(path1, path2 string) (bool, error) {
-	// Get the absolute path to handle relative paths
-	absPath1, err := filepath.Abs(path1)
-	if err != nil {
-		return false, fmt.Errorf("failed to get absolute path of the first path: %w", err)
-	}
-
-	absPath2, err := filepath.Abs(path2)
-	if err != nil {
-		return false, fmt.Errorf("failed to get absolute path of the second path: %w", err)
-	}
-
-	if runtime.GOOS == utils.OsWindows {
-		// On Windows, we can check if both paths are on the same drive (same letter)
-		drive1 := getDriveLetter(absPath1)
-		drive2 := getDriveLetter(absPath2)
-		return drive1 == drive2, nil
-	}
-
-	// For Unix-like systems, we use the same path to check the root partition
-	return filepath.VolumeName(absPath1) == filepath.VolumeName(absPath2), nil
-}
-
-// getDriveLetter extracts the drive letter from a Windows path
-func getDriveLetter(path string) string {
-	// Windows paths are usually like "C:\path\to\file"
-	// So we need to extract the drive letter (e.g., "C")
-	return strings.ToUpper(string(path[0]))
-}
 
 // is an equivalent of "cp -P" command
 func copyLinkFile(src, dst string) error {
@@ -59,6 +29,10 @@ func isSymlink(info os.FileInfo) bool {
 
 // copyFile copies a single file
 func copyFile(src, dst string, srcInfo os.FileInfo) error {
+	if !srcInfo.Mode().IsRegular() {
+		return fmt.Errorf("cannot copy %s with mode %s: %w", src, srcInfo.Mode(), errors.ErrUnsupported)
+	}
+	//nolint:gosec // G703: This file manager reads an explicitly selected source path; it is not a sandbox root.
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %w", err)
@@ -67,6 +41,7 @@ func copyFile(src, dst string, srcInfo os.FileInfo) error {
 
 	// The earlier duplicate-name check is not an ownership guarantee: another
 	// process may create this path before we open it. Never truncate that file.
+	//nolint:gosec // G703: The user-selected paste destination is intentionally unrestricted; O_EXCL prevents clobbering.
 	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, srcInfo.Mode())
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
@@ -89,17 +64,17 @@ func pasteDir(src, dst string, p *processbar.Process, cut bool, processBarModel 
 		return err
 	}
 
-	// Check if we can do a fast move within the same partition
-	sameDev, err := isSamePartition(src, dst)
-	if err == nil && sameDev && cut {
-		// For cut operations on same partition, try fast rename first
-		err = os.Rename(src, dst)
-		if err == nil {
-			return nil
-		}
-		// If rename fails, fall back to manual copy
+	if cut {
+		// Let the filesystem decide whether rename is possible. In particular,
+		// Unix VolumeName is empty for every mount and cannot detect EXDEV.
+		return moveElementNoReplace(src, dst)
 	}
 
+	type copiedDirectory struct {
+		path string
+		mode os.FileMode
+	}
+	var directories []copiedDirectory
 	err = filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -110,36 +85,35 @@ func pasteDir(src, dst string, p *processbar.Process, cut bool, processBarModel 
 			return err
 		}
 		newPath := filepath.Join(dst, relPath)
-		return actualPasteOperation(info, path, newPath, cut, sameDev, p, processBarModel)
+		if err := actualPasteOperation(info, path, newPath, p, processBarModel); err != nil {
+			return err
+		}
+		if info.IsDir() {
+			directories = append(directories, copiedDirectory{path: newPath, mode: info.Mode()})
+		}
+		return nil
 	})
+	// Build with owner access even when the source is read-only. Restrict
+	// children before parents, after all descendants have been copied.
+	for index := len(directories) - 1; index >= 0; index-- {
+		directory := directories[index]
+		err = errors.Join(err, os.Chmod(directory.path, directory.mode))
+	}
 
 	if err != nil {
 		return err
 	}
 
-	// If this was a cut operation and we had to do a manual copy, remove the source
-	if cut && !sameDev {
-		err = os.RemoveAll(src)
-		if err != nil {
-			return fmt.Errorf("failed to remove source after move: %w", err)
-		}
-	}
-
 	return nil
 }
 
-func actualPasteOperation(info os.FileInfo, path string, newPath string, cut bool, sameDev bool,
+func actualPasteOperation(info os.FileInfo, path string, newPath string,
 	p *processbar.Process, processBarModel *processbar.Model) error {
 	var err error
 	if info.IsDir() {
-		// TODO - this is likely not needed because we did
-		// dst, err := renameIfDuplicate(dst) above
-		newPath, err = renameIfDuplicate(newPath)
-		if err != nil {
-			return err
-		}
-		err = os.MkdirAll(newPath, info.Mode())
-		return err
+		// Every parent is created by the walk before its children. Refuse a
+		// destination appearing concurrently instead of merging into it.
+		return os.Mkdir(newPath, info.Mode()|0o700)
 	}
 	if isSymlink(info) {
 		return copyLinkFile(path, newPath)
@@ -147,11 +121,7 @@ func actualPasteOperation(info os.FileInfo, path string, newPath string, cut boo
 
 	// File
 	p.CurrentFile = filepath.Base(path)
-	if cut && sameDev {
-		err = os.Rename(path, newPath)
-	} else {
-		err = copyFile(path, newPath, info)
-	}
+	err = copyFile(path, newPath, info)
 
 	if err != nil {
 		p.State = processbar.Failed
@@ -212,6 +182,7 @@ func isAncestor(src, dst string) bool {
 		return false
 	}
 
-	// If rel is "." or doesn't start with "..", then dst is inside src
-	return rel == "." || !strings.HasPrefix(rel, "..")
+	// Only the parent component escapes the source. Names such as
+	// "..nested" are ordinary children and must still reject recursive paste.
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }

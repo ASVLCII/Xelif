@@ -106,8 +106,8 @@ func TestSizeSortPreservesEqualSizeComparisons(t *testing.T) {
 		order := getSizeOrderingFuncWithReadDir(elements, reversed, func(string) ([]os.DirEntry, error) {
 			return nil, nil
 		})
-		if order(0, 1) != reversed || order(2, 3) != reversed {
-			t.Fatalf("equal-size comparator changed when reversed=%t", reversed)
+		if order(0, 1) || order(1, 0) || order(2, 3) || order(3, 2) {
+			t.Fatalf("equal sizes must compare equal when reversed=%t", reversed)
 		}
 	}
 }
@@ -152,12 +152,15 @@ func uncachedSizeSortOrdering(
 		if elements[i].Directory != elements[j].Directory {
 			return elements[i].Directory
 		}
+		if reversed {
+			i, j = j, i
+		}
 		if elements[i].Directory && elements[j].Directory {
 			filesI, _ := readDir(elements[i].Location)
 			filesJ, _ := readDir(elements[j].Location)
-			return len(filesI) < len(filesJ) != reversed
+			return len(filesI) < len(filesJ)
 		}
-		return elements[i].Info.Size() < elements[j].Info.Size() != reversed
+		return elements[i].Info.Size() < elements[j].Info.Size()
 	}
 }
 

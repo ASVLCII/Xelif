@@ -22,35 +22,48 @@ func getOrderingFunc(elements []Element, reversed bool, sortKind sortmodel.SortK
 			if elements[i].Directory != elements[j].Directory {
 				return elements[i].Directory
 			}
-			if common.Config.CaseSensitiveSort {
-				return elements[i].Name < elements[j].Name != reversed
+			if reversed {
+				i, j = j, i
 			}
-			return strings.ToLower(elements[i].Name) < strings.ToLower(elements[j].Name) != reversed
+			if common.Config.CaseSensitiveSort {
+				return elements[i].Name < elements[j].Name
+			}
+			return strings.ToLower(elements[i].Name) < strings.ToLower(elements[j].Name)
 		}
 	case sortmodel.SortBySize:
 		order = getSizeOrderingFunc(elements, reversed)
 	case sortmodel.SortByDate:
 		order = func(i, j int) bool {
-			return elements[i].Info.ModTime().After(elements[j].Info.ModTime()) != reversed
+			if reversed {
+				i, j = j, i
+			}
+			return elements[i].Info.ModTime().After(elements[j].Info.ModTime())
 		}
 	case sortmodel.SortByType:
 		order = getTypeOrderingFunc(elements, reversed)
 	case sortmodel.SortByNatural:
-		order = func(i, j int) bool {
-			// One of them is a directory, and other is not
-			if elements[i].Directory != elements[j].Directory {
-				return elements[i].Directory
-			}
-			if common.Config.CaseSensitiveSort {
-				return sortorder.NaturalLess(elements[i].Name, elements[j].Name) != reversed
-			}
-			return sortorder.NaturalLess(
-				strings.ToLower(elements[i].Name),
-				strings.ToLower(elements[j].Name),
-			) != reversed
-		}
+		order = getNaturalOrderingFunc(elements, reversed)
 	}
 	return order
+}
+
+func getNaturalOrderingFunc(elements []Element, reversed bool) sliceOrderFunc {
+	return func(i, j int) bool {
+		// One of them is a directory, and other is not
+		if elements[i].Directory != elements[j].Directory {
+			return elements[i].Directory
+		}
+		if reversed {
+			i, j = j, i
+		}
+		if common.Config.CaseSensitiveSort {
+			return sortorder.NaturalLess(elements[i].Name, elements[j].Name)
+		}
+		return sortorder.NaturalLess(
+			strings.ToLower(elements[i].Name),
+			strings.ToLower(elements[j].Name),
+		)
+	}
 }
 
 func getSizeOrderingFunc(elements []Element, reversed bool) sliceOrderFunc {
@@ -87,11 +100,14 @@ func getSizeOrderingFuncWithReadDir(
 		if elements[i].Directory != elements[j].Directory {
 			return elements[i].Directory
 		}
+		if reversed {
+			i, j = j, i
+		}
 
 		if elements[i].Directory && elements[j].Directory {
-			return childCount(elements[i].Location) < childCount(elements[j].Location) != reversed
+			return childCount(elements[i].Location) < childCount(elements[j].Location)
 		}
-		return elements[i].Info.Size() < elements[j].Info.Size() != reversed
+		return elements[i].Info.Size() < elements[j].Info.Size()
 	}
 }
 
@@ -100,6 +116,9 @@ func getTypeOrderingFunc(elements []Element, reversed bool) sliceOrderFunc {
 		// One of them is a directory, and the other is not
 		if elements[i].Directory != elements[j].Directory {
 			return elements[i].Directory
+		}
+		if reversed {
+			i, j = j, i
 		}
 
 		var extI, extJ string
@@ -112,14 +131,14 @@ func getTypeOrderingFunc(elements []Element, reversed bool) sliceOrderFunc {
 
 		// Compare by extension/type
 		if extI != extJ {
-			return (extI < extJ) != reversed
+			return extI < extJ
 		}
 
 		// If same type, fall back to name
 		if common.Config.CaseSensitiveSort {
-			return (elements[i].Name < elements[j].Name) != reversed
+			return elements[i].Name < elements[j].Name
 		}
-		return (strings.ToLower(elements[i].Name) < strings.ToLower(elements[j].Name)) != reversed
+		return strings.ToLower(elements[i].Name) < strings.ToLower(elements[j].Name)
 	}
 }
 

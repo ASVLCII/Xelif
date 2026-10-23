@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/yorukot/superfile/src/internal/common"
 )
 
@@ -144,10 +146,17 @@ type ThumbnailGenerator struct {
 	// This is a cache. Key -> Video file path, Value -> Thumbnail file path
 	// TODO: We can potentially make it persistent, preventing generation
 	// of thumbnail on every launch or superfile
-	tempFilesCache map[string]string
+	tempFilesCache map[string]thumbnailCacheEntry
 	tempDirectory  string
 	mu             sync.Mutex
 	generators     []thumbnailGeneratorInterface
+	inFlight       singleflight.Group
+}
+
+type thumbnailCacheEntry struct {
+	path       string
+	sourceSize int64
+	sourceTime time.Time
 }
 
 func NewThumbnailGenerator() (*ThumbnailGenerator, error) {
@@ -180,7 +189,7 @@ func NewThumbnailGenerator() (*ThumbnailGenerator, error) {
 	}
 
 	thumbnailGenerator := &ThumbnailGenerator{
-		tempFilesCache: make(map[string]string),
+		tempFilesCache: make(map[string]thumbnailCacheEntry),
 		tempDirectory:  tmp,
 		generators:     generators,
 	}
@@ -199,29 +208,59 @@ func (g *ThumbnailGenerator) SupportsExt(ext string) bool {
 }
 
 func (g *ThumbnailGenerator) GetThumbnailOrGenerate(path string) (string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	// Navigation and resizing may overlap requests. Share the expensive external
+	// conversion only when both the path and observed source revision match.
+	key := fmt.Sprintf("%s:%d:%d", path, info.Size(), info.ModTime().UnixNano())
+	result, err, _ := g.inFlight.Do(key, func() (any, error) {
+		return g.thumbnailForSource(path, info)
+	})
+	if err != nil {
+		return "", err
+	}
+	thumbnail, ok := result.(string)
+	if !ok {
+		return "", errors.New("invalid thumbnail conversion result")
+	}
+	return thumbnail, nil
+}
+
+func (g *ThumbnailGenerator) thumbnailForSource(path string, info os.FileInfo) (string, error) {
 	g.mu.Lock()
 	file, ok := g.tempFilesCache[path]
 	g.mu.Unlock()
 
-	if ok {
-		_, err := os.Stat(file)
+	if ok && file.sourceSize == info.Size() && file.sourceTime.Equal(info.ModTime()) {
+		_, err := os.Stat(file.path)
 		if err == nil {
-			return file, nil
+			return file.path, nil
 		}
-
-		g.mu.Lock()
-		delete(g.tempFilesCache, path)
-		g.mu.Unlock()
 	}
 
 	generatedThumbnailPath, err := g.generateThumbnail(path)
 	if err != nil {
 		return "", err
 	}
-
 	g.mu.Lock()
-	g.tempFilesCache[path] = generatedThumbnailPath
-	g.mu.Unlock()
+	defer g.mu.Unlock()
+	current, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if current.Size() != info.Size() || !current.ModTime().Equal(info.ModTime()) {
+		// A newer revision may already have completed while this conversion was
+		// running. Return this request's result without replacing the new cache.
+		return generatedThumbnailPath, nil
+	}
+
+	g.tempFilesCache[path] = thumbnailCacheEntry{
+		path: generatedThumbnailPath, sourceSize: info.Size(), sourceTime: info.ModTime(),
+	}
+	// Retain old paths until CleanUp: concurrent preview commands may still be
+	// opening an earlier result after GetThumbnailOrGenerate has returned it.
 
 	return generatedThumbnailPath, nil
 }

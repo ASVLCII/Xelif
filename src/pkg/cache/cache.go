@@ -24,31 +24,16 @@ func New[T any](maxEntries int, expiration time.Duration) *Cache[T] {
 		expiration: expiration,
 	}
 
-	// Start a cleanup goroutine
-	go cache.periodicCleanup()
-
 	return cache
 }
 
-// periodicCleanup removes expired entries periodically
-func (c *Cache[T]) periodicCleanup() {
-	//nolint:mnd // half of expiration for cleanup interval
-	ticker := time.NewTicker(c.expiration / 2)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		c.cleanupExpired()
-	}
-}
-
-// cleanupExpired removes expired cache entries
-func (c *Cache[T]) cleanupExpired() {
-	now := time.Now()
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
+// Expiration is checked on access and before eviction. The cache is bounded,
+// so idle entries need no background worker: such a worker would otherwise keep
+// both the cache and its owning preview/model alive after they are discarded.
+// The caller must hold c.mutex for writing.
+func (c *Cache[T]) cleanupExpired(now time.Time) {
 	for key, entry := range c.cache {
-		if now.Sub(entry.Timestamp) > c.expiration {
+		if now.Sub(entry.Timestamp) >= c.expiration {
 			delete(c.cache, key)
 		}
 	}
@@ -56,10 +41,19 @@ func (c *Cache[T]) cleanupExpired() {
 
 func (c *Cache[T]) Get(key string) (T, bool) {
 	c.mutex.RLock()
-	defer c.mutex.RUnlock()
-
-	if entry, exists := c.cache[key]; exists {
+	entry, exists := c.cache[key]
+	if exists && time.Since(entry.Timestamp) < c.expiration {
+		c.mutex.RUnlock()
 		return entry.obj, true
+	}
+	c.mutex.RUnlock()
+	if exists {
+		c.mutex.Lock()
+		// A concurrent Set may have replaced the expired value.
+		if current, ok := c.cache[key]; ok && time.Since(current.Timestamp) >= c.expiration {
+			delete(c.cache, key)
+		}
+		c.mutex.Unlock()
 	}
 	var res T
 	return res, false
@@ -68,10 +62,16 @@ func (c *Cache[T]) Get(key string) (T, bool) {
 func (c *Cache[T]) Set(key string, obj T) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	if c.maxEntries <= 0 || c.expiration <= 0 {
+		return
+	}
 
 	// Check if we need to evict entries
-	if len(c.cache) >= c.maxEntries {
-		c.evictOldest()
+	if _, replacing := c.cache[key]; !replacing && len(c.cache) >= c.maxEntries {
+		c.cleanupExpired(time.Now())
+		if len(c.cache) >= c.maxEntries {
+			c.evictOldest()
+		}
 	}
 
 	c.cache[key] = cacheItemInternal[T]{
@@ -90,17 +90,19 @@ func (c *Cache[T]) Remove(key string) {
 func (c *Cache[T]) evictOldest() {
 	var oldestKey string
 	var oldestTime time.Time
+	found := false
 
 	// Find the oldest entry
 	for key, entry := range c.cache {
-		if oldestKey == "" || entry.Timestamp.Before(oldestTime) {
+		if !found || entry.Timestamp.Before(oldestTime) {
 			oldestKey = key
 			oldestTime = entry.Timestamp
+			found = true
 		}
 	}
 
 	// Remove the oldest entry
-	if oldestKey != "" {
+	if found {
 		delete(c.cache, oldestKey)
 	}
 }

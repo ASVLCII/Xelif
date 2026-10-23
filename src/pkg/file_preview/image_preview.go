@@ -72,8 +72,15 @@ func (p *ImagePreviewer) ImagePreview(path string, maxWidth int, maxHeight int,
 		return "", "", fmt.Errorf("dimensions must be positive (maxWidth=%d, maxHeight=%d)", maxWidth, maxHeight)
 	}
 
-	// Create dimensions string for cache key
-	dimensions := fmt.Sprintf("%d,%d,%s,%d", maxWidth, maxHeight, defaultBGColor, sideAreaWidth)
+	// A path alone does not identify image contents: editors replace or update
+	// files in place. Check the source before serving a cached frame, including
+	// detecting removal rather than displaying a deleted file for five minutes.
+	info, statErr := os.Stat(path)
+	if statErr != nil {
+		return "", "", statErr
+	}
+	dimensions := fmt.Sprintf("%d,%d,%s,%d,%d,%d", maxWidth, maxHeight, defaultBGColor,
+		sideAreaWidth, info.Size(), info.ModTime().UnixNano())
 
 	// Try Kitty first as it's more modern
 	if p.IsKittyCapable() {
