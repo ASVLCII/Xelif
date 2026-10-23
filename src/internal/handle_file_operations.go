@@ -195,13 +195,15 @@ func (m *model) getDeleteTriggerCmd(deletePermanent bool) tea.Cmd {
 	}
 
 	reqID := m.nextIoReqCnt()
+	panelLocation := panel.Location
+	hasTrash := m.hasTrash
 
 	return func() tea.Msg {
 		title := common.TrashWarnTitle
 		content := common.TrashWarnContent
 		action := notify.DeleteAction
 
-		if !m.hasTrash || !trash.Available(panel.Location) || deletePermanent {
+		if !hasTrash || !trash.Available(panelLocation) || deletePermanent {
 			title = common.PermanentDeleteWarnTitle
 			content = common.PermanentDeleteWarnContent
 			action = notify.PermanentDeleteAction

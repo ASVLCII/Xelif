@@ -98,16 +98,19 @@ func TestGlobalSearchResultClickUsesCenteredOverlayCoordinates(t *testing.T) {
 
 	p.SendKey("d")
 	require.Eventually(t, func() bool {
-		return len(m.globalSearchModal.GetResults()) == 1
+		return p.Check(func(m *model) bool { return len(m.globalSearchModal.GetResults()) == 1 })
 	}, time.Second, DefaultTestTick)
-	overlayX := m.fullWidth/common.CenterDivisor - m.globalSearchModal.GetWidth()/common.CenterDivisor
-	overlayY := m.fullHeight/common.CenterDivisor - m.globalSearchModal.GetMaxHeight()/common.CenterDivisor
+	var overlayX, overlayY int
+	p.WithModel(func(m *model) {
+		overlayX = m.fullWidth/common.CenterDivisor - m.globalSearchModal.GetWidth()/common.CenterDivisor
+		overlayY = m.fullHeight/common.CenterDivisor - m.globalSearchModal.GetMaxHeight()/common.CenterDivisor
+	})
 	p.Send(clickAt(overlayX+1, overlayY+3, tea.MouseLeft))
 
 	assert.Eventually(t, func() bool {
-		return m.getFocusedFilePanel().Location == destination
+		return p.Check(func(m *model) bool { return m.getFocusedFilePanel().Location == destination })
 	}, time.Second, DefaultTestTick)
-	assert.False(t, m.globalSearchModal.IsOpen())
+	p.WithModel(func(m *model) { assert.False(t, m.globalSearchModal.IsOpen()) })
 }
 
 func TestGlobalSearchOutsideClickDismissesWithoutReachingBackground(t *testing.T) {

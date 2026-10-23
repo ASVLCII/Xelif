@@ -31,36 +31,44 @@ func TestCopy(t *testing.T) {
 	file1 := filepath.Join(dir1, "file1.txt")
 	t.Run("Basic Copy", func(t *testing.T) {
 		utils.SetupDirectories(t, curTestDir, dir1, dir2)
-		utils.SetupFiles(t, file1)
+		utils.SetupFilesWithData(t, []byte("copied content"), file1)
 		t.Cleanup(func() {
 			os.RemoveAll(curTestDir)
 		})
 
 		p := NewTestTeaProgWithEventLoop(t, defaultTestModel(dir1))
 
-		require.Equal(t, "file1.txt",
-			p.getModel().getFocusedFilePanel().GetFocusedItem().Name)
-		p.SendKeyDirectly(common.Hotkeys.CopyItems[0])
-		assert.False(t, p.getModel().clipboard.IsCut())
-		assert.Equal(t, file1, p.getModel().clipboard.GetFirstItem())
-
-		p.getModel().updateCurrentFilePanelDir("../dir2")
+		p.WithModel(func(m *model) {
+			require.Equal(t, "file1.txt", m.getFocusedFilePanel().GetFocusedItem().Name)
+		})
+		p.SendKey(common.Hotkeys.CopyItems[0])
+		p.WithModel(func(m *model) {
+			assert.False(t, m.clipboard.IsCut())
+			assert.Equal(t, file1, m.clipboard.GetFirstItem())
+			require.NoError(t, m.updateCurrentFilePanelDir("../dir2"))
+		})
 		p.SendKey(common.Hotkeys.PasteItems[0])
 
-		assert.Eventually(t, func() bool {
-			_, err := os.Lstat(filepath.Join(dir2, "file1.txt"))
-			return err == nil
+		require.Eventually(t, func() bool {
+			data, err := os.ReadFile(filepath.Join(dir2, "file1.txt"))
+			return err == nil && string(data) == "copied content"
 		}, DefaultTestTimeout, DefaultTestTick)
 
-		assert.False(t, p.getModel().clipboard.IsCut())
-		assert.Equal(t, file1, p.getModel().clipboard.GetFirstItem())
+		p.WithModel(func(m *model) {
+			assert.False(t, m.clipboard.IsCut())
+			assert.Equal(t, file1, m.clipboard.GetFirstItem())
+		})
 
 		p.SendKey(common.Hotkeys.PasteItems[0])
-		assert.Eventually(t, func() bool {
-			_, err := os.Lstat(filepath.Join(dir2, "file1(1).txt"))
-			return err == nil
+		require.Eventually(t, func() bool {
+			data, err := os.ReadFile(filepath.Join(dir2, "file1(1).txt"))
+			return err == nil && string(data) == "copied content"
 		}, DefaultTestTimeout, DefaultTestTick)
-		assert.FileExists(t, filepath.Join(dir2, "file1(1).txt"))
+		for _, name := range []string{"file1.txt", "file1(1).txt"} {
+			data, err := os.ReadFile(filepath.Join(dir2, name))
+			require.NoError(t, err)
+			assert.Equal(t, "copied content", string(data))
+		}
 		//TODO: Also verify if there are only 2 items in process bar
 	})
 }
@@ -97,24 +105,24 @@ func TestFileCreation(t *testing.T) {
 			p.SendKey(common.Hotkeys.FilePanelItemCreate[0])
 
 			require.Eventually(t, func() bool {
-				return m.typingModal.open
+				return p.Check(func(m *model) bool { return m.typingModal.open })
 			}, DefaultTestTimeout, DefaultTestTick, "Typing modal never opened")
 
 			p.SendKey(tt.fileName)
 			p.SendKey(common.Hotkeys.ConfirmTyping[0])
 
 			require.Eventually(t, func() bool {
-				return !m.typingModal.open
+				return p.Check(func(m *model) bool { return !m.typingModal.open })
 			}, DefaultTestTimeout, DefaultTestTick, "Typing modal never closed")
 
 			if tt.expectedError {
 				require.Eventually(t, func() bool {
-					return m.spfError.IsOpen()
+					return p.Check(func(m *model) bool { return m.spfError.IsOpen() })
 				}, DefaultTestTimeout, DefaultTestTick, "SPF error modal never opened for input: %q", tt.fileName)
 
 				p.SendKey(common.Hotkeys.Quit[0])
 				require.Eventually(t, func() bool {
-					return !m.spfError.IsOpen()
+					return p.Check(func(m *model) bool { return !m.spfError.IsOpen() })
 				}, DefaultTestTimeout, DefaultTestTick, "SPF error modal never closed")
 				return
 			}
@@ -124,7 +132,9 @@ func TestFileCreation(t *testing.T) {
 				_, err := os.Lstat(targetFile)
 				return err == nil
 			}, DefaultTestTimeout, DefaultTestTick, "Target file did not get created : %q", targetFile)
-			assert.False(t, m.spfError.IsOpen(), "Unexpected SPF error for input: %q", tt.fileName)
+			p.WithModel(func(m *model) {
+				assert.False(t, m.spfError.IsOpen(), "Unexpected SPF error for input: %q", tt.fileName)
+			})
 		})
 	}
 
@@ -164,8 +174,8 @@ func TestFileRename(t *testing.T) {
 
 	t.Run("Basic rename", func(t *testing.T) {
 		m := defaultTestModel(curTestDir)
-		p := NewTestTeaProgWithEventLoop(t, m)
 		setFilePanelSelectedItemByLocation(t, m.getFocusedFilePanel(), file1)
+		p := NewTestTeaProgWithEventLoop(t, m)
 
 		p.SendKey(common.Hotkeys.FilePanelItemRename[0])
 		p.SendKey("_new")
@@ -180,8 +190,8 @@ func TestFileRename(t *testing.T) {
 
 	t.Run("Rename never replaces an existing item", func(t *testing.T) {
 		m := defaultTestModel(curTestDir)
-		p := NewTestTeaProgWithEventLoop(t, m)
 		setFilePanelSelectedItemByLocation(t, m.getFocusedFilePanel(), file3)
+		p := NewTestTeaProgWithEventLoop(t, m)
 
 		p.SendKey(common.Hotkeys.FilePanelItemRename[0])
 		p.Send(tea.KeyPressMsg{Code: tea.KeyBackspace})
@@ -189,9 +199,11 @@ func TestFileRename(t *testing.T) {
 		p.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 		require.Eventually(t, func() bool {
-			return m.notifyModel.IsOpen()
+			return p.Check(func(m *model) bool { return m.notifyModel.IsOpen() })
 		}, DefaultTestTimeout, DefaultTestTick)
-		assert.Equal(t, "Could not rename item", m.notifyModel.GetTitle())
+		p.WithModel(func(m *model) {
+			assert.Equal(t, "Could not rename item", m.notifyModel.GetTitle())
+		})
 		assert.FileExists(t, file2)
 		assert.FileExists(t, file3)
 		file2Data, err := os.ReadFile(file2)
@@ -269,14 +281,16 @@ func TestFileDelete(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := defaultTestModel(curTestDir)
 			m.hasTrash = common.InitTrash()
-			p := NewTestTeaProgWithEventLoop(t, m)
 			setFilePanelSelectedItemByLocation(t, m.getFocusedFilePanel(), tt.filePath)
+			p := NewTestTeaProgWithEventLoop(t, m)
 			if tt.permanentDelete {
 				p.SendKey(common.Hotkeys.PermanentlyDeleteItems[0])
 			} else {
 				p.SendKey(common.Hotkeys.DeleteItems[0])
 			}
-			assert.Eventually(t, m.notifyModel.IsOpen, DefaultTestTimeout,
+			assert.Eventually(t, func() bool {
+				return p.Check(func(m *model) bool { return m.notifyModel.IsOpen() })
+			}, DefaultTestTimeout,
 				DefaultTestTick, "Notify model never opened")
 			expectedTitle := common.TrashWarnTitle
 			expectedAction := notify.DeleteAction
@@ -284,8 +298,10 @@ func TestFileDelete(t *testing.T) {
 				expectedTitle = common.PermanentDeleteWarnTitle
 				expectedAction = notify.PermanentDeleteAction
 			}
-			assert.Equal(t, expectedTitle, m.notifyModel.GetTitle())
-			assert.Equal(t, expectedAction, m.notifyModel.GetConfirmAction())
+			p.WithModel(func(m *model) {
+				assert.Equal(t, expectedTitle, m.notifyModel.GetTitle())
+				assert.Equal(t, expectedAction, m.notifyModel.GetConfirmAction())
+			})
 
 			p.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 

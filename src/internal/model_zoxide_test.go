@@ -36,15 +36,16 @@ func openZoxide(t *testing.T, p *TeaProg) {
 	t.Helper()
 	p.SendKey(common.Hotkeys.OpenZoxide[0])
 	assert.Eventually(t, func() bool {
-		return p.getModel().zoxideModal.IsOpen()
+		return p.Check(func(m *model) bool { return m.zoxideModal.IsOpen() })
 	}, DefaultTestTimeout, DefaultTestTick, "Zoxide modal should open")
 }
 
 func updateCurrentFilePanelDirOfTestModel(t *testing.T, p *TeaProg, dir string) {
 	t.Helper()
-	err := p.getModel().updateCurrentFilePanelDir(dir)
-	require.NoError(t, err, "Failed to navigate to %s", dir)
-	assert.Equal(t, dir, p.getModel().getFocusedFilePanel().Location, "Should be in %s after navigation", dir)
+	p.WithModel(func(m *model) {
+		require.NoError(t, m.updateCurrentFilePanelDir(dir), "Failed to navigate to %s", dir)
+		assert.Equal(t, dir, m.getFocusedFilePanel().Location, "Should be in %s after navigation", dir)
+	})
 }
 
 func TestZoxide(t *testing.T) {
@@ -91,19 +92,21 @@ func TestZoxide(t *testing.T) {
 
 		p.SendKey("dir2")
 		assert.Eventually(t, func() bool {
-			results := p.getModel().zoxideModal.GetResults()
-			return len(results) == 1 && results[0].Path == dir2
+			return p.Check(func(m *model) bool {
+				results := m.zoxideModal.GetResults()
+				return len(results) == 1 && results[0].Path == dir2
+			})
 		}, DefaultTestTimeout, DefaultTestTick, "dir2 should be found by zoxide UI search")
 
 		// Press enter to navigate to dir2
 		p.SendKey(common.Hotkeys.ConfirmTyping[0])
 		// Wait for both modal to close AND location to change to avoid race condition
 		assert.Eventually(t, func() bool {
-			return !p.getModel().zoxideModal.IsOpen() &&
-				p.getModel().getFocusedFilePanel().Location == dir2
+			return p.Check(func(m *model) bool {
+				return !m.zoxideModal.IsOpen() && m.getFocusedFilePanel().Location == dir2
+			})
 		}, DefaultTestTimeout, DefaultTestTick,
-			"Zoxide modal should close and navigate to %s (current location: %s)",
-			dir2, p.getModel().getFocusedFilePanel().Location)
+			"Zoxide modal should close and navigate to %s", dir2)
 	})
 
 	t.Run("Zoxide disabled shows no results", func(t *testing.T) {
@@ -120,23 +123,27 @@ func TestZoxide(t *testing.T) {
 	t.Run("Zoxide modal size on window resize", func(t *testing.T) {
 		p := setupProgAndOpenZoxide(t, zClient, dir1)
 
-		initialWidth := p.getModel().zoxideModal.GetWidth()
-		initialMaxHeight := p.getModel().zoxideModal.GetMaxHeight()
+		var initialWidth, initialMaxHeight int
+		p.WithModel(func(m *model) {
+			initialWidth = m.zoxideModal.GetWidth()
+			initialMaxHeight = m.zoxideModal.GetMaxHeight()
+		})
 
-		p.SendDirectly(tea.WindowSizeMsg{Width: 2 * DefaultTestModelWidth, Height: 2 * DefaultTestModelHeight})
+		p.Send(tea.WindowSizeMsg{Width: 2 * DefaultTestModelWidth, Height: 2 * DefaultTestModelHeight})
 
-		updatedWidth := p.getModel().zoxideModal.GetWidth()
-		updatedMaxHeight := p.getModel().zoxideModal.GetMaxHeight()
-		assert.Greater(t, updatedWidth, initialWidth, "Width should increase with larger window")
-		assert.Greater(t, updatedMaxHeight, initialMaxHeight, "MaxHeight should increase with larger window")
+		p.WithModel(func(m *model) {
+			assert.Greater(t, m.zoxideModal.GetWidth(), initialWidth, "Width should increase with larger window")
+			assert.Greater(t, m.zoxideModal.GetMaxHeight(), initialMaxHeight, "MaxHeight should increase with larger window")
+		})
 	})
 
 	t.Run("Zoxide 'z' key suppression on open", func(t *testing.T) {
 		p := setupProgAndOpenZoxide(t, zClient, dir1)
-		assert.Empty(t, p.getModel().zoxideModal.GetTextInputValue(),
-			"The 'z' key should not be added to textInput")
-		p.SendKeyDirectly("abc")
-		assert.Equal(t, "abc", p.getModel().zoxideModal.GetTextInputValue())
+		p.WithModel(func(m *model) {
+			assert.Empty(t, m.zoxideModal.GetTextInputValue(), "The 'z' key should not be added to textInput")
+		})
+		p.SendKey("abc")
+		p.WithModel(func(m *model) { assert.Equal(t, "abc", m.zoxideModal.GetTextInputValue()) })
 	})
 
 	t.Run("Multi-space directory name navigation", func(t *testing.T) {
@@ -149,13 +156,14 @@ func TestZoxide(t *testing.T) {
 
 		p.SendKey(filepath.Base(multiSpaceDir))
 		assert.Eventually(t, func() bool {
-			results := p.getModel().zoxideModal.GetResults()
-			for _, result := range results {
-				if result.Path == multiSpaceDir {
-					return true
+			return p.Check(func(m *model) bool {
+				for _, result := range m.zoxideModal.GetResults() {
+					if result.Path == multiSpaceDir {
+						return true
+					}
 				}
-			}
-			return false
+				return false
+			})
 		}, DefaultTestTimeout, DefaultTestTick, "Multi-space directory should be found by zoxide")
 
 		// Reset textinput via Close-Open
@@ -164,20 +172,22 @@ func TestZoxide(t *testing.T) {
 
 		p.SendKey("di r 1")
 		assert.Eventually(t, func() bool {
-			results := p.getModel().zoxideModal.GetResults()
-			for _, result := range results {
-				if result.Path == dir1 {
-					return true
+			return p.Check(func(m *model) bool {
+				for _, result := range m.zoxideModal.GetResults() {
+					if result.Path == dir1 {
+						return true
+					}
 				}
-			}
-			return false
+				return false
+			})
 		}, DefaultTestTimeout, DefaultTestTick, "dir1 should be found by zoxide")
 	})
 
 	t.Run("Zoxide escape key closes modal", func(t *testing.T) {
 		p := setupProgAndOpenZoxide(t, zClient, dir1)
-		p.SendKeyDirectly(common.Hotkeys.CancelTyping[0])
-		assert.False(t, p.getModel().zoxideModal.IsOpen(),
-			"Zoxide modal should close on escape key")
+		p.SendKey(common.Hotkeys.CancelTyping[0])
+		p.WithModel(func(m *model) {
+			assert.False(t, m.zoxideModal.IsOpen(), "Zoxide modal should close on escape key")
+		})
 	})
 }

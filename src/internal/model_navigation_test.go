@@ -153,8 +153,10 @@ func TestFilePanelNavigation(t *testing.T) {
 		p.SendKey(common.Hotkeys.ParentDirectory[0])
 
 		assert.Eventually(t, func() bool {
-			return m.getFocusedFilePanel().GetFocusedItem().Location == dir2 &&
-				m.getFocusedFilePanel().GetCursor() == 1
+			return p.Check(func(m *model) bool {
+				return m.getFocusedFilePanel().GetFocusedItem().Location == dir2 &&
+					m.getFocusedFilePanel().GetCursor() == 1
+			})
 		}, DefaultTestTimeout, DefaultTestTick)
 	})
 }
@@ -224,29 +226,34 @@ func TestCursorOutOfBoundsAfterDirectorySwitch(t *testing.T) {
 
 	// Start with dir1
 	m := defaultTestModel(dir1)
-	p := NewTestTeaProgWithEventLoop(t, m)
-
 	// It will immediately load as defaultTestModel does one sync TeaUpdate
 	assert.Equal(t, 10, m.getFocusedFilePanel().ElemCount(),
 		"Should load 10 files in dir1")
 
+	p := NewTestTeaProgWithEventLoop(t, m)
+
 	// Move cursor to position 8 (near end of list)
-	panel := m.getFocusedFilePanel()
 	for range 8 {
 		p.Send(tea.KeyPressMsg{Code: tea.KeyDown})
 	}
 
 	// Verify cursor is at position 8
 	assert.Eventually(t, func() bool {
-		return m.getFocusedFilePanel().GetCursor() == 8
+		return p.Check(func(m *model) bool { return m.getFocusedFilePanel().GetCursor() == 8 })
 	}, DefaultTestTimeout, DefaultTestTick, "Cursor should be at position 8")
-	t.Logf("Cursor at position %d with %d elements", panel.GetCursor(), panel.ElemCount())
+	p.WithModel(func(m *model) {
+		panel := m.getFocusedFilePanel()
+		t.Logf("Cursor at position %d with %d elements", panel.GetCursor(), panel.ElemCount())
+	})
 
 	// Navigate to dir2 (this saves cursor=8 in directoryRecords)
-	navigateToTargetDir(t, m, dir1, dir2)
-
-	assert.Equal(t, dir2, m.getFocusedFilePanel().Location, "Should be in dir2")
-	assert.Equal(t, 5, m.getFocusedFilePanel().ElemCount())
+	p.SendKey(common.Hotkeys.OpenSPFPrompt[0])
+	p.SendKey(`cd "` + dir2 + `"`)
+	p.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
+	p.WithModel(func(m *model) {
+		assert.Equal(t, dir2, m.getFocusedFilePanel().Location, "Should be in dir2")
+		assert.Equal(t, 5, m.getFocusedFilePanel().ElemCount())
+	})
 
 	for i := 4; i < 10; i++ {
 		err := os.Remove(files1[i])
@@ -255,9 +262,16 @@ func TestCursorOutOfBoundsAfterDirectorySwitch(t *testing.T) {
 	t.Log("Deleted 6 files from dir1 externally")
 
 	// Navigate back to dir1 (this restores cursor=8 from cache)
-	navigateToTargetDir(t, m, dir2, dir1)
-	assert.Equal(t, 0, panel.GetCursor(), "Cursor not restored as is from directoryRecords cache")
-	assert.NoError(t, panel.ValidateCursorAndRenderIndex(), "panel not valid")
+	p.SendKey(common.Hotkeys.OpenSPFPrompt[0])
+	p.SendKey(`cd "` + dir1 + `"`)
+	p.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
+	p.WithModel(func(m *model) {
+		panel := m.getFocusedFilePanel()
+		assert.Equal(t, dir1, panel.Location)
+		assert.Equal(t, 4, panel.ElemCount())
+		assert.Equal(t, 0, panel.GetCursor(), "Cursor not restored as is from directoryRecords cache")
+		assert.NoError(t, panel.ValidateCursorAndRenderIndex(), "panel not valid")
+	})
 }
 
 func TestCursorRemembersParentPosition(t *testing.T) {

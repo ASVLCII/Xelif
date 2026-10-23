@@ -61,6 +61,7 @@ func (m *model) getCompressSelectedFilesCmd() tea.Cmd {
 	}
 
 	reqID := m.nextIoReqCnt()
+	panelLocation := panel.Location
 
 	return func() tea.Msg {
 		zipName, err := getZipArchiveName(filepath.Base(firstFile))
@@ -69,7 +70,7 @@ func (m *model) getCompressSelectedFilesCmd() tea.Cmd {
 			return NewNotifyModalMsg(notify.New(true, "Invalid zip target name", err.Error(), notify.NoAction),
 				reqID)
 		}
-		zipPath := filepath.Join(panel.Location, zipName)
+		zipPath := filepath.Join(panelLocation, zipName)
 		totalFiles, err := validateCompressOperation(filesToCompress)
 		if err != nil {
 			return NewNotifyModalMsg(notify.New(true, "Invalid file/dir to compress", err.Error(), notify.NoAction),

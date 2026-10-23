@@ -290,16 +290,21 @@ func TestChooserFile(t *testing.T) {
 	}
 }
 
-func eventuallyEnsurePreviewContent(t *testing.T, m *model, content string, msgAndArgs ...any) {
-	contains := false
-	assert.Eventually(t, func() bool {
-		contains = strings.Contains(m.fileModel.FilePreview.GetContent(), content)
-		return contains
+func eventuallyEnsurePreviewContent(t *testing.T, p *TeaProg, content string, msgAndArgs ...any) {
+	t.Helper()
+	ok := assert.Eventually(t, func() bool {
+		return p.Check(func(m *model) bool {
+			return strings.Contains(m.fileModel.FilePreview.GetContent(), content) &&
+				m.fileModel.FilePreview.GetContentWidth() == m.fileModel.ExpectedPreviewWidth &&
+				m.fileModel.FilePreview.GetContentHeight() == m.fileModel.Height
+		})
 	}, DefaultTestTimeout, DefaultTestTick, msgAndArgs...)
-	if !contains {
-		pContent := ansi.Strip(m.fileModel.FilePreview.GetContent())
-		pContent = pContent[:min(len(pContent), 20)]
-		t.Logf("%s was not found in '%s'", content, pContent)
+	if !ok {
+		p.WithModel(func(m *model) {
+			pContent := ansi.Strip(m.fileModel.FilePreview.GetContent())
+			pContent = pContent[:min(len(pContent), 20)]
+			t.Logf("%s was not found in '%s'", content, pContent)
+		})
 	}
 }
 
@@ -318,36 +323,41 @@ func TestAsyncPreviewPanelSync(t *testing.T) {
 	utils.SetupFilesWithData(t, []byte(content2), file2)
 
 	m := defaultTestModelWithFilePreview(curTestDir)
-	// we want a size bigger than default to allow more number of panels
-	p := NewTestTeaProgWithEventLoopWithWinSize(t, m, 4*DefaultTestModelWidth, 4*DefaultTestModelHeight)
+	// Extra width accommodates three panels; a modest height keeps rendering fast under -race.
+	p := NewTestTeaProgWithEventLoopWithWinSize(t, m, 4*DefaultTestModelWidth, DefaultTestModelHeight)
 
-	eventuallyEnsurePreviewContent(t, m, content1, "file1 content should load initially")
-	pW := m.fileModel.FilePreview.GetContentWidth()
+	eventuallyEnsurePreviewContent(t, p, content1, "file1 content should load initially")
+	var pW int
+	p.WithModel(func(m *model) { pW = m.fileModel.FilePreview.GetContentWidth() })
 
 	// Create two panels
 	splitPanelAsync(p)
 	splitPanelAsync(p)
-	eventuallyEnsurePreviewContent(t, m, content1, "file1 content should reload after new panel")
+	eventuallyEnsurePreviewContent(t, p, content1, "file1 content should reload after new panel")
 
-	assert.NotEqual(t, pW, m.fileModel.FilePreview.GetContentWidth(),
-		"width should change on new panel creation")
+	p.WithModel(func(m *model) {
+		assert.NotEqual(t, pW, m.fileModel.FilePreview.GetContentWidth(),
+			"width should change on new panel creation")
+	})
 
 	p.Send(tea.KeyPressMsg{Code: tea.KeyDown})
-	t.Logf("Current element : %s", m.getFocusedFilePanel().GetFocusedItem().Location)
-	eventuallyEnsurePreviewContent(t, m, content2, "content should update to file2")
+	p.WithModel(func(m *model) {
+		t.Logf("Current element : %s", m.getFocusedFilePanel().GetFocusedItem().Location)
+	})
+	eventuallyEnsurePreviewContent(t, p, content2, "content should update to file2")
 
 	p.SendKey(common.Hotkeys.CloseFilePanel[0])
-	eventuallyEnsurePreviewContent(t, m, content1, "content should update to file1 after closing panel")
+	eventuallyEnsurePreviewContent(t, p, content1, "content should update to file1 after closing panel")
 
 	// Upscale
 	p.Send(tea.WindowSizeMsg{Width: 8 * DefaultTestModelWidth,
-		Height: 8 * DefaultTestModelHeight})
-	eventuallyEnsurePreviewContent(t, m, content1, "content should update to file1 after resize")
+		Height: 2 * DefaultTestModelHeight})
+	eventuallyEnsurePreviewContent(t, p, content1, "content should update to file1 after resize")
 
 	// Downscale
 	p.Send(tea.WindowSizeMsg{Width: 6 * DefaultTestModelWidth,
-		Height: 6 * DefaultTestModelHeight})
-	eventuallyEnsurePreviewContent(t, m, content1, "content should update to file1 after resize")
+		Height: DefaultTestModelHeight})
+	eventuallyEnsurePreviewContent(t, p, content1, "content should update to file1 after resize")
 }
 
 func TestPreviewRejectsStaleSamePathResult(t *testing.T) {

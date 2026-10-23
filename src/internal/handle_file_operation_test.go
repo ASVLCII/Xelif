@@ -175,9 +175,21 @@ func TestCompressSelectedFiles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := defaultTestModel(tt.startDir)
 			observer, compressed, extracted := observeTestFileOperations()
-			p := NewTestTeaProgWithEventLoop(t, m, observer)
 			zipFile := filepath.Join(tt.startDir, tt.expectedZipName)
 			extractedDir := filepath.Join(tt.startDir, tt.extractedDirName)
+			require.Greater(t, m.getFocusedFilePanel().ElemCount(), tt.cursor)
+			// Update cursor
+			for range tt.cursor {
+				m.getFocusedFilePanel().ListDown()
+			}
+
+			require.Equal(t, filepanel.BrowserMode, m.getFocusedFilePanel().PanelMode)
+			if tt.selectMode {
+				m.getFocusedFilePanel().ChangeFilePanelMode()
+				m.getFocusedFilePanel().SetSelectedAll(tt.selectedElem)
+			}
+
+			p := NewTestTeaProgWithEventLoop(t, m, observer)
 			compressStarted, extractStarted := false, false
 			t.Cleanup(func() {
 				if compressStarted && !compressed.wait(t, "compress") {
@@ -191,17 +203,6 @@ func TestCompressSelectedFiles(t *testing.T) {
 				cleanupWithRetry(t, extractedDir, "extracted directory")
 				cleanupWithRetry(t, zipFile, "zip file")
 			})
-			require.Greater(t, m.getFocusedFilePanel().ElemCount(), tt.cursor)
-			// Update cursor
-			for range tt.cursor {
-				m.getFocusedFilePanel().ListDown()
-			}
-
-			require.Equal(t, filepanel.BrowserMode, m.getFocusedFilePanel().PanelMode)
-			if tt.selectMode {
-				m.getFocusedFilePanel().ChangeFilePanelMode()
-				m.getFocusedFilePanel().SetSelectedAll(tt.selectedElem)
-			}
 
 			compressStarted = true
 			p.SendKey(common.Hotkeys.CompressFile[0])
@@ -213,9 +214,11 @@ func TestCompressSelectedFiles(t *testing.T) {
 			require.Equal(t, processbar.Successful, compressed.state)
 			require.FileExists(t, zipFile, "Expected zip file does not exist after compression")
 
-			setFilePanelSelectedItemByLocation(t, m.getFocusedFilePanel(), zipFile)
-
-			selectedItemLocation := m.getFocusedFilePanel().GetFocusedItem().Location
+			var selectedItemLocation string
+			p.WithModel(func(m *model) {
+				setFilePanelSelectedItemByLocation(t, m.getFocusedFilePanel(), zipFile)
+				selectedItemLocation = m.getFocusedFilePanel().GetFocusedItem().Location
+			})
 			assert.Equal(t, zipFile, selectedItemLocation)
 			// Ensure we are extracting the zip file, not a directory
 			fileInfo, err := os.Stat(selectedItemLocation)
@@ -317,9 +320,9 @@ func TestPasteItem(t *testing.T) {
 	for _, tt := range testdata {
 		t.Run(tt.name, func(t *testing.T) {
 			m := setupModelAndPerformOperation(t, tt.startDir, tt.selectMode, tt.itemName, tt.selectedItems, tt.isCut)
-			p := NewTestTeaProgWithEventLoop(t, m)
-			// Navigate to target directory
+			// Configure the destination before starting the event loop.
 			navigateToTargetDir(t, m, tt.startDir, tt.targetDir)
+			p := NewTestTeaProgWithEventLoop(t, m)
 
 			// Get original file path for existence check
 			originalPath := getOriginalPath(tt.selectMode, tt.itemName, tt.startDir)
@@ -329,7 +332,9 @@ func TestPasteItem(t *testing.T) {
 
 			// Verify results based on whether paste should be prevented
 			if tt.shouldPreventPaste {
-				verifyPreventedPasteResults(t, m, originalPath)
+				p.WithModel(func(m *model) {
+					verifyPreventedPasteResults(t, m, originalPath)
+				})
 			} else {
 				verifySuccessfulPasteResults(
 					t,
@@ -346,10 +351,12 @@ func TestPasteItem(t *testing.T) {
 				// We have different async activities, create of files, completion of process message reaching processbar, model msg reaching model. Ideally we would like to have one final check, that is process completion message reaching model, and then check all conditions serially one be one.
 				// For that there, might be need to implement ioReqDone count in model message, or a count per process type, or even an full fledged async manager.
 				assert.Eventually(t, func() bool {
-					return len(p.m.clipboard.GetItems()) == 0
+					return p.Check(func(m *model) bool { return len(m.clipboard.GetItems()) == 0 })
 				}, DefaultTestTimeout, DefaultTestTick, "Clipboard should be cleared after successful cut-paste")
 			} else {
-				assert.NotEmpty(t, p.m.clipboard.GetItems(), "Clipboard should remain after copy-paste")
+				p.WithModel(func(m *model) {
+					assert.NotEmpty(t, m.clipboard.GetItems(), "Clipboard should remain after copy-paste")
+				})
 			}
 		})
 	}
@@ -359,10 +366,9 @@ func TestPasteItem(t *testing.T) {
 		emptyTestDir := filepath.Join(curTestDir, "empty_test")
 		utils.SetupDirectories(t, emptyTestDir)
 		m := defaultTestModel(emptyTestDir)
-		p := NewTestTeaProgWithEventLoop(t, m)
-
-		// Ensure clipboard is empty
+		// Ensure clipboard is empty before starting the event loop.
 		m.clipboard.Reset(false)
+		p := NewTestTeaProgWithEventLoop(t, m)
 
 		// Get initial count
 		entriesBefore, err := os.ReadDir(emptyTestDir)
@@ -387,10 +393,9 @@ func TestPasteItem(t *testing.T) {
 
 		selectedItems := []string{multiFile1, multiFile2}
 		m := setupModelAndPerformOperation(t, sourceDir, true, "", selectedItems, false)
-		p := NewTestTeaProgWithEventLoop(t, m)
-
 		// Navigate to destination
 		navigateToTargetDir(t, m, sourceDir, destDir)
+		p := NewTestTeaProgWithEventLoop(t, m)
 
 		// Paste items
 		p.SendKey(common.Hotkeys.PasteItems[0])
@@ -409,10 +414,9 @@ func TestPasteItem(t *testing.T) {
 
 		// Test the logic that prevents cutting a directory into its subdirectory
 		m := setupModelAndPerformOperation(t, sourceDir, false, "testsubdir", nil, true)
-		p := NewTestTeaProgWithEventLoop(t, m)
-
 		// Navigate into the subdirectory and try to paste there (should be prevented)
 		navigateToTargetDir(t, m, sourceDir, testSubDir)
+		p := NewTestTeaProgWithEventLoop(t, m)
 		p.SendKey(common.Hotkeys.PasteItems[0])
 
 		// Directory should still exist in original location after prevention
@@ -425,9 +429,9 @@ func TestPasteItem(t *testing.T) {
 		utils.SetupFiles(t, dupFile)
 
 		m := setupModelAndPerformOperation(t, sourceDir, false, "duplicate.txt", nil, false)
-		p := NewTestTeaProgWithEventLoop(t, m)
-		// Navigate to destination and paste
+		// Configure destination, then paste on the event loop.
 		navigateToTargetDir(t, m, sourceDir, destDir)
+		p := NewTestTeaProgWithEventLoop(t, m)
 		p.SendKey(common.Hotkeys.PasteItems[0])
 
 		// Verify first copy
@@ -452,8 +456,8 @@ func TestPasteItem(t *testing.T) {
 		utils.SetupFilesWithData(t, []byte("destination content"), existingDestFile)
 
 		m := setupModelAndPerformOperation(t, collisionSourceDir, false, "duplicate.txt", nil, true)
-		p := NewTestTeaProgWithEventLoop(t, m)
 		navigateToTargetDir(t, m, collisionSourceDir, collisionDestDir)
+		p := NewTestTeaProgWithEventLoop(t, m)
 
 		p.SendKey(common.Hotkeys.PasteItems[0])
 
