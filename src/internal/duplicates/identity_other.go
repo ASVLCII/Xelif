@@ -1,9 +1,12 @@
-//go:build !unix
+//go:build !unix && !windows
 
 package duplicates
 
 import "os"
 
-func identityOf(_ os.FileInfo) (fileIdentity, bool) {
+const retainIndexedInfos = false
+const identityIndexThreshold = 0
+
+func identityOf(_ string, _ os.FileInfo) (fileIdentity, bool) {
 	return fileIdentity{}, false
 }

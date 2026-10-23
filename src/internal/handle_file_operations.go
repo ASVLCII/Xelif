@@ -436,7 +436,9 @@ func (m *model) getExtractFileCmd() tea.Cmd {
 			return NewExtractOperationMsg(processbar.Failed, reqID)
 		}
 
-		err = os.MkdirAll(
+		// Reserve the new extraction directory exclusively. A path that appeared
+		// after renameIfDuplicate must not become an existing extraction target.
+		err = os.Mkdir(
 			outputDir,
 			utils.ExtractedDirMode,
 		)

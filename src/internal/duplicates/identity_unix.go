@@ -7,7 +7,10 @@ import (
 	"syscall"
 )
 
-func identityOf(info os.FileInfo) (fileIdentity, bool) {
+const retainIndexedInfos = false
+const identityIndexThreshold = 0
+
+func identityOf(_ string, info os.FileInfo) (fileIdentity, bool) {
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok {
 		return fileIdentity{}, false

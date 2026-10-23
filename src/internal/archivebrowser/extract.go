@@ -2,6 +2,7 @@ package archivebrowser
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"io"
 	"io/fs"
@@ -58,7 +59,19 @@ func (a *Archive) Extract(ctx context.Context, members []string, destination str
 	if err := a.preflightExtraction(ctx, selected, root, opts.Overwrite); err != nil {
 		return err
 	}
-	return a.extractSelected(ctx, selected, root, opts.Overwrite)
+	destinationRoot, err := os.OpenRoot(root)
+	if err != nil {
+		return &Error{Op: operationExtract, Archive: a.path, Destination: root, Err: err}
+	}
+	defer destinationRoot.Close()
+	// Anchor all writes and rollback to this directory. Path checks alone do not
+	// prevent a parent directory from being replaced with a symlink after preflight.
+	opened, err := destinationRoot.Stat(".")
+	current, currentErr := os.Lstat(root)
+	if err != nil || currentErr != nil || current.Mode()&fs.ModeSymlink != 0 || !os.SameFile(opened, current) {
+		return &Error{Op: operationExtract, Archive: a.path, Destination: root, Err: ErrUnsafePath}
+	}
+	return a.extractSelected(ctx, selected, destinationRoot, opts.Overwrite)
 }
 
 func parseExtractOptions(options []ExtractOptions) (ExtractOptions, error) {
@@ -129,21 +142,21 @@ func (a *Archive) preflightExtraction(
 func (a *Archive) extractSelected(
 	ctx context.Context,
 	selected []*node,
-	root string,
+	root *os.Root,
 	overwrite bool,
 ) error {
 	created := make([]string, 0, len(selected))
 	for _, n := range selected {
 		if err := ctx.Err(); err != nil {
-			rollbackExtraction(created)
-			return &Error{Op: operationExtract, Archive: a.path, Member: n.entry.Path, Destination: root, Err: err}
+			rollbackExtraction(root, created)
+			return &Error{Op: operationExtract, Archive: a.path, Member: n.entry.Path, Destination: root.Name(), Err: err}
 		}
-		target, _ := extractionTarget(root, n.entry.Path)
+		target := filepath.FromSlash(n.entry.Path)
 		newPaths, err := a.extractNode(ctx, n, root, target, overwrite)
 		created = append(created, newPaths...)
 		if err != nil {
-			rollbackExtraction(created)
-			return &Error{Op: operationExtract, Archive: a.path, Member: n.entry.Path, Destination: target, Err: err}
+			rollbackExtraction(root, created)
+			return &Error{Op: operationExtract, Archive: a.path, Member: n.entry.Path, Destination: filepath.Join(root.Name(), target), Err: err}
 		}
 	}
 	return nil
@@ -152,7 +165,7 @@ func (a *Archive) extractSelected(
 func (a *Archive) extractNode(
 	ctx context.Context,
 	n *node,
-	root string,
+	root *os.Root,
 	target string,
 	overwrite bool,
 ) ([]string, error) {
@@ -163,7 +176,7 @@ func (a *Archive) extractNode(
 	if err != nil {
 		return created, err
 	}
-	if err := a.extractFile(ctx, n, target, overwrite); err != nil {
+	if err := a.extractFile(ctx, n, root, target, overwrite); err != nil {
 		return created, err
 	}
 	if !overwrite {
@@ -172,9 +185,9 @@ func (a *Archive) extractNode(
 	return created, nil
 }
 
-func rollbackExtraction(created []string) {
+func rollbackExtraction(root *os.Root, created []string) {
 	for i := len(created) - 1; i >= 0; i-- {
-		_ = os.Remove(created[i])
+		_ = root.Remove(created[i])
 	}
 }
 
@@ -310,20 +323,17 @@ func inspectExistingTarget(info fs.FileInfo, directory, overwrite bool) error {
 	return fs.ErrExist
 }
 
-func makeDirectories(root, target string, finalPerm fs.FileMode) ([]string, error) {
-	relative, err := filepath.Rel(root, target)
-	if err != nil {
-		return nil, err
-	}
+func makeDirectories(root *os.Root, target string, finalPerm fs.FileMode) ([]string, error) {
+	relative := filepath.Clean(target)
 	if relative == "." {
 		return nil, nil
 	}
 	parts := strings.Split(relative, string(filepath.Separator))
-	current := root
+	current := "."
 	created := make([]string, 0, len(parts))
 	for i, part := range parts {
 		current = filepath.Join(current, part)
-		info, err := os.Lstat(current)
+		info, err := root.Lstat(current)
 		if err == nil {
 			if info.Mode()&fs.ModeSymlink != 0 {
 				return created, ErrUnsafePath
@@ -340,7 +350,7 @@ func makeDirectories(root, target string, finalPerm fs.FileMode) ([]string, erro
 		if i == len(parts)-1 && finalPerm != 0 {
 			perm = finalPerm
 		}
-		if err := os.Mkdir(current, perm); err != nil {
+		if err := root.Mkdir(current, perm); err != nil {
 			return created, err
 		}
 		created = append(created, current)
@@ -348,16 +358,24 @@ func makeDirectories(root, target string, finalPerm fs.FileMode) ([]string, erro
 	return created, nil
 }
 
-func (a *Archive) extractFile(ctx context.Context, n *node, target string, overwrite bool) error {
+func (a *Archive) extractFile(ctx context.Context, n *node, root *os.Root, target string, overwrite bool) error {
 	reader, openErr := n.file.Open()
 	if openErr != nil {
 		return openErr
 	}
 	defer reader.Close()
 
+	// Keep the parent pinned for cleanup as well as publication. A failed copy
+	// must not remove an unrelated file through a replaced parent path.
+	parent, err := root.OpenRoot(filepath.Dir(target))
+	if err != nil {
+		return err
+	}
+	defer parent.Close()
+	name := filepath.Base(target)
 	if !overwrite {
-		file, createErr := os.OpenFile(
-			target,
+		file, createErr := parent.OpenFile(
+			name,
 			os.O_WRONLY|os.O_CREATE|os.O_EXCL,
 			filePerm(n.entry.Mode),
 		)
@@ -365,18 +383,21 @@ func (a *Archive) extractFile(ctx context.Context, n *node, target string, overw
 			return createErr
 		}
 		copyErr := copyAndClose(ctx, file, reader)
+		if copyErr == nil {
+			copyErr = ctx.Err()
+		}
 		if copyErr != nil {
-			_ = os.Remove(target)
+			_ = parent.Remove(name)
 		}
 		return copyErr
 	}
 
-	temporary, err := os.CreateTemp(filepath.Dir(target), ".archivebrowser-*")
+	temporaryName := ".archivebrowser-" + rand.Text()
+	temporary, err := parent.OpenFile(temporaryName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, filePerm(n.entry.Mode))
 	if err != nil {
 		return err
 	}
-	temporaryPath := temporary.Name()
-	defer os.Remove(temporaryPath)
+	defer parent.Remove(temporaryName)
 	if err := temporary.Chmod(filePerm(n.entry.Mode)); err != nil {
 		_ = temporary.Close()
 		return err
@@ -384,17 +405,24 @@ func (a *Archive) extractFile(ctx context.Context, n *node, target string, overw
 	if err := copyAndClose(ctx, temporary, reader); err != nil {
 		return err
 	}
-	if info, statErr := os.Lstat(target); statErr == nil {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return publishExtractedFile(parent, temporaryName, name)
+}
+
+// Never delete the old file before renaming: a failed rename must leave it
+// intact. If the platform cannot replace the target, return its error without
+// removing the user's existing file.
+func publishExtractedFile(root *os.Root, temporary, target string) error {
+	if info, err := root.Lstat(target); err == nil {
 		if !info.Mode().IsRegular() {
 			return ErrUnsafePath
 		}
-		if removeErr := os.Remove(target); removeErr != nil {
-			return removeErr
-		}
-	} else if !errors.Is(statErr, fs.ErrNotExist) {
-		return statErr
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return err
 	}
-	return os.Rename(temporaryPath, target)
+	return root.Rename(temporary, target)
 }
 
 func copyAndClose(ctx context.Context, destination *os.File, source io.Reader) error {

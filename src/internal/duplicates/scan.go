@@ -163,7 +163,7 @@ func (s *scanner) inspect(path string, explicitRoot bool) (os.FileInfo, bool) {
 }
 
 func (s *scanner) walkDirectory(path string, info os.FileInfo) error {
-	if s.seenDirs.containsOrAdd(info) {
+	if s.seenDirs.containsOrAdd(path, info) {
 		return nil
 	}
 	entries, err := os.ReadDir(path)
@@ -190,7 +190,7 @@ func (s *scanner) addFile(path string, info os.FileInfo) error {
 			return nil
 		}
 	}
-	if !s.options.IncludeHardLinks && s.seenFiles.containsOrAdd(info) {
+	if !s.options.IncludeHardLinks && s.seenFiles.containsOrAdd(path, info) {
 		return nil
 	}
 	if s.options.MaxFiles > 0 && len(s.files) >= s.options.MaxFiles {
@@ -222,34 +222,70 @@ func (s *scanner) hashCandidates() {
 }
 
 func (s *scanner) prepareHashJobs() []candidate {
-	buckets := make(map[int64][]candidate)
+	counts := make(map[int64]int)
+	repeatedSizes := 0
 	for _, file := range s.files {
-		buckets[file.info.Size()] = append(buckets[file.info.Size()], file)
+		size := file.info.Size()
+		count := counts[size] + 1
+		counts[size] = count
+		if count == minimumGroupSize {
+			repeatedSizes++
+		}
 	}
-
-	jobs := make([]candidate, 0, len(s.files))
-	sizes := make([]int64, 0, len(buckets))
-	for size, files := range buckets {
-		if len(files) >= minimumGroupSize {
+	if repeatedSizes == 0 {
+		return nil
+	}
+	sizes := make([]int64, 0, repeatedSizes)
+	jobCount := 0
+	for size, count := range counts {
+		if count >= minimumGroupSize {
 			sizes = append(sizes, size)
+			jobCount += count
 		}
 	}
 	slices.Sort(sizes)
-	var reserved int64
-	for _, size := range sizes {
-		files := buckets[size]
-		slices.SortFunc(files, func(a, b candidate) int { return compareString(a.path, b.path) })
-		for _, file := range files {
-			if s.options.MaxBytesHashed > 0 && size > s.options.MaxBytesHashed-reserved {
-				s.result.Truncated = true
-				s.warn(file.path, OperationLimit, ErrHashBudgetReached)
-				continue
+	// Allocate one exact-size backing array for all eligible buckets, instead
+	// of growing a separate candidate slice for every distinct file size.
+	var jobs []candidate
+	if len(sizes) == 1 && jobCount == len(s.files) {
+		// Discovery is complete; reuse its storage for the common single-size
+		// case. No later phase reads s.files (counters live in s.result).
+		jobs = s.files
+		slices.SortFunc(jobs, func(a, b candidate) int { return compareString(a.path, b.path) })
+	} else {
+		jobs = make([]candidate, jobCount)
+		buckets := make(map[int64][]candidate, len(sizes))
+		offset := 0
+		for _, size := range sizes {
+			end := offset + counts[size]
+			buckets[size] = jobs[offset:offset:end]
+			offset = end
+		}
+		for _, file := range s.files {
+			size := file.info.Size()
+			if bucket, ok := buckets[size]; ok {
+				buckets[size] = append(bucket, file)
 			}
-			reserved += size
-			jobs = append(jobs, file)
+		}
+		// Preserve the previous size-then-path reservation and progress order.
+		for _, size := range sizes {
+			slices.SortFunc(buckets[size], func(a, b candidate) int { return compareString(a.path, b.path) })
 		}
 	}
-	return jobs
+	var reserved int64
+	accepted := jobs[:0]
+	for _, file := range jobs {
+		size := file.info.Size()
+		if s.options.MaxBytesHashed > 0 && size > s.options.MaxBytesHashed-reserved {
+			s.result.Truncated = true
+			s.warn(file.path, OperationLimit, ErrHashBudgetReached)
+			continue
+		}
+		reserved += size
+		accepted = append(accepted, file)
+	}
+	clear(jobs[len(accepted):])
+	return accepted
 }
 
 func (s *scanner) hashJobs(jobs []candidate) []hashOutcome {
@@ -279,15 +315,20 @@ func hashWorker(
 	defer wait.Done()
 	var buffer []byte
 	for {
+		if ctx.Err() != nil {
+			return
+		}
 		index := int(next.Add(1) - 1)
 		if index >= len(jobs) {
 			return
 		}
 		// Reuse one buffer per worker rather than allocating 128 KiB for every
-		// file. Empty files need no buffer and small files need only their size.
+		// file. Empty files need no buffer; other files grow it up to 128 KiB.
 		needed := int(min(jobs[index].info.Size(), int64(hashBufferSize)))
 		if len(buffer) < needed {
-			buffer = make([]byte, needed)
+			// Jobs are ordered by size. Geometric growth avoids reallocating for
+			// every slightly larger file while retaining the existing 128 KiB cap.
+			buffer = make([]byte, max(needed, min(2*len(buffer), hashBufferSize)))
 		}
 		outcomes[index] = hashFile(ctx, jobs[index], buffer)
 	}

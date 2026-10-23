@@ -59,6 +59,13 @@ jobs:
         env:
           GOMODCACHE: ${{ runner.temp }}/gomodcache
 
+      - name: Test extraction boundary fork
+        # Nested-module tests are excluded by ./...; use the main module's
+        # selected dependencies and run these explicitly on every native OS.
+        run: go test -p=1 -v golift.io/xtractr
+        env:
+          GOMODCACHE: ${{ runner.temp }}/gomodcache
+
       - name: Check gofmt (skip on Windows)
         if: runner.os != 'Windows'
         run: |
