@@ -4,7 +4,7 @@ A mouse- and keyboard-accessible terminal file manager based on
 [superfile](https://github.com/yorukot/superfile), developed by
 [ASVLCII](https://github.com/ASVLCII/Xelif).
 
-These commands become available **after the first npm publication**:
+Install the published `0.1.0-preview.1` preview with either npm or Bun:
 
 ```sh
 npm install -g @asvlcii/xelif@preview

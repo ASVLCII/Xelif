@@ -2,7 +2,7 @@
 
 A terminal file manager with mouse and keyboard access. Built on [superfile](https://github.com/yorukot/superfile), developed by [ASVLCII](https://github.com/ASVLCII).
 
-[Demo](#demo) · [Install](#preview-packaging) · [Build](#build-from-source) · [Controls](#getting-around) · [Feature guide](website/src/content/docs/features.md) · [Verification](docs/completion-audit.md)
+[Demo](#demo) · [Install](#install) · [Build](#build-from-source) · [Controls](#getting-around) · [Feature guide](website/src/content/docs/features.md) · [Verification](docs/completion-audit.md)
 
 ![Xelif browsing a disposable sample workspace with a monochrome interface, colored file-type icons, sidebar, and aligned file columns](docs/media/overview.png)
 
@@ -38,11 +38,12 @@ These are reproducible frames from Xelif's real TUI renderer, using disposable s
 
 Also includes Git status/actions, tags and collections, metadata preview/restore, declarative command plugins, and read-only rclone browsing with explicit downloads. See the [feature guide](website/src/content/docs/features.md) for prerequisites, commands, and safety boundaries.
 
-## Preview packaging
+## Install
 
-The npm/Bun preview packaging is being prepared as `@asvlcii/xelif`, with native
-Windows, macOS and Linux executables for x64 and arm64. **It is not published to
-npm yet.** The proposed installation commands below only work after publication:
+**Current preview: `0.1.0-preview.1`.** Install the published
+[`@asvlcii/xelif`](https://www.npmjs.com/package/@asvlcii/xelif) package with
+either npm or Bun. Native executables are available for Windows, macOS and Linux
+on x64 and ARM64. This is a preview, not a stable release.
 
 ```sh
 npm install -g @asvlcii/xelif@preview
@@ -50,13 +51,27 @@ npm install -g @asvlcii/xelif@preview
 bun add -g @asvlcii/xelif@preview
 ```
 
+Then launch it from any directory:
+
+```sh
+xelif
+# Or open a particular folder:
+xelif "/path/to/a folder"
+```
+
+Install Node.js 22+ for the global launcher, including when installing with Bun.
+Keep optional dependencies enabled: they select the executable for your machine.
+A Go compiler is not needed. A Nerd Font is recommended for file-type icons.
+
 The package uses exact-version optional dependencies, no postinstall scripts or
 downloads, and a small Node.js 22+ launcher for the existing Go application.
-[Packaging, checks and publication prerequisites](docs/npm-packaging.md).
+[Packaging and verification](docs/npm-packaging.md). Running the same install
+command again updates to the current preview. If another Xelif installation opens,
+check `Get-Command xelif -All` in PowerShell or `command -v xelif` on Unix.
 
 ## Build from source
 
-**Development snapshot—not a stable release.** There are no Xelif-specific packaged releases yet. Existing superfile installers and package-manager entries install upstream superfile, not this fork.
+Build from source if you prefer not to use the preview package above. Existing superfile installers and package-manager entries install upstream superfile, not Xelif.
 
 Requires Go 1.26 or later.
 

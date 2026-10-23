@@ -1,16 +1,46 @@
 ---
 title: Install Xelif
-description: Build Xelif from this checkout or install the upstream superfile release.
+description: Install the Xelif preview with npm or Bun, or build it from source.
 head:
   - tag: title
     content: Install Xelif | Xelif
 ---
 
-## Before install
+## Install Xelif with npm or Bun
+
+The published preview is **`0.1.0-preview.1`**, with native executables for
+Windows, macOS and Linux on x64 and ARM64. Choose one package manager:
+
+```sh
+npm install -g @asvlcii/xelif@preview
+# or
+bun add -g @asvlcii/xelif@preview
+```
+
+Then run:
+
+```sh
+xelif
+# Or open a particular folder:
+xelif "/path/to/a folder"
+```
+
+Install Node.js 22+ for the global launcher, including when installing with Bun.
+No Go compiler is needed. Leave optional dependencies enabled so the package
+manager can select your native executable. A Nerd Font is recommended for icons.
+Run the same installation command again to update to the current preview.
+
+Both commands use the same npm registry package; there is no separate Bun
+account requirement. The package has no postinstall scripts or startup downloads.
+
+If another installation opens, inspect `Get-Command xelif -All` in PowerShell or
+`command -v xelif` on Unix. An existing development launcher may take precedence.
 
 :::caution
 
-Xelif does not yet have a separate packaged release channel. The scripts and package-manager commands on this page install upstream [yorukot/superfile](https://github.com/yorukot/superfile), not the Xelif development features.
+Xelif's npm package is a preview, not a stable release. The legacy scripts and
+other package-manager commands in the **Install upstream superfile** section below
+install [yorukot/superfile](https://github.com/yorukot/superfile), not Xelif.
 
 :::
 

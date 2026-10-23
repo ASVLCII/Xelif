@@ -51,12 +51,29 @@ global command, Bun's global command and the launcher under both runtimes. It
 does not install globally into the user's normal Node/Bun installation, touch
 their Xelif profile, or publish anything. `results.json` records the evidence.
 
-## First publication
+## Published preview
 
-The name is proposed: a public registry 404 does not establish scope ownership.
+Version `0.1.0-preview.1` is published under the npm account `asvlcii`: all six
+native packages and the shared launcher are public, with the `preview` tag.
+Both npm and Bun install from this same npm registry; no Bun account or separate
+Bun publication is required.
+
+The published tarballs came from commit
+`5d1b29386b3469726fab085774abc1cbf3e28b6c` and the successful six-platform
+[native package CI run](https://github.com/ASVLCII/Xelif/actions/runs/39868084365).
+On 2026-10-23, public-registry checks matched all seven SHA-512 integrity values
+to the tested artifacts and verified their publisher and `preview` tags. Clean,
+isolated Windows x64 global installations with npm and Bun both launched
+`xelif version v0.1.0-preview.1`; the Bun-runtime check and isolated configuration
+path check also passed. These checks do not establish interactive TUI acceptance
+on every platform or Everything-level search performance.
+
+## Publishing future previews
+
 The publisher must own the npm user/organization scope `asvlcii`, and separately
 authenticate to npm. GitHub authentication is not npm authentication. Never paste
-tokens, OTPs or passwords into issues, source files or chat.
+tokens, OTPs or passwords into issues, source files or chat. Use a new version
+for changed package contents; existing published versions are immutable.
 
 1. Finish all six native package jobs and the ordinary application CI gates.
 2. Download the `npm-*` artifacts from that exact successful commit. Keep the
@@ -73,7 +90,7 @@ tokens, OTPs or passwords into issues, source files or chat.
    advertising the installation commands. A local fixture-registry smoke alone
    is not proof that registry publication works.
 
-After publication, users install the preview with:
+Users install the published preview with:
 
 ```sh
 npm install -g @asvlcii/xelif@preview
