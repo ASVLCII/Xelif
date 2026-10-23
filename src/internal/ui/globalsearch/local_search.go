@@ -1,13 +1,10 @@
 package globalsearch
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -33,6 +30,7 @@ type localSearchWalker struct {
 	options       LocalSearchOptions
 	response      *Response
 	visited       int
+	content       *contentMatcher
 	skippedErrors int
 	stopReason    string
 }
@@ -49,6 +47,9 @@ func SearchLocalQuery(ctx context.Context, root string, query Query, options Loc
 	options = normalizeLocalSearchOptions(options)
 	walker := localSearchWalker{
 		ctx: ctx, root: root, query: query, options: options, response: &response,
+	}
+	if query.Content != "" {
+		walker.content = newContentMatcher(query.Content)
 	}
 	//nolint:gosec // G703: The root is the user-selected search scope, not a sandbox boundary; symlinks are not followed.
 	err := filepath.WalkDir(root, walker.visit)
@@ -115,6 +116,7 @@ func (walker *localSearchWalker) addMatch(path string, entry fs.DirEntry, info f
 		info,
 		walker.query,
 		walker.options,
+		walker.content,
 	)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -168,6 +170,7 @@ func localEntryMatches(
 	info fs.FileInfo,
 	query Query,
 	options LocalSearchOptions,
+	content *contentMatcher,
 ) (bool, error) {
 	if query.Type == EntryTypeFile && !info.Mode().IsRegular() {
 		return false, nil
@@ -194,7 +197,7 @@ func localEntryMatches(
 	if !info.Mode().IsRegular() {
 		return false, nil
 	}
-	return fileContentMatches(ctx, path, query.Content, options.MaxContentBytes)
+	return content.fileMatches(ctx, path, options.MaxContentBytes)
 }
 
 func nameMatches(name string, terms []string) bool {
@@ -233,54 +236,6 @@ func sizeMatches(size int64, predicates []SizePredicate) bool {
 		}
 	}
 	return true
-}
-
-func fileContentMatches(ctx context.Context, path string, content string, maxBytes int64) (bool, error) {
-	info, err := os.Lstat(path)
-	if err != nil {
-		return false, err
-	}
-	if !info.Mode().IsRegular() {
-		return false, nil
-	}
-
-	file, err := os.Open(path)
-	if err != nil {
-		return false, err
-	}
-	defer file.Close()
-
-	data := make([]byte, 0, min(maxBytes, contentReadBufferBytes))
-	buffer := make([]byte, min(maxBytes, contentReadBufferBytes))
-	remaining := maxBytes
-	for remaining > 0 {
-		if err := ctx.Err(); err != nil {
-			return false, err
-		}
-		readSize := int64(len(buffer))
-		if readSize > remaining {
-			readSize = remaining
-		}
-		count, readErr := file.Read(buffer[:readSize])
-		if count > 0 {
-			chunk := buffer[:count]
-			if bytes.IndexByte(chunk, 0) >= 0 {
-				return false, nil
-			}
-			data = append(data, chunk...)
-			remaining -= int64(count)
-		}
-		if readErr != nil {
-			if errors.Is(readErr, io.EOF) {
-				break
-			}
-			return false, readErr
-		}
-	}
-	if err := ctx.Err(); err != nil {
-		return false, err
-	}
-	return strings.Contains(strings.ToLower(string(data)), strings.ToLower(content)), nil
 }
 
 func appendNotice(existing string, addition string) string {

@@ -29,11 +29,12 @@ func (m *model) refreshGitStatusCmd(force bool) tea.Cmd {
 	if m.gitClient == nil {
 		return nil
 	}
-	targets, locations := m.currentGitStatusTargets()
+	locations := m.currentGitStatusLocations()
 	if !force && slices.Equal(locations, m.gitStatusPaths) &&
 		time.Since(m.gitStatusLast) < gitStatusRefreshInterval {
 		return nil
 	}
+	targets, _ := m.currentGitStatusTargets()
 	m.gitStatusPaths = slices.Clone(locations)
 	m.gitStatusLast = time.Now()
 	m.gitStatusReqID++
@@ -48,8 +49,7 @@ func readGitStatusTargets(client *gitstatus.Client, targets []gitStatusTarget, r
 	states := make(map[string]map[string]gitstatus.State, len(targets))
 	var operationErrors []error
 	for _, target := range targets {
-		pathStates := make(map[string]gitstatus.State, len(target.paths))
-		states[target.location] = pathStates
+		states[target.location] = map[string]gitstatus.State{}
 		snapshot, err := client.Status(context.Background(), target.location)
 		if err != nil {
 			var gitErr *gitstatus.Error
@@ -58,18 +58,29 @@ func readGitStatusTargets(client *gitstatus.Client, targets []gitStatusTarget, r
 			}
 			continue
 		}
-		for _, path := range target.paths {
-			state, stateErr := snapshot.StateFor(path)
-			if stateErr != nil {
-				operationErrors = append(operationErrors, stateErr)
-				continue
-			}
-			if state != gitstatus.Clean {
-				pathStates[path] = state
-			}
-		}
+		pathStates, pathErrors := snapshot.StatesFor(target.paths)
+		states[target.location] = pathStates
+		operationErrors = append(operationErrors, pathErrors...)
 	}
 	return gitStatusUpdateMsg{reqID: reqID, states: states, errors: operationErrors}
+}
+
+// The refresh gate needs panel locations only. Enumerating and sorting every
+// entry before that gate makes ordinary input proportional to folder size.
+func (m *model) currentGitStatusLocations() []string {
+	locations := make([]string, 0, len(m.fileModel.FilePanels))
+	seen := make(map[string]struct{}, len(m.fileModel.FilePanels))
+	for index := range m.fileModel.FilePanels {
+		location := m.fileModel.FilePanels[index].Location
+		key := folderWatchPathKey(location)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		locations = append(locations, location)
+	}
+	slices.Sort(locations)
+	return locations
 }
 
 func (m *model) currentGitStatusTargets() ([]gitStatusTarget, []string) {

@@ -4,33 +4,68 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"strconv"
 	"strings"
-
-	"github.com/muesli/termenv"
 )
+
+// Two RGB SGR colors, one half-block rune, and a reset sequence.
+const (
+	maxANSICellBytes = 43
+	ansiPixelsPerRow = 2
+)
+
+// Formatting an RGB byte through hex and termenv for every pixel involves
+// several temporary strings. Each channel has only 256 possible values.
+//
+//nolint:gochecknoglobals // Immutable lookup table shared by image encoders.
+var ansiColorByte = func() [256]string {
+	var values [256]string
+	for value := range values {
+		// Preserve termenv's hex -> float RGB -> byte rounding, including the
+		// handful of channels that round down by one during that conversion.
+		normalized := float64(value) * (1.0 / alphaOpaque)
+		values[value] = strconv.Itoa(int(uint8(normalized * alphaOpaque)))
+	}
+	return values
+}()
 
 // ConvertImageToANSI converts an image to ANSI escape codes with proper aspect ratio
 func ConvertImageToANSI(img image.Image, defaultBGColor color.Color) string {
-	width := img.Bounds().Dx()
-	height := img.Bounds().Dy()
+	bounds := img.Bounds()
+	width, height := bounds.Dx(), bounds.Dy()
 
 	// TODO: Use renderer here to prevent newline management,and overflows
 	var output strings.Builder
-	cache := newColorCache()
-	defaultBGHex := colorToHex(defaultBGColor)
+	rows := height/ansiPixelsPerRow + height%ansiPixelsPerRow
+	maxInt := int(^uint(0) >> 1)
+	if width > 0 && rows > 0 && width <= (maxInt-rows+1)/rows/maxANSICellBytes {
+		// Bounds avoid overflowing the estimate for arbitrary image.Image
+		// implementations while normal previews allocate their output once.
+		output.Grow(width*rows*maxANSICellBytes + rows - 1)
+	}
+	defaultR, defaultG, defaultB, defaultA := defaultBGColor.RGBA()
+	fallback := color.RGBA{R: uint8((defaultR >> rgbShift8) & rgbMask), G: uint8((defaultG >> rgbShift8) & rgbMask),
+		B: uint8((defaultB >> rgbShift8) & rgbMask), A: alphaOpaque}
 
 	for y := 0; y < height; y += 2 {
 		for x := range width {
-			upperColor := cache.getTermenvColor(img.At(x, y), defaultBGHex)
-			lowerColor := cache.getTermenvColor(defaultBGColor, "")
+			upperColor := ansiPixelColor(img, bounds.Min.X+x, bounds.Min.Y+y, fallback)
+			lowerColor := fallback
+			lowerPresent := defaultA>>rgbShift8 != 0
 
 			if y+1 < height {
-				lowerColor = cache.getTermenvColor(img.At(x, y+1), defaultBGHex)
+				lowerColor = ansiPixelColor(img, bounds.Min.X+x, bounds.Min.Y+y+1, fallback)
+				lowerPresent = true
 			}
 
 			// Using the "▄" character which fills the lower half
-			cell := termenv.String("▄").Foreground(lowerColor).Background(upperColor)
-			output.WriteString(cell.String())
+			output.WriteString("\x1b[")
+			if lowerPresent {
+				writeANSIColor(&output, "38;2;", lowerColor)
+			}
+			output.WriteByte(';')
+			writeANSIColor(&output, "48;2;", upperColor)
+			output.WriteString("m▄\x1b[0m")
 		}
 		// Only add newline if this is not the last row
 		if y+2 < height {
@@ -39,6 +74,36 @@ func ConvertImageToANSI(img image.Image, defaultBGColor color.Color) string {
 	}
 
 	return output.String()
+}
+
+func ansiPixelColor(img image.Image, x, y int, fallback color.RGBA) color.RGBA {
+	var r, g, b, a uint32
+	switch pixels := img.(type) {
+	case *image.RGBA:
+		pixel := pixels.RGBAAt(x, y)
+		if pixel.A == 0 {
+			return fallback
+		}
+		return pixel
+	case *image.NRGBA:
+		r, g, b, a = pixels.NRGBAAt(x, y).RGBA()
+	default:
+		r, g, b, a = img.At(x, y).RGBA()
+	}
+	if a>>rgbShift8 == 0 {
+		return fallback
+	}
+	return color.RGBA{R: uint8((r >> rgbShift8) & rgbMask), G: uint8((g >> rgbShift8) & rgbMask),
+		B: uint8((b >> rgbShift8) & rgbMask), A: alphaOpaque}
+}
+
+func writeANSIColor(output *strings.Builder, prefix string, col color.RGBA) {
+	output.WriteString(prefix)
+	output.WriteString(ansiColorByte[col.R])
+	output.WriteByte(';')
+	output.WriteString(ansiColorByte[col.G])
+	output.WriteByte(';')
+	output.WriteString(ansiColorByte[col.B])
 }
 
 // Convert image to ansi
@@ -52,29 +117,4 @@ func (p *ImagePreviewer) ANSIRenderer(img image.Image, defaultBGColor string,
 	// For ANSI rendering, resize image appropriately
 	fittedImg := resizeForANSI(img, maxWidth, maxHeight)
 	return ConvertImageToANSI(fittedImg, bgColor), nil
-}
-
-type colorCache struct {
-	rgbaToTermenv map[color.RGBA]termenv.RGBColor
-}
-
-func newColorCache() *colorCache {
-	return &colorCache{
-		rgbaToTermenv: make(map[color.RGBA]termenv.RGBColor),
-	}
-}
-
-func (c *colorCache) getTermenvColor(col color.Color, fallbackColor string) termenv.RGBColor {
-	rgba, ok := color.RGBAModel.Convert(col).(color.RGBA)
-	if !ok || rgba.A == 0 {
-		return termenv.RGBColor(fallbackColor)
-	}
-
-	if termenvColor, exists := c.rgbaToTermenv[rgba]; exists {
-		return termenvColor
-	}
-
-	termenvColor := termenv.RGBColor(fmt.Sprintf("#%02x%02x%02x", rgba.R, rgba.G, rgba.B))
-	c.rgbaToTermenv[rgba] = termenvColor
-	return termenvColor
 }

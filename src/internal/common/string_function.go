@@ -120,6 +120,13 @@ func FilePanelItemRender(data string,
 		style = FilePanelItemSelectedStyle
 		bgColor = filePanelItemSelectedBGColor
 	}
+	// The cell has already been truncated to width. For a single line with no
+	// extra framing or transform, another word-wrap pass cannot change layout.
+	// Inline still applies width/alignment and colors, but skips that pass.
+	if width > 0 && utf8.ValidString(outputData) && strings.IndexFunc(outputData, unicode.IsControl) < 0 &&
+		style.GetHorizontalFrameSize() == 0 && style.GetVerticalFrameSize() == 0 && style.GetTransform() == nil {
+		style = style.Inline(true)
+	}
 	return style.Background(bgColor).Width(width).Align(alignment).Render(outputData)
 }
 

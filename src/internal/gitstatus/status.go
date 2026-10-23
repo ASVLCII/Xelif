@@ -77,6 +77,60 @@ func (s Snapshot) StateFor(path string) (State, error) {
 	return best, nil
 }
 
+// StatesFor resolves a panel's paths together, returning only non-clean paths
+// under their original supplied names. Invalid paths are omitted and reported
+// individually, so one invalid path cannot hide the other results.
+//
+// Indexing the snapshot once avoids rescanning every status entry for each
+// displayed file. The index belongs only to this call and cannot become stale
+// if a caller changes the exported snapshot entries between calls.
+func (s Snapshot) StatesFor(paths []string) (map[string]State, []error) {
+	index := s.pathStateIndex()
+	states := make(map[string]State)
+	var pathErrors []error
+	for _, path := range paths {
+		normalized, err := normalizePaths(s.Root, []string{path}, true)
+		if err != nil {
+			pathErrors = append(pathErrors, err)
+			continue
+		}
+		state := index[filepath.Clean(filepath.FromSlash(normalized[0]))]
+		if state != "" && state != Clean {
+			states[path] = state
+		}
+	}
+	return states, pathErrors
+}
+
+func (s Snapshot) pathStateIndex() map[string]State {
+	states := make(map[string]State, len(s.Entries))
+	exact := make(map[string]struct{}, len(s.Entries))
+	for _, entry := range s.Entries {
+		path := filepath.Clean(entry.Path)
+		// StateFor(".") aggregates every entry, including snapshots manually
+		// constructed with absolute paths rather than Git's relative paths.
+		if _, exists := exact["."]; !exists && statePriority(entry.State) > statePriority(states["."]) {
+			states["."] = entry.State
+		}
+		if _, exists := exact[path]; !exists {
+			exact[path] = struct{}{}
+			states[path] = entry.State
+		}
+	}
+	for _, entry := range s.Entries {
+		path := filepath.Clean(entry.Path)
+		for parent := filepath.Dir(path); ; parent = filepath.Dir(parent) {
+			if _, exists := exact[parent]; !exists && statePriority(entry.State) > statePriority(states[parent]) {
+				states[parent] = entry.State
+			}
+			if parent == "." || parent == filepath.Dir(parent) {
+				break
+			}
+		}
+	}
+	return states
+}
+
 func statePriority(state State) int {
 	switch state {
 	case Conflict:
