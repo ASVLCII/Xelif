@@ -1,22 +1,22 @@
-# Xelif preview
+# Xelif
 
 A mouse- and keyboard-accessible terminal file manager based on
 [superfile](https://github.com/yorukot/superfile), developed by
 [ASVLCII](https://github.com/ASVLCII/Xelif).
 
-Install the published `0.1.0-preview.1` preview with either npm or Bun:
+Install the stable `0.1.0` release with either npm or Bun:
 
 ```sh
-npm install -g @asvlcii/xelif@preview
+npm install -g @asvlcii/xelif@latest
 # or
-bun add -g @asvlcii/xelif@preview
+bun add -g @asvlcii/xelif@latest
 
 xelif
 xelif "/path/to/a folder"
 ```
 
-The `preview` tag is intentional; this is not a stable release. A Node.js 22+
-runtime is required by the global launcher. The launcher is also compatible with
+The `latest` tag selects the stable release. A Node.js 22+ runtime is required
+by the global launcher. The launcher is also compatible with
 Bun's runtime when invoked with Bun explicitly.
 
 The same public npm package works with npm and Bun. An OS/CPU-specific optional
@@ -41,6 +41,6 @@ open another terminal, install fonts, or overwrite your terminal settings.
 On the development PC, the existing machine-local `Xelif.cmd` may precede the npm
 shim on PATH. This package does not overwrite that launcher. Inspect `Get-Command
 xelif -All` (PowerShell) or `command -v xelif` (Unix) if a different installation
-opens. Preview executables are not Windows Authenticode signed or Apple-notarized.
+opens. Executables are not Windows Authenticode signed or Apple-notarized.
 
 Source, issues and verification: https://github.com/ASVLCII/Xelif

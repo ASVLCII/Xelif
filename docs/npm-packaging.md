@@ -1,4 +1,4 @@
-# npm and Bun preview packaging
+# npm and Bun packaging
 
 The Go application is unchanged in architecture. A dependency-free JavaScript
 launcher selects one exact-version native package, inherits the terminal,
@@ -51,7 +51,7 @@ global command, Bun's global command and the launcher under both runtimes. It
 does not install globally into the user's normal Node/Bun installation, touch
 their Xelif profile, or publish anything. `results.json` records the evidence.
 
-## Published preview
+## Previous preview
 
 Version `0.1.0-preview.1` is published under the npm account `asvlcii`: all six
 native packages and the shared launcher are public, with the `preview` tag.
@@ -68,12 +68,16 @@ isolated Windows x64 global installations with npm and Bun both launched
 path check also passed. These checks do not establish interactive TUI acceptance
 on every platform or Everything-level search performance.
 
-## Publishing future previews
+## Publishing releases
 
 The publisher must own the npm user/organization scope `asvlcii`, and separately
 authenticate to npm. GitHub authentication is not npm authentication. Never paste
 tokens, OTPs or passwords into issues, source files or chat. Use a new version
 for changed package contents; existing published versions are immutable.
+
+Stable releases use a plain semantic version and the `latest` npm tag. Preview
+releases use a prerelease version and the `preview` tag. Never move `latest`
+to a preview. The first stable version is `0.1.0`.
 
 1. Finish all six native package jobs and the ordinary application CI gates.
 2. Download the `npm-*` artifacts from that exact successful commit. Keep the
@@ -82,7 +86,7 @@ for changed package contents; existing published versions are immutable.
 3. Verify the npm account with `npm whoami --registry=https://registry.npmjs.org`.
    Verify ownership or write permission for the `asvlcii` scope before publishing.
 4. Publish the six native tarballs first, each with
-   `npm publish <native.tgz> --access public --tag preview`. Wait until all six
+   `npm publish <native.tgz> --access public --tag latest`. Wait until all six
    exact versions are readable from the public registry. Publish the launcher
    tarball last with the same flags. Do not overwrite existing immutable versions
    or silently skip a conflicting package.
@@ -90,12 +94,12 @@ for changed package contents; existing published versions are immutable.
    advertising the installation commands. A local fixture-registry smoke alone
    is not proof that registry publication works.
 
-Users install the published preview with:
+Users install the stable release with:
 
 ```sh
-npm install -g @asvlcii/xelif@preview
+npm install -g @asvlcii/xelif@latest
 # or
-bun add -g @asvlcii/xelif@preview
+bun add -g @asvlcii/xelif@latest
 ```
 
 Future releases may configure npm trusted publishing/OIDC per package, but no

@@ -40,15 +40,15 @@ Also includes Git status/actions, tags and collections, metadata preview/restore
 
 ## Install
 
-**Current preview: `0.1.0-preview.1`.** Install the published
+**Current stable release: `0.1.0`.** Install the published
 [`@asvlcii/xelif`](https://www.npmjs.com/package/@asvlcii/xelif) package with
 either npm or Bun. Native executables are available for Windows, macOS and Linux
-on x64 and ARM64. This is a preview, not a stable release.
+on x64 and ARM64.
 
 ```sh
-npm install -g @asvlcii/xelif@preview
+npm install -g @asvlcii/xelif@latest
 # or
-bun add -g @asvlcii/xelif@preview
+bun add -g @asvlcii/xelif@latest
 ```
 
 Then launch it from any directory:
@@ -66,12 +66,12 @@ A Go compiler is not needed. A Nerd Font is recommended for file-type icons.
 The package uses exact-version optional dependencies, no postinstall scripts or
 downloads, and a small Node.js 22+ launcher for the existing Go application.
 [Packaging and verification](docs/npm-packaging.md). Running the same install
-command again updates to the current preview. If another Xelif installation opens,
+command again updates to the current stable release. If another Xelif installation opens,
 check `Get-Command xelif -All` in PowerShell or `command -v xelif` on Unix.
 
 ## Build from source
 
-Build from source if you prefer not to use the preview package above. Existing superfile installers and package-manager entries install upstream superfile, not Xelif.
+Build from source if you prefer not to use the package above. Existing superfile installers and package-manager entries install upstream superfile, not Xelif.
 
 Requires Go 1.26 or later.
 

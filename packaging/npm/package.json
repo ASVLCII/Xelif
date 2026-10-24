@@ -1,6 +1,6 @@
 {
   "name": "@asvlcii/xelif",
-  "version": "0.1.0-preview.1",
+  "version": "0.1.0",
   "description": "Fast, accessible terminal file manager based on superfile",
   "license": "MIT",
   "repository": {
@@ -13,15 +13,25 @@
   "bin": {
     "xelif": "bin/xelif.cjs"
   },
-  "files": ["bin/xelif.cjs", "README.md", "LICENSE", "NOTICE.md"],
-  "engines": { "node": ">=22" },
-  "publishConfig": { "access": "public", "tag": "preview" },
+  "files": [
+    "bin/xelif.cjs",
+    "README.md",
+    "LICENSE",
+    "NOTICE.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "latest"
+  },
   "optionalDependencies": {
-    "@asvlcii/xelif-darwin-arm64": "0.1.0-preview.1",
-    "@asvlcii/xelif-darwin-x64": "0.1.0-preview.1",
-    "@asvlcii/xelif-linux-arm64": "0.1.0-preview.1",
-    "@asvlcii/xelif-linux-x64": "0.1.0-preview.1",
-    "@asvlcii/xelif-win32-arm64": "0.1.0-preview.1",
-    "@asvlcii/xelif-win32-x64": "0.1.0-preview.1"
+    "@asvlcii/xelif-darwin-arm64": "0.1.0",
+    "@asvlcii/xelif-darwin-x64": "0.1.0",
+    "@asvlcii/xelif-linux-arm64": "0.1.0",
+    "@asvlcii/xelif-linux-x64": "0.1.0",
+    "@asvlcii/xelif-win32-arm64": "0.1.0",
+    "@asvlcii/xelif-win32-x64": "0.1.0"
   }
 }
