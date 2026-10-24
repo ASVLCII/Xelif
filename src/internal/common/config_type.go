@@ -178,6 +178,7 @@ type HotkeysType struct {
 	OpenZoxide         []string `toml:"open_zoxide"`
 	OpenGlobalSearch   []string `toml:"open_global_search"`
 	OpenCommandPalette []string `toml:"open_command_palette"`
+	ToggleOperations   []string `toml:"toggle_operations"`
 
 	CopyPath []string `toml:"copy_path"`
 	CopyPWD  []string `toml:"copy_present_working_directory"`

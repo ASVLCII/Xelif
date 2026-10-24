@@ -73,7 +73,7 @@ func TestCutAcrossFilesystems(t *testing.T) {
 					require.NoError(t, pasteDir(source, destination, &p, true, &bar))
 				} else {
 					var moves []pathMove
-					require.NoError(t, movePasteItem(source, destinationRoot, &moves))
+					require.NoError(t, movePasteItemContext(context.Background(), source, destinationRoot, &moves))
 					require.Equal(t, []pathMove{{from: source, to: destination}}, moves)
 				}
 				_, statErr := os.Lstat(source)

@@ -54,6 +54,7 @@ func InitialModel(firstPanelPaths []string, firstUseCheck, explicitPaths bool) t
 	if err := m.startFolderWatcher(); err != nil {
 		slog.Warn("Filesystem notifications are unavailable; using polling", "error", err)
 	}
+	m.restoreOperationsVisibility(variable.OperationCenterVisibility)
 	return m
 }
 
@@ -78,7 +79,9 @@ func (m *model) Init() tea.Cmd {
 // application
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	slog.Debug("model.Update() called", "msgType", reflect.TypeOf(msg))
-	operationsWasOpen, globalSearchWasOpen := m.operations.open, m.globalSearchModal.IsOpen()
+	operationsWasOpen, globalSearchWasOpen, operationsShortcut := m.operations.open, m.globalSearchModal.IsOpen(), m.handleOperationsShortcut(
+		msg,
+	)
 
 	var sidebarCmd, inputCmd, updateCmd, panelCmd,
 		metadataCmd, filePreviewCmd, helpMenuCmd, resizeCmd, mouseCmd, globalSearchCmd,
@@ -90,13 +93,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	sidebarCmd = m.sidebarModel.UpdateState(msg)
 	// Necessary for blinking. Can't do this in HandleKey, as we only pass KeyMsg there
 	helpMenuCmd = m.helpMenu.HandleTeaMsg(msg)
-	if globalSearchWasOpen {
+	if globalSearchWasOpen && !operationsShortcut && !m.operationsBlockPickerInput(msg) {
 		action, cmd := m.globalSearchModal.HandleUpdate(msg)
 		globalSearchCmd = cmd
 		m.applyGlobalSearchAction(action)
 	}
 	commandPaletteWasOpen := m.commandPalette.IsOpen()
-	if commandPaletteWasOpen && !globalSearchWasOpen {
+	if commandPaletteWasOpen && !globalSearchWasOpen && !operationsShortcut && !m.operationsBlockPickerInput(msg) {
 		action, cmd := m.commandPalette.HandleUpdate(msg)
 		commandPaletteCmd = tea.Batch(cmd, m.applyCommandPaletteAction(action))
 	}
@@ -107,7 +110,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseMsg:
 		mouseCmd = m.handleMouseMsg(msg)
 	case tea.KeyPressMsg:
-		if !globalSearchWasOpen && !commandPaletteWasOpen {
+		if !operationsShortcut && ((!globalSearchWasOpen && !commandPaletteWasOpen) || m.operations.open) {
 			inputCmd = m.handleKeyInput(msg)
 		}
 	case tea.PasteMsg:
@@ -145,7 +148,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// This is needed for blink, etc to work
 	panelCmd = m.updateComponentState(
-		componentMessageAfterPicker(msg, globalSearchWasOpen || commandPaletteWasOpen || operationsWasOpen),
+		componentMessageAfterPicker(
+			msg,
+			globalSearchWasOpen || commandPaletteWasOpen || operationsWasOpen || operationsShortcut,
+		),
 	)
 
 	m.updateModelStateForMessage(msg)

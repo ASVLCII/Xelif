@@ -107,7 +107,7 @@ func (m *model) paletteItems() []commandpalette.Item {
 	}
 
 	items := []commandpalette.Item{
-		paletteItem(commandIDOperations, "Operations", "View", nil, "tasks", "background", "cancel", "progress"),
+		operationsPaletteItem(),
 		paletteItem(commandIDOpen, "Open focused item", "Files", common.Hotkeys.Confirm, "enter", "launch"),
 		paletteItem(commandIDParent, "Open parent folder", "Navigation", common.Hotkeys.ParentDirectory, "up"),
 		paletteItem(commandIDGlobalSearch, "Search everywhere", "Search", common.Hotkeys.OpenGlobalSearch,
@@ -598,4 +598,17 @@ func (m *model) commandHotkeys(id string) []string {
 func (m *model) setCommandPaletteSize() {
 	m.commandPalette.SetMaxHeight(m.fullHeight / 2) //nolint:mnd // Palette uses half-height modal.
 	m.commandPalette.SetWidth(2 * m.fullWidth / 3)  //nolint:mnd // Labels and hotkeys need horizontal room.
+}
+
+func operationsPaletteItem() commandpalette.Item {
+	return paletteItem(
+		commandIDOperations,
+		"Operations",
+		"View",
+		common.Hotkeys.ToggleOperations,
+		"tasks",
+		"background",
+		"cancel",
+		"progress",
+	)
 }

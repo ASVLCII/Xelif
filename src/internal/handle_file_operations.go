@@ -351,21 +351,6 @@ func pasteTaskItem(processes *processbar.Model, process *processbar.Process, sou
 	return pasteDir(source, filepath.Join(destination, filepath.Base(source)), process, false, processes)
 }
 
-func movePasteItem(filePath, panelLocation string, moves *[]pathMove) error {
-	destination := filepath.Join(panelLocation, filepath.Base(filePath))
-	destination, err := renameIfDuplicate(destination)
-	if err != nil {
-		return err
-	}
-	if err := moveElementNoReplace(filePath, destination); err != nil {
-		return err
-	}
-	if moves != nil {
-		*moves = append(*moves, pathMove{from: filePath, to: destination})
-	}
-	return nil
-}
-
 func movePasteItemContext(ctx context.Context, filePath, panelLocation string, moves *[]pathMove) error {
 	destination, err := renameIfDuplicate(filepath.Join(panelLocation, filepath.Base(filePath)))
 	if err != nil {

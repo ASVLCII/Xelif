@@ -41,16 +41,17 @@ var (
 	CommandPluginDir = filepath.Join(SuperFileMainDir, "command-plugins")
 
 	// DataDir files
-	LastCheckVersion = filepath.Join(SuperFileDataDir, "lastCheckVersion")
-	ThemeFileVersion = filepath.Join(SuperFileDataDir, "themeFileVersion")
-	FirstUseCheck    = filepath.Join(SuperFileDataDir, "firstUseCheck")
-	PinnedFile       = filepath.Join(SuperFileDataDir, "pinned.json")
-	RecentFile       = filepath.Join(SuperFileDataDir, "recent.json")
-	ToggleDotFile    = filepath.Join(SuperFileDataDir, "toggleDotFile")
-	ToggleFooter     = filepath.Join(SuperFileDataDir, "toggleFooter")
-	WorkspaceDir     = filepath.Join(SuperFileDataDir, "workspaces")
-	SavedSearchFile  = filepath.Join(SuperFileDataDir, "saved-searches.json")
-	CatalogFile      = filepath.Join(SuperFileDataDir, "catalog.json")
+	LastCheckVersion          = filepath.Join(SuperFileDataDir, "lastCheckVersion")
+	ThemeFileVersion          = filepath.Join(SuperFileDataDir, "themeFileVersion")
+	FirstUseCheck             = filepath.Join(SuperFileDataDir, "firstUseCheck")
+	PinnedFile                = filepath.Join(SuperFileDataDir, "pinned.json")
+	RecentFile                = filepath.Join(SuperFileDataDir, "recent.json")
+	ToggleDotFile             = filepath.Join(SuperFileDataDir, "toggleDotFile")
+	ToggleFooter              = filepath.Join(SuperFileDataDir, "toggleFooter")
+	OperationCenterVisibility = filepath.Join(SuperFileDataDir, "operation-center-visible")
+	WorkspaceDir              = filepath.Join(SuperFileDataDir, "workspaces")
+	SavedSearchFile           = filepath.Join(SuperFileDataDir, "saved-searches.json")
+	CatalogFile               = filepath.Join(SuperFileDataDir, "catalog.json")
 
 	// StateDir files
 	LogFile            = filepath.Join(SuperFileStateDir, "superfile.log")

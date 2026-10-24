@@ -76,6 +76,7 @@ open_spf_prompt = ['>', '']
 open_zoxide = ['z', '']
 open_global_search = ['ctrl+g', '']
 open_command_palette = ['ctrl+shift+p', 'alt+p']
+toggle_operations = ['alt+o']
 toggle_dot_file = ['.', '']
 toggle_footer = ['F', '']
 

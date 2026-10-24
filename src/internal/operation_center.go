@@ -43,9 +43,15 @@ type operationCenter struct {
 	revision                     uint64
 	lastFilter                   string
 	lastBackground               bool
+	notice                       string
 }
 
 func (m *model) openOperations() {
+	m.openOperationsView()
+	m.rememberOperationsVisibility(true)
+}
+
+func (m *model) openOperationsView() {
 	m.sidebarModel.SearchBarBlur()
 	for i := range m.fileModel.FilePanels {
 		m.fileModel.FilePanels[i].SearchBar.Blur()
@@ -129,7 +135,7 @@ func (m *model) handleOperationKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.operations.details = false
 			return nil
 		}
-		m.operations.open = false
+		m.closeOperations()
 	case "tab", "shift+tab":
 		m.operations.background = !m.operations.background
 		m.operations.selected = ""
@@ -201,7 +207,7 @@ func (m *model) handleOperationMouse(msg tea.MouseMsg) {
 			m.operations.details = !m.operations.details
 			m.operations.detailOffset = 0
 		case x <= operationCloseEnd:
-			m.operations.open = false
+			m.closeOperations()
 		}
 	default:
 		if m.operations.details || y < operationHeaderRows {
@@ -226,7 +232,7 @@ func (m *model) renderOperations() string {
 	}
 	r.AddLines(tabs, operationCancelLabel+" "+operationClearLabel+" "+operationDetailsLabel+" "+operationCloseLabel)
 	m.operations.filter.SetWidth(max(w-len("Filter: ")-common.BorderPadding, 1))
-	r.AddLines("Filter: "+m.operations.filter.View(), "")
+	r.AddLines("Filter: "+m.operations.filter.View(), m.operations.notice)
 	switch {
 	case m.operations.details && len(rows) > 0:
 		p := rows[m.operations.cursor]
@@ -277,7 +283,7 @@ func (m *model) renderOperations() string {
 			r.AddLines(common.MakePrintableWithEscCheck(line, false))
 		}
 	}
-	r.SetBorderInfoItems("Tab: switch | Enter: details | Ctrl+X: cancel | Ctrl+L: clear | Esc: back",
+	r.SetBorderInfoItems("Alt+O: toggle | Tab: switch | Enter: details | Ctrl+X: cancel | Esc: back",
 		fmt.Sprintf("%d task(s)", len(rows)))
 	return r.Render()
 }

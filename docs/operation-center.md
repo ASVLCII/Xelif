@@ -1,7 +1,14 @@
 # Operation center
 
-Choose **Operations** in Commands, or click the Processes footer. The compact
-footer stays available; no new default keybinding or persistent panel is added.
+The operation center is **off by default**. Press **Alt+O** to toggle it, choose
+**Operations** in Commands, or click the Processes footer. The compact footer stays
+available. You can customize the shortcut with `toggle_operations` in hotkeys.toml.
+
+Visibility is remembered across launches until you close or toggle the center
+off. Only that choice is saved; task history remains session-only. Saving it uses
+an atomic write in the existing application data directory and does not rewrite
+your configuration, themes, or other preferences. A save failure is shown while
+the center continues to work for the current session.
 
 The **Operations** tab contains explicit file tasks, scans, comparisons, remote
 operations, Git actions and plugins. **Background** contains automatic search,
@@ -19,10 +26,11 @@ The clickable controls also have keyboard equivalents:
 
 | Control | Keyboard | Behavior |
 | --- | --- | --- |
+| Toggle | Alt+O | Show/hide the center and remember the choice |
 | Details | Enter | Show task details; press Enter or Escape to return |
 | Cancel | Ctrl+X | Request a safe cooperative stop for the selected task |
 | Clear finished | Ctrl+L | Clear session history while preserving active tasks |
-| Close | Escape | Close the center without cancelling work |
+| Close | Escape | Close the center and remember off, without cancelling work |
 
 Cancellation first shows **Cancel requested**. Filesystem calls and decoders may
 need to finish their current call before stopping. Completed file changes remain;

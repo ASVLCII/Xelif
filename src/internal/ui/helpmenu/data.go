@@ -75,6 +75,11 @@ func getData() []hotkeydata { //nolint:funlen,maintidx // Keep the flat hotkey c
 			hotkeyWorkType: globalType,
 		},
 		{
+			hotkey:         common.Hotkeys.ToggleOperations,
+			description:    "Toggle operation center (remembered)",
+			hotkeyWorkType: globalType,
+		},
+		{
 			subTitle: "Panel navigation",
 		},
 		{
