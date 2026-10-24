@@ -467,6 +467,11 @@ linters:
       - common-false-positives
     # Excluding configuration per-path, per-linter, per-text and per-source.
     rules:
+      # These audited gosec annotations are active only on some native targets.
+      # Retain their inline rationale without false unused-directive warnings.
+      - path: 'src/internal/(file_operations\.go|undo\.go|duplicates/identity_unix\.go)'
+        text: 'directive .*//nolint:gosec(,unconvert)? // G(703|115):.* is unused for linter "gosec"'
+        linters: [nolintlint]
       - source: 'TODO'
         linters: [ godot ]
       - text: 'should have a package comment'

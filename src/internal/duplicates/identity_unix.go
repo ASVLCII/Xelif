@@ -15,6 +15,6 @@ func identityOf(_ string, info os.FileInfo) (fileIdentity, bool) {
 	if !ok {
 		return fileIdentity{}, false
 	}
-	//nolint:unconvert // Stat_t field widths differ between supported Unix targets.
+	//nolint:gosec,unconvert // G115: Unix device IDs are opaque equality keys; widening keeps signed values distinct.
 	return fileIdentity{device: uint64(stat.Dev), inode: uint64(stat.Ino)}, true
 }
