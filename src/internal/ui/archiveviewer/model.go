@@ -45,6 +45,7 @@ type Action struct {
 // archive handle so closing this viewer never waits for a read or extraction.
 type Operation struct {
 	Context     context.Context
+	Cancel      context.CancelFunc
 	ArchivePath string
 	RequestID   uint64
 }
@@ -119,7 +120,7 @@ func (m *Model) StartOperation() (Operation, error) {
 	m.cancelOperation()
 	ctx, cancel := context.WithCancel(context.Background())
 	m.operationCancel = cancel
-	return Operation{Context: ctx, ArchivePath: m.archivePath, RequestID: m.operationID}, nil
+	return Operation{Context: ctx, Cancel: cancel, ArchivePath: m.archivePath, RequestID: m.operationID}, nil
 }
 
 // CompleteOperation accepts the current request once. Cancelled work, replaced

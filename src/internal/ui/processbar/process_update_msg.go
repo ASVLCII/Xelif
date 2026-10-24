@@ -33,6 +33,9 @@ type updateProcessMsg struct {
 }
 
 func (msg updateProcessMsg) Apply(m *Model) (Cmd, error) {
+	if _, exists := m.GetByID(msg.NewProcess.ID); !exists {
+		return m.GetListenCmd(), nil
+	}
 	return m.GetListenCmd(), m.UpdateExistingProcess(msg.NewProcess)
 }
 

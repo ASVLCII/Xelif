@@ -86,7 +86,15 @@ func (m *model) handleArchiveAction(action archiveviewer.Action) tea.Cmd {
 			return nil
 		}
 		destination := m.getFocusedFilePanel().Location
-		return archiveOperationCmd(operation, action, destination)
+		return m.trackTask(
+			"Archive member",
+			operation.ArchivePath+" : "+action.Member,
+			destination,
+			false,
+			operation.Context,
+			operation.Cancel,
+			archiveOperationCmd(operation, action, destination),
+		)
 	default:
 		return nil
 	}

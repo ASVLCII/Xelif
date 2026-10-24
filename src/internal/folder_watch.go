@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/yorukot/superfile/src/internal/folderwatch"
+	"github.com/yorukot/superfile/src/internal/ui/processbar"
 	"github.com/yorukot/superfile/src/pkg/utils"
 )
 
@@ -31,6 +32,16 @@ func (m *model) startFolderWatcher() error {
 		return err
 	}
 	m.folderWatcher = watcher
+	m.processBarModel.StartTask(
+		processbar.TaskSpec{
+			Kind:         "Filesystem watcher",
+			Background:   true,
+			Service:      true,
+			CancelReason: "Required for automatic refresh; stops with Xelif.",
+		},
+		nil,
+		nil,
+	)
 	return nil
 }
 
@@ -61,9 +72,9 @@ func (m *model) syncFolderWatcherCmd() tea.Cmd {
 	}
 	m.folderWatchPaths = slices.Clone(paths)
 	watcher := m.folderWatcher
-	return func() tea.Msg {
+	return m.trackTask("Watch synchronization", strings.Join(paths, "; "), "", true, nil, nil, func() tea.Msg {
 		return folderWatchSyncMsg{err: watcher.Sync(paths)}
-	}
+	})
 }
 
 func (m *model) waitFolderWatchEventCmd() tea.Cmd {
@@ -89,6 +100,21 @@ func (m *model) waitFolderWatchErrorCmd() tea.Cmd {
 }
 
 func (m *model) applyFolderWatchEvent(event folderwatch.Event) {
+	_ = m.processBarModel.ObserveSync(
+		processbar.TaskSpec{
+			Kind:       "Directory refresh",
+			Source:     strings.Join(event.Paths, "; "),
+			Background: true,
+			GroupKey:   "directory-refresh",
+		},
+		func() error {
+			m.refreshWatchedDirectories(event)
+			return nil
+		},
+	)
+}
+
+func (m *model) refreshWatchedDirectories(event folderwatch.Event) {
 	changed := make(map[string]struct{}, len(event.Paths))
 	for _, path := range event.Paths {
 		changed[folderWatchPathKey(path)] = struct{}{}

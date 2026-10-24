@@ -6,13 +6,20 @@ import (
 	"github.com/lithammer/shortuuid"
 )
 
-const maxCompletedProcesses = 50
+const maxCompletedProcesses = 100
 
 func (m *Model) cntProcesses() int {
-	m.processesMu.RLock()
-	defer m.processesMu.RUnlock()
+	return len(m.getFooterProcesses())
+}
 
-	return len(m.processes)
+func (m *Model) getFooterProcesses() []Process {
+	processes := m.getSortedProcesses()
+	if m.bus == nil {
+		return processes
+	}
+	m.bus.mu.Lock()
+	defer m.bus.mu.Unlock()
+	return m.bus.footer
 }
 
 func (m *Model) isValid() bool {
@@ -37,40 +44,48 @@ func (m *Model) GetWidth() int {
 }
 
 func (m *Model) getSortedProcesses() []Process {
-	// save process in the array and sort the process by finished or not,
-	// completion percetage, or finish time
-	// TODO : This is very inefficient and can be improved.
-	// The whole design needs to be changed so that we dont need to recreate the slice
-	// and sort on each render. Idea : Maintain two slices - completed, ongoing
-	// Processes should be added / removed to the slice on correct time, and we dont
-	// need to redo slice formation and sorting on each render.
-	// TODO : One idea is that we can use google/btree to store processes
-	// have process implement a Less() method, and we can do O(logn) inserts/deletes
-	// To make sure its always stored in an order we want. And then iterate in O(n)
-	// in render()
-	processes := m.GetProcessesSlice()
-	// sort by the process
-	sort.Slice(processes, func(i, j int) bool {
-		doneI := (processes[i].State == Successful || processes[i].State == Failed)
-		doneJ := (processes[j].State == Successful || processes[j].State == Failed)
-
-		// sort by done or not
-		if doneI != doneJ {
-			return !doneI
+	m.processesMu.RLock()
+	defer m.processesMu.RUnlock()
+	if m.bus == nil {
+		return m.sortedSnapshot()
+	}
+	m.bus.mu.Lock()
+	defer m.bus.mu.Unlock()
+	if m.bus.dirty {
+		m.bus.ordered = m.sortedSnapshot()
+		m.bus.footer = make([]Process, 0, len(m.bus.ordered))
+		for _, p := range m.bus.ordered {
+			if !p.Background {
+				m.bus.footer = append(m.bus.footer, p)
+			}
 		}
+		m.bus.dirty = false
+	}
+	return m.bus.ordered
+}
 
-		// if both not done
-		if !doneI {
-			completionI := float64(processes[i].Done) / float64(processes[i].Total)
-			completionJ := float64(processes[j].Done) / float64(processes[j].Total)
-			return completionI < completionJ // Those who finish first will be ranked later.
-		}
-
-		// if both done sort by the doneTime
-		return processes[j].DoneTime.Before(processes[i].DoneTime)
-	})
-
+// Caller owns processesMu; returned snapshots are immutable after publication.
+func (m *Model) sortedSnapshot() []Process {
+	processes := make([]Process, 0, len(m.processes))
+	for _, p := range m.processes {
+		processes = append(processes, p)
+	}
+	sort.Slice(processes, func(i, j int) bool { return processBefore(&processes[i], &processes[j]) })
 	return processes
+}
+
+func processBefore(a, b *Process) bool {
+	activeA, activeB := a.DoneTime.IsZero(), b.DoneTime.IsZero()
+	if activeA != activeB {
+		return activeA
+	}
+	if !a.DoneTime.Equal(b.DoneTime) {
+		return a.DoneTime.After(b.DoneTime)
+	}
+	if !a.Started.Equal(b.Started) {
+		return a.Started.Before(b.Started)
+	}
+	return a.ID < b.ID
 }
 
 func (m *Model) newReqCnt() int {

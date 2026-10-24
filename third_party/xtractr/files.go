@@ -3,6 +3,7 @@ package xtractr
 /* Code to find, write, move and delete files. */
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"maps"
@@ -106,6 +107,9 @@ func SupportedExtensions() []string {
 
 // XFile defines the data needed to extract an archive.
 type XFile struct {
+	// Context optionally cancels work at traversal, copy and publication boundaries.
+	// Nil preserves the upstream behavior for existing callers.
+	Context context.Context
 	// outputRoot pins extraction to the chosen destination for the entire operation.
 	outputRoot *os.Root
 	// Path to archive being extracted.
@@ -359,6 +363,9 @@ func (x *XFile) Extract() (size uint64, filesList, archiveList []string, err err
 // ExtractFile calls the correct procedure for the type of file being extracted.
 // Returns size of extracted data, list of extracted files, list of archives processed, and/or error.
 func ExtractFile(xFile *XFile) (size uint64, filesList, archiveList []string, err error) {
+	if err := xFile.contextError(); err != nil {
+		return 0, nil, nil, err
+	}
 	root, err := acquireOutputRoot(xFile.OutputDir, xFile.DirMode)
 	if err != nil {
 		return 0, nil, nil, err
@@ -379,6 +386,9 @@ func ExtractFile(xFile *XFile) (size uint64, filesList, archiveList []string, er
 				return size, filesList, archiveList, nil
 			}
 
+			if cancelErr := xFile.contextError(); cancelErr != nil {
+				return size, filesList, archiveList, cancelErr
+			}
 			extensionType = ext.Type // preserve for error reporting before fallback
 			// Extension matched but extraction failed; try signature detection as fallback.
 			break
@@ -781,16 +791,23 @@ func (x *XFile) writeParallel(file *file) (uint64, error) {
 }
 
 func (x *XFile) writeFile(file *file, parallel bool) (uint64, error) {
+	if err := x.contextError(); err != nil {
+		return 0, err
+	}
 	err := x.mkDir(filepath.Dir(file.Path), file.DirMode, file.Mtime)
 	if err != nil {
 		return 0, fmt.Errorf("writing archived file '%s' parent folder: %w", filepath.Base(file.Path), err)
 	}
 
-	fout, pathUsed, err := x.openOutput(file.Path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, x.safeFileMode(file.FileMode))
+	fout, pathUsed, err := x.openOutput(file.Path, os.O_RDWR|os.O_CREATE|os.O_EXCL, x.safeFileMode(file.FileMode))
 	if err != nil {
 		return 0, err
 	}
 	defer fout.Close()
+	owned, statErr := fout.Stat()
+	if statErr != nil {
+		return 0, statErr
+	}
 
 	file.Path = pathUsed
 
@@ -799,9 +816,19 @@ func (x *XFile) writeFile(file *file, parallel bool) (uint64, error) {
 		progWriter = x.prog.parallelWriter(fout)
 	}
 
-	size, err := io.Copy(progWriter, file.Data)
+	size, err := io.Copy(progWriter, extractionReader{x: x, reader: file.Data})
 	if err != nil {
+		_ = fout.Close()
+		x.removeOwnedOutput(file.Path, owned)
 		return uint64(size), fmt.Errorf("copying archived file '%s' io: %w", file.Path, err)
+	}
+	if closeErr := fout.Close(); closeErr != nil {
+		x.removeOwnedOutput(file.Path, owned)
+		return uint64(size), closeErr
+	}
+	if cancelErr := x.contextError(); cancelErr != nil {
+		x.removeOwnedOutput(file.Path, owned)
+		return uint64(size), cancelErr
 	}
 
 	// If this sucks, make it a defer and ignore the error, like xFile.mkDir().

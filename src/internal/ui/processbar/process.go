@@ -15,8 +15,13 @@ import (
 // Model for an individual process
 // Note : Its size is ~ 800 bytes
 type Process struct {
-	ID          string
-	CurrentFile string
+	ID                                   string
+	CurrentFile                          string
+	Kind, Source, Destination, GroupKey  string
+	Background, Service, CancelRequested bool
+	CancelReason, Partial                string
+	Started                              time.Time
+	Runs                                 uint64
 	// TODO : We always want ErrorMsg to be set when State is
 	// moved to Cancelled or Failed. To ensure it, we need to only allow state
 	// change via helper functions and ask for the  errorMsg
@@ -48,6 +53,8 @@ func NewProcess(id string, currentFile string, operation OperationType, total in
 		State:       InOperation,
 		Total:       total,
 		Done:        0,
+		Started:     time.Now(),
+		Runs:        1,
 	}
 }
 
@@ -79,6 +86,9 @@ func (p ProcessState) Icon() string {
 
 // GetDisplayName returns the appropriate display name for the process
 func (p *Process) GetDisplayName() string {
+	if p.Kind != "" {
+		return p.Kind + ": " + p.StatusText()
+	}
 	return p.Operation.GetIcon() + icon.Space + p.displayNameWithoutIcon()
 }
 

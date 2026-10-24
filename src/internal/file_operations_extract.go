@@ -1,6 +1,8 @@
 package internal
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -20,16 +22,23 @@ func extractCompressFile(src, dest string, processBar *processbar.Model) error {
 	}
 
 	x := &xtractr.XFile{
+		Context:   processBar.ProcessContext(p.ID),
 		FilePath:  src,
 		OutputDir: dest,
 		FileMode:  utils.ExtractedFileMode,
 		DirMode:   utils.ExtractedDirMode,
 	}
+	p.Source, p.Destination = src, dest
 
 	_, _, _, err = xtractr.ExtractFile(x)
 
 	if err != nil {
 		p.State = processbar.Failed
+		p.ErrorMsg = err.Error()
+		p.Partial = "Complete extracted entries are retained in " + dest
+		if errors.Is(err, context.Canceled) {
+			p.State = processbar.Cancelled
+		}
 		slog.Error("Error extracting", "path", src, "error", err)
 	} else {
 		p.State = processbar.Successful

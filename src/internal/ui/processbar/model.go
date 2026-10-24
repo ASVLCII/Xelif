@@ -26,6 +26,7 @@ type Model struct {
 	processesMu *sync.RWMutex
 	msgChan     chan UpdateMsg
 	reqCnt      *atomic.Int64
+	bus         *taskBus
 }
 
 func New() Model {
@@ -42,6 +43,7 @@ func NewModelWithOptions(width int, height int) Model {
 		processesMu: &sync.RWMutex{},
 		msgChan:     make(chan UpdateMsg, msgChannelSize),
 		reqCnt:      &atomic.Int64{},
+		bus:         newTaskBus(),
 	}
 	m.SetDimensions(width, height)
 	return m
@@ -68,7 +70,10 @@ func (m *Model) AddProcess(p Process) error {
 		return &ProcessAlreadyExistsError{id: p.ID}
 	}
 	m.processes[p.ID] = p
-	m.pruneCompletedProcesses()
+	m.invalidateOrder()
+	if !p.DoneTime.IsZero() {
+		m.pruneCompletedProcesses()
+	}
 	return nil
 }
 
@@ -77,18 +82,34 @@ func (m *Model) AddOrUpdateProcess(p Process) {
 	defer m.processesMu.Unlock()
 
 	m.processes[p.ID] = p
-	m.pruneCompletedProcesses()
+	m.invalidateOrder()
+	if !p.DoneTime.IsZero() {
+		m.pruneCompletedProcesses()
+	}
 }
 
 func (m *Model) UpdateExistingProcess(p Process) error {
 	m.processesMu.Lock()
 	defer m.processesMu.Unlock()
 
-	if _, ok := m.processes[p.ID]; !ok {
+	old, ok := m.processes[p.ID]
+	if !ok {
 		return &NoProcessFoundError{id: p.ID}
 	}
+	// Once finalized, late progress/completion cannot resurrect a task.
+	if !old.DoneTime.IsZero() {
+		return nil
+	}
+	p.CancelRequested = p.CancelRequested || old.CancelRequested
 	m.processes[p.ID] = p
-	m.pruneCompletedProcesses()
+	m.invalidateOrder()
+	if !p.DoneTime.IsZero() {
+		if m.bus != nil {
+			m.finishControl(p.ID)
+		}
+		m.groupFinishedTask(p.ID)
+		m.pruneCompletedProcesses()
+	}
 	return nil
 }
 
@@ -105,7 +126,7 @@ func (m *Model) HasRunningProcesses() bool {
 	defer m.processesMu.RUnlock()
 
 	for _, data := range m.processes {
-		if data.State == InOperation && data.Done != data.Total {
+		if !data.Background && data.State == InOperation && (data.Operation == OpTask || data.Done != data.Total) {
 			return true
 		}
 	}
@@ -128,7 +149,7 @@ func (m *Model) Render(processBarFocused bool) string {
 	r.SetBorderInfoItems(fmt.Sprintf("%d/%d", m.cursor+1, m.cntProcesses()))
 
 	renderedHeight := 0
-	processes := m.getSortedProcesses()
+	processes := m.getFooterProcesses()
 	for i := m.renderIndex; i < len(processes); i++ {
 		// We allow rendering of a process if we have at least 2 lines left
 		if m.viewHeight() < renderedHeight+2 {
@@ -162,9 +183,7 @@ func (m *Model) Render(processBarFocused bool) string {
 			progressPercentage := float64(curProcess.Done) / float64(curProcess.Total)
 			r.AddLines(cursor+curProcess.Progress.ViewAs(progressPercentage), "")
 		} else {
-			// if the total is 0, that means the process only have directory
-			// so we can set the progress to 100%
-			r.AddLines(cursor+curProcess.Progress.ViewAs(1), "")
+			r.AddLines(cursor+fmt.Sprintf("%d completed; total unknown", curProcess.Done), "")
 		}
 	}
 

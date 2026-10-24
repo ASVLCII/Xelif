@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/yorukot/superfile/src/internal/common"
+	"github.com/yorukot/superfile/src/internal/ui/processbar"
 )
 
 const (
@@ -181,7 +182,7 @@ func (m *Model) beginSearch(msg debounceMsg) tea.Cmd {
 	m.loading = true
 	search := m.search
 	root := m.root
-	return func() tea.Msg {
+	cmd := func() tea.Msg {
 		defer cancel()
 		return searchResultMsg{
 			reqID:    msg.reqID,
@@ -189,6 +190,19 @@ func (m *Model) beginSearch(msg debounceMsg) tea.Cmd {
 			response: search(ctx, msg.query, root, defaultResultLimit),
 		}
 	}
+	if m.Tasks == nil {
+		return cmd
+	}
+	return m.Tasks.Track(
+		processbar.TaskSpec{Kind: "Search", Source: root, Background: true, GroupKey: "global-search"},
+		ctx,
+		cancel,
+		cmd,
+		func(result tea.Msg) error {
+			msg, _ := result.(searchResultMsg)
+			return msg.response.Err
+		},
+	)
 }
 
 func (m *Model) handleKeyPress(msg tea.KeyPressMsg) (common.ModelAction, tea.Cmd) {

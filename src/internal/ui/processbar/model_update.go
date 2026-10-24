@@ -1,26 +1,19 @@
 package processbar
 
 import (
-	"log/slog"
+	"context"
+	"time"
 )
+
+const progressInterval = 100 * time.Millisecond
 
 // Only used in tests, to have processbar used in a standalone way without model
 func (m *Model) ListenForChannelUpdates() {
-	// A goroutine running forever
 	go func() {
-		for {
-			msg, ok := <-m.msgChan
-			if !ok {
-				slog.Debug("Channel closed, stopping listener")
-				return
-			}
-			if _, ok := msg.(stopListeningMsg); ok {
-				return
-			}
-			_, err := msg.Apply(m)
-			if err != nil {
-				slog.Error("Could not apply update to processbar", "error", err)
-			}
+		cmd := m.GetListenCmd()
+		for cmd != nil {
+			msg := cmd()
+			cmd, _ = msg.Apply(m)
 		}
 	}()
 }
@@ -28,13 +21,45 @@ func (m *Model) ListenForChannelUpdates() {
 // An IO Operation, that will wait forever on msgChannel
 func (m *Model) GetListenCmd() Cmd {
 	return func() UpdateMsg {
-		return <-m.msgChan
+		select {
+		case <-m.bus.done:
+			return stopListeningMsg{}
+		case msg := <-m.msgChan:
+			return msg
+		case <-m.bus.wake:
+		}
+		m.bus.mu.Lock()
+		delay := time.Until(m.bus.lastFlush.Add(progressInterval))
+		m.bus.mu.Unlock()
+		if delay > 0 {
+			timer := time.NewTimer(delay)
+			defer timer.Stop()
+			select {
+			case <-m.bus.done:
+				return stopListeningMsg{}
+			case msg := <-m.msgChan:
+				m.wakeProgress()
+				return msg
+			case <-timer.C:
+			}
+		}
+		m.bus.mu.Lock()
+		updates := make([]Process, 0, len(m.bus.pending))
+		for id, p := range m.bus.pending {
+			updates = append(updates, p)
+			delete(m.bus.pending, id)
+		}
+		m.bus.lastFlush = time.Now()
+		m.bus.mu.Unlock()
+		return progressBatchMsg{processes: updates}
 	}
 }
 
 // Might add options to drain the channel in case msg is high priority.
 func (m *Model) trySendMsgToChannel(msg UpdateMsg) error {
 	select {
+	case <-m.bus.done:
+		return context.Canceled
 	case m.msgChan <- msg:
 		return nil
 	default:
@@ -45,13 +70,20 @@ func (m *Model) trySendMsgToChannel(msg UpdateMsg) error {
 
 // Block till message is sent
 func (m *Model) sendMsgToChannelBlocking(msg UpdateMsg) {
-	m.msgChan <- msg
+	select {
+	case <-m.bus.done:
+	case m.msgChan <- msg:
+	}
 }
 
 func (m *Model) sendMsgToChannel(msg UpdateMsg, blocking bool) error {
 	if blocking {
-		m.sendMsgToChannelBlocking(msg)
-		return nil
+		select {
+		case <-m.bus.done:
+			return context.Canceled
+		case m.msgChan <- msg:
+			return nil
+		}
 	}
 	return m.trySendMsgToChannel(msg)
 }
@@ -61,12 +93,21 @@ func (m *Model) SendAddProcessMsg(
 ) (Process, error) {
 	id := m.newUUIDForProcess()
 	p := NewProcess(id, currentFile, operation, total)
+	ctx, cancel := context.WithCancel(m.bus.lifetime)
+	if operation == OpCreate {
+		cancel()
+		ctx, cancel = context.Background(), nil
+	}
+	m.bus.mu.Lock()
+	m.bus.controls[p.ID] = taskControl{ctx: ctx, cancel: cancel, owned: true}
+	m.bus.mu.Unlock()
 	msg := newProcessMsg{
 		NewProcess: p,
 		BaseMsg:    BaseMsg{reqID: m.newReqCnt()},
 	}
 	err := m.sendMsgToChannel(msg, blockingSend)
 	if err != nil {
+		m.finishControl(p.ID)
 		// Return zero-value process to indicate failure
 		return Process{}, err
 	}
@@ -80,11 +121,36 @@ func (m *Model) SendUpdateProcessMsg(p Process, blockingSend bool) error {
 
 // Non Blocking and can fail
 func (m *Model) TrySendingUpdateProcessMsg(p Process) {
-	msg := updateProcessMsg{NewProcess: p, BaseMsg: BaseMsg{reqID: m.newReqCnt()}}
-	err := m.sendMsgToChannel(msg, false)
-	if err != nil {
-		slog.Error("Failed to send message to channel", "reqID", msg.GetReqID(), "error", err)
+	m.bus.mu.Lock()
+	select {
+	case <-m.bus.done:
+		m.bus.mu.Unlock()
+		return
+	default:
 	}
+	m.bus.pending[p.ID] = p
+	m.bus.mu.Unlock()
+	m.wakeProgress()
+}
+
+func (m *Model) wakeProgress() {
+	select {
+	case m.bus.wake <- struct{}{}:
+	default:
+	}
+}
+
+type progressBatchMsg struct {
+	BaseMsg
+
+	processes []Process
+}
+
+func (msg progressBatchMsg) Apply(m *Model) (Cmd, error) {
+	for _, p := range msg.processes {
+		_ = m.UpdateExistingProcess(p)
+	}
+	return m.GetListenCmd(), nil
 }
 
 func (m *Model) SendStopListeningMsgBlocking() {

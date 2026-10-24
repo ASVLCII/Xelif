@@ -1,6 +1,7 @@
 package filemodel
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"github.com/yorukot/superfile/src/internal/common"
 	"github.com/yorukot/superfile/src/internal/ui/filepanel"
 	"github.com/yorukot/superfile/src/internal/ui/preview"
+	"github.com/yorukot/superfile/src/internal/ui/processbar"
 )
 
 func (m *Model) CreateNewFilePanel(location string) (tea.Cmd, error) {
@@ -54,6 +56,9 @@ func (m *Model) CloseFilePanel() (tea.Cmd, error) {
 }
 
 func (m *Model) ToggleFilePreviewPanel() tea.Cmd {
+	if m.previewCancel != nil {
+		m.previewCancel()
+	}
 	m.FilePreview.ToggleOpen()
 	if !m.FilePreview.IsOpen() {
 		m.ioReqCnt++
@@ -136,11 +141,43 @@ func (m *Model) GetFilePreviewCmd(forcePreviewRender bool) tea.Cmd {
 	slog.Debug("Submitting file preview render request", "id", reqCnt,
 		"path", selectedItem.Location, "w", width, "h", height)
 
-	return func() tea.Msg {
-		content, rawTransmit := m.FilePreview.RenderWithPath(selectedItem.Location, width, height, fullModalWidth)
-		return preview.NewUpdateMsg(selectedItem.Location, content, rawTransmit,
-			width, height, reqCnt)
+	if m.previewCancel != nil {
+		m.previewCancel()
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	m.previewCancel = cancel
+	renderer := m.FilePreview
+	cmd := func() tea.Msg {
+		content, rawTransmit := "Preview cancelled", ""
+		if ctx.Err() == nil {
+			content, rawTransmit = renderer.RenderWithPath(selectedItem.Location, width, height, fullModalWidth)
+		}
+		err := ctx.Err()
+		if err != nil {
+			content, rawTransmit = "Preview cancelled", ""
+		}
+		result := preview.NewUpdateMsg(selectedItem.Location, content, rawTransmit, width, height, reqCnt)
+		result.Error = err
+		return result
+	}
+	if m.Tasks == nil {
+		return cmd
+	}
+	return m.Tasks.Track(
+		processbar.TaskSpec{
+			Kind:       "Preview",
+			Source:     selectedItem.Location,
+			Background: true,
+			GroupKey:   fmt.Sprint("preview:", m.FocusedPanelIndex),
+		},
+		ctx,
+		cancel,
+		cmd,
+		func(msg tea.Msg) error {
+			result, _ := msg.(preview.UpdateMsg)
+			return result.Error
+		},
+	)
 }
 
 func (m *Model) ToggleDotFile() {

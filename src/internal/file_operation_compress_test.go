@@ -98,6 +98,11 @@ func TestZipSources(t *testing.T) {
 			}
 
 			err = zipSources(sources, totalFiles, targetZip, &processBar)
+			if tt.expectErrorValidate {
+				require.Error(t, err, "compression must propagate a missing-source failure")
+				require.NoFileExists(t, targetZip, "failed compression must not publish an archive")
+				return
+			}
 
 			require.NoError(t, err, "zipSources should not return error")
 
@@ -110,6 +115,11 @@ func TestZipSources(t *testing.T) {
 }
 
 func validateZipExtraction(t *testing.T, zipReader *zip.ReadCloser, expectedFiles map[string]string) {
+	portableExpected := make(map[string]string, len(expectedFiles))
+	for name, contents := range expectedFiles {
+		portableExpected[filepath.ToSlash(name)] = contents
+	}
+	expectedFiles = portableExpected
 	require.Len(t, zipReader.File, len(expectedFiles), "ZIP should contain expected number of files")
 
 	foundFiles := make(map[string]string)

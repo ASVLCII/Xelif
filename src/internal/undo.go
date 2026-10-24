@@ -39,14 +39,14 @@ func (m *model) undoLastFileOperation() error {
 func (m *model) getUndoLastFileOperationCmd() tea.Cmd {
 	journal := m.lastUndo
 	action := cloneUndoAction(journal)
-	return func() tea.Msg {
+	return m.trackTask("Undo", "", "", false, nil, nil, func() tea.Msg {
 		remaining, err := executeUndo(action)
 		return UndoOperationMsg{
 			journal:   journal,
 			remaining: remaining,
 			err:       err,
 		}
-	}
+	})
 }
 
 func executeUndo(action *undoAction) (*undoAction, error) {

@@ -70,6 +70,7 @@ type model struct {
 	fileModel       filemodel.Model
 	sidebarModel    sidebar.Model
 	processBarModel processbar.Model
+	operations      operationCenter
 	clipboard       clipboard.Model
 	clipboardWriter func(string) error
 	focusPanel      focusPanelType
@@ -134,6 +135,8 @@ type model struct {
 
 	// This entirely disables metadata fetching. Used in test model
 	disableMetadata bool
+	metadataCancel  context.CancelFunc
+	metadataReqID   int
 
 	// Height in number of lines of actual viewport of
 	// main panel and sidebar excluding border

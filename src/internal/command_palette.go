@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	commandIDOperations          = "operations"
 	commandIDOpen                = "open"
 	commandIDParent              = "parent"
 	commandIDGlobalSearch        = "global_search"
@@ -106,6 +107,7 @@ func (m *model) paletteItems() []commandpalette.Item {
 	}
 
 	items := []commandpalette.Item{
+		paletteItem(commandIDOperations, "Operations", "View", nil, "tasks", "background", "cancel", "progress"),
 		paletteItem(commandIDOpen, "Open focused item", "Files", common.Hotkeys.Confirm, "enter", "launch"),
 		paletteItem(commandIDParent, "Open parent folder", "Navigation", common.Hotkeys.ParentDirectory, "up"),
 		paletteItem(commandIDGlobalSearch, "Search everywhere", "Search", common.Hotkeys.OpenGlobalSearch,
@@ -369,6 +371,9 @@ func (m *model) applyCommandPaletteAction(action common.ModelAction) tea.Cmd {
 
 func (m *model) applyPaletteLaunchCommand(id string) (tea.Cmd, bool) {
 	switch id {
+	case commandIDOperations:
+		m.openOperations()
+		return nil, true
 	case commandIDWorkspacePrompt:
 		m.promptModal.OpenCommand(prompt.WorkspaceCommand + " ")
 		return nil, true

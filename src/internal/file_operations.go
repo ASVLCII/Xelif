@@ -76,6 +76,9 @@ func pasteDir(src, dst string, p *processbar.Process, cut bool, processBarModel 
 	}
 	var directories []copiedDirectory
 	err = filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if cancelErr := processBarModel.ProcessContext(p.ID).Err(); cancelErr != nil {
+			return cancelErr
+		}
 		if err != nil {
 			return err
 		}
@@ -121,7 +124,7 @@ func actualPasteOperation(info os.FileInfo, path string, newPath string,
 
 	// File
 	p.CurrentFile = filepath.Base(path)
-	err = copyFile(path, newPath, info)
+	err = copyFileContext(processBarModel.ProcessContext(p.ID), path, newPath, info.Mode())
 
 	if err != nil {
 		p.State = processbar.Failed

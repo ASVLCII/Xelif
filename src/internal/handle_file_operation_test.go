@@ -508,7 +508,13 @@ func ensureOneProcessDone(t *testing.T, m *model) {
 	// This will print values calculated at the beginning of the call
 	require.Eventually(t, func() bool {
 		processes := m.processBarModel.GetProcessesSlice()
-		return len(processes) == 1 && processes[0].State == processbar.Successful
+		fileTasks := make([]processbar.Process, 0, 1)
+		for _, p := range processes {
+			if p.Operation != processbar.OpTask {
+				fileTasks = append(fileTasks, p)
+			}
+		}
+		return len(fileTasks) == 1 && fileTasks[0].State == processbar.Successful && !fileTasks[0].DoneTime.IsZero()
 	}, DefaultTestTimeout, DefaultTestTick, "Compress process not done")
 }
 

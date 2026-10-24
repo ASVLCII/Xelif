@@ -191,6 +191,8 @@ func (msg ExtractOperationMsg) ApplyToModel(_ *model) tea.Cmd {
 type MetadataMsg struct {
 	BaseMessage
 
+	err error
+
 	meta            metadata.Metadata
 	metadataFocused bool
 }
@@ -206,6 +208,13 @@ func NewMetadataMsg(meta metadata.Metadata, metadataFocused bool, reqID int) Met
 }
 
 func (msg MetadataMsg) ApplyToModel(m *model) tea.Cmd {
+	if m.metadataReqID != 0 && msg.reqID != m.metadataReqID {
+		return nil
+	}
+	if msg.err != nil {
+		m.fileMetaData.SetInfoMsg("Metadata cancelled or unavailable")
+		return nil
+	}
 	m.fileMetaData.SetMetadataCache(msg.meta, msg.metadataFocused)
 	selectedItem := m.getFocusedFilePanel().GetFocusedItemPtr()
 	if selectedItem == nil {

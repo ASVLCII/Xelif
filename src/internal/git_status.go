@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"slices"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -40,17 +41,23 @@ func (m *model) refreshGitStatusCmd(force bool) tea.Cmd {
 	m.gitStatusReqID++
 	reqID := m.gitStatusReqID
 	client := m.gitClient
-	return func() tea.Msg {
-		return readGitStatusTargets(client, targets, reqID)
-	}
+	ctx, cancel := context.WithCancel(context.Background())
+	return m.trackTask("Git refresh", strings.Join(locations, "; "), "", true, ctx, cancel, func() tea.Msg {
+		return readGitStatusTargetsContext(ctx, client, targets, reqID)
+	})
 }
 
-func readGitStatusTargets(client *gitstatus.Client, targets []gitStatusTarget, reqID int) gitStatusUpdateMsg {
+func readGitStatusTargetsContext(
+	ctx context.Context,
+	client *gitstatus.Client,
+	targets []gitStatusTarget,
+	reqID int,
+) gitStatusUpdateMsg {
 	states := make(map[string]map[string]gitstatus.State, len(targets))
 	var operationErrors []error
 	for _, target := range targets {
 		states[target.location] = map[string]gitstatus.State{}
-		snapshot, err := client.Status(context.Background(), target.location)
+		snapshot, err := client.Status(ctx, target.location)
 		if err != nil {
 			var gitErr *gitstatus.Error
 			if !errors.As(err, &gitErr) || gitErr.Kind != gitstatus.NotRepository {

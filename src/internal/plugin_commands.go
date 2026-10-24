@@ -95,7 +95,7 @@ func (m *model) runPluginCommand(pluginID string) tea.Cmd {
 	m.textViewer.Open(title, "Running…")
 	m.setTextViewerSize()
 
-	return func() tea.Msg {
+	return m.trackTask(title, cwd, "", false, ctx, cancel, func() tea.Msg {
 		if registry == nil {
 			return pluginCommandFinishedMsg{
 				reqID:    reqID,
@@ -106,7 +106,7 @@ func (m *model) runPluginCommand(pluginID string) tea.Cmd {
 		}
 		result, err := registry.Execute(ctx, pluginID, paths, cwd)
 		return pluginCommandFinishedMsg{reqID: reqID, manifest: manifest, result: result, err: err}
-	}
+	})
 }
 
 func (m *model) applyPluginCommandResult(msg pluginCommandFinishedMsg) {

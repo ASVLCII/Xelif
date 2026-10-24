@@ -47,10 +47,19 @@ func (m *model) executeBatchRenameAction(action common.BatchRenameAction) (strin
 		plan := m.pendingBatchRename
 		m.textViewer.Open("Applying batch rename", "Renaming the reviewed items in the background…")
 		m.setTextViewerSize()
-		return "Applying batch rename", func() tea.Msg {
-			err := batchrename.Apply(context.Background(), *plan, moveElementNoReplace)
-			return batchRenameOperationMsg{plan: plan, err: err}
-		}, nil
+		ctx, cancel := context.WithCancel(context.Background())
+		return "Applying batch rename", m.trackTask(
+			"Batch rename",
+			m.getFocusedFilePanel().Location,
+			"",
+			false,
+			ctx,
+			cancel,
+			func() tea.Msg {
+				err := batchrename.Apply(ctx, *plan, moveElementNoReplace)
+				return batchRenameOperationMsg{plan: plan, err: err}
+			},
+		), nil
 	case common.BatchRenameCancel:
 		m.pendingBatchRename = nil
 		return "Batch rename cancelled", nil, nil

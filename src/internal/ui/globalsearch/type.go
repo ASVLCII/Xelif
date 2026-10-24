@@ -3,6 +3,8 @@ package globalsearch
 import (
 	"context"
 
+	"github.com/yorukot/superfile/src/internal/ui/processbar"
+
 	"charm.land/bubbles/v2/textinput"
 )
 
@@ -41,6 +43,7 @@ func (a OpenResultAction) String() string {
 
 // Model contains the global-search modal state.
 type Model struct {
+	Tasks        *processbar.Model
 	open         bool
 	root         string
 	search       SearchFunc

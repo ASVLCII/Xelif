@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -8,8 +9,6 @@ import (
 	"sort"
 
 	"github.com/barasher/go-exiftool"
-
-	"github.com/yorukot/superfile/src/pkg/utils"
 
 	"github.com/yorukot/superfile/src/internal/common"
 )
@@ -76,9 +75,21 @@ func sortMetadata(meta [][2]string) {
 }
 
 func GetMetadata(filePath string, metadataFocused bool, et *exiftool.Exiftool) Metadata {
-	meta := getMetaDataUnsorted(filePath, metadataFocused, et)
+	meta := getMetaDataUnsortedContext(context.Background(), filePath, metadataFocused, et)
 	sortMetadata(meta.data)
 	return meta
+}
+
+func GetMetadataContext(ctx context.Context, filePath string, focused bool, et *exiftool.Exiftool) (Metadata, error) {
+	if err := ctx.Err(); err != nil {
+		return Metadata{}, err
+	}
+	if _, err := os.Lstat(filePath); err != nil {
+		return Metadata{}, err
+	}
+	meta := getMetaDataUnsortedContext(ctx, filePath, focused, et)
+	sortMetadata(meta.data)
+	return meta, ctx.Err()
 }
 
 func getSymLinkMetaData(filePath string) Metadata {
@@ -95,7 +106,12 @@ func getSymLinkMetaData(filePath string) Metadata {
 	return res
 }
 
-func getMetaDataUnsorted(filePath string, metadataFocused bool, et *exiftool.Exiftool) Metadata {
+func getMetaDataUnsortedContext(
+	ctx context.Context,
+	filePath string,
+	metadataFocused bool,
+	et *exiftool.Exiftool,
+) Metadata {
 	res := Metadata{
 		filepath: filePath,
 	}
@@ -126,7 +142,7 @@ func getMetaDataUnsorted(filePath string, metadataFocused bool, et *exiftool.Exi
 		// TODO : Calling dirSize() could be expensive for large directories, as it recursively
 		// walks the entire tree. For now we have async approach of loading metadata,
 		// and its only loaded when metadata panel is focused.
-		size = [2]string{keySize, common.FormatFileSize(utils.DirSize(filePath))}
+		size = [2]string{keySize, common.FormatFileSize(directorySizeContext(ctx, filePath))}
 	}
 	res.data = append(res.data, name, size, modifyDate, permissions, owner, group)
 
@@ -142,11 +158,14 @@ func getMetaDataUnsorted(filePath string, metadataFocused bool, et *exiftool.Exi
 		}
 	}
 
+	if ctx.Err() != nil {
+		return res
+	}
 	updateExiftoolMetadata(filePath, et, &res)
 
 	if fileInfo.Mode().IsRegular() && common.Config.EnableMD5Checksum {
 		// Calculate MD5 checksum
-		checksum, err := calculateMD5Checksum(filePath)
+		checksum, err := calculateMD5ChecksumContext(ctx, filePath)
 		if err != nil {
 			slog.Error("Error calculating MD5 checksum", "error", err)
 		} else {

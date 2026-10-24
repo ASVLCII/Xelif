@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"os"
@@ -23,6 +24,7 @@ import (
 	"github.com/yorukot/superfile/src/internal/ui/metadata"
 	"github.com/yorukot/superfile/src/internal/ui/notify"
 	"github.com/yorukot/superfile/src/internal/ui/preview"
+	"github.com/yorukot/superfile/src/internal/ui/processbar"
 
 	variable "github.com/yorukot/superfile/src/config"
 	zoxideui "github.com/yorukot/superfile/src/internal/ui/zoxide"
@@ -76,6 +78,7 @@ func (m *model) Init() tea.Cmd {
 // application
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	slog.Debug("model.Update() called", "msgType", reflect.TypeOf(msg))
+	operationsWasOpen, globalSearchWasOpen := m.operations.open, m.globalSearchModal.IsOpen()
 
 	var sidebarCmd, inputCmd, updateCmd, panelCmd,
 		metadataCmd, filePreviewCmd, helpMenuCmd, resizeCmd, mouseCmd, globalSearchCmd,
@@ -87,7 +90,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	sidebarCmd = m.sidebarModel.UpdateState(msg)
 	// Necessary for blinking. Can't do this in HandleKey, as we only pass KeyMsg there
 	helpMenuCmd = m.helpMenu.HandleTeaMsg(msg)
-	globalSearchWasOpen := m.globalSearchModal.IsOpen()
 	if globalSearchWasOpen {
 		action, cmd := m.globalSearchModal.HandleUpdate(msg)
 		globalSearchCmd = cmd
@@ -109,7 +111,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			inputCmd = m.handleKeyInput(msg)
 		}
 	case tea.PasteMsg:
-		m.acceptDroppedPaths(msg.Content)
+		m.acceptPasteUnlessOperations(msg.Content)
 
 	// Has to handle zoxide messages separately as they could be generated via
 	// zoxide update commands, or batched commands from textinput
@@ -142,9 +144,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.refreshPanelsAfterOperation(msg)
 
 	// This is needed for blink, etc to work
-	panelCmd = m.updateComponentState(componentMessageAfterPicker(msg, globalSearchWasOpen || commandPaletteWasOpen))
+	panelCmd = m.updateComponentState(
+		componentMessageAfterPicker(msg, globalSearchWasOpen || commandPaletteWasOpen || operationsWasOpen),
+	)
 
-	m.updateModelStateAfterMsg()
+	m.updateModelStateForMessage(msg)
 	folderWatchCmd = tea.Batch(folderWatchCmd, m.syncFolderWatcherCmd())
 	gitStatusCmd = tea.Batch(gitStatusCmd, m.refreshGitStatusCmd(false))
 	filePreviewCmd = m.fileModel.GetFilePreviewCmd(false)
@@ -154,6 +158,20 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(sidebarCmd, helpMenuCmd, inputCmd, updateCmd,
 		panelCmd, metadataCmd, filePreviewCmd, resizeCmd, mouseCmd, globalSearchCmd, commandPaletteCmd,
 		folderWatchCmd, gitStatusCmd)
+}
+
+func (m *model) acceptPasteUnlessOperations(content string) {
+	if !m.operations.open {
+		m.acceptDroppedPaths(content)
+		return
+	}
+	if m.operations.details {
+		return
+	}
+	content = strings.ReplaceAll(content, "\n", " ")
+	m.operations.filter.SetValue(m.operations.filter.Value() + common.MakePrintableWithEscCheck(content, false))
+	m.operations.selected = ""
+	m.operations.cursor, m.operations.offset = 0, 0
 }
 
 func componentMessageAfterPicker(msg tea.Msg, pickerWasOpen bool) tea.Msg {
@@ -166,6 +184,10 @@ func componentMessageAfterPicker(msg tea.Msg, pickerWasOpen bool) tea.Msg {
 }
 
 func (m *model) handleMouseMsg(msg tea.MouseMsg) tea.Cmd {
+	if m.operations.open && !m.spfError.IsOpen() {
+		m.handleOperationMouse(msg)
+		return nil
+	}
 	switch msg := msg.(type) {
 	case tea.MouseWheelMsg:
 		return m.handleMouseWheel(msg)
@@ -316,6 +338,11 @@ func (m *model) handleLeftMouseClick(mouse tea.Mouse) tea.Cmd {
 	if m.spfError.IsOpen() || m.IsOverlayModelOpen() || m.fileModel.Renaming ||
 		m.sidebarModel.IsRenaming() || !m.firstLoadingComplete ||
 		m.fullHeight < common.MinimumHeight || m.fullWidth < common.MinimumWidth {
+		return nil
+	}
+	if m.toggleFooter && mouse.Y >= m.fileModel.Height && mouse.Y < m.fullHeight &&
+		mouse.X >= 0 && mouse.X < m.processBarModel.GetWidth() {
+		m.openOperations()
 		return nil
 	}
 	if mouse.Y < 0 || mouse.Y >= m.fileModel.Height {
@@ -476,7 +503,7 @@ func (m *model) updateModelStateAfterMsg() {
 // TODO : At least dont trigger metadata fetch when user is scrolling
 // through the metadata panel
 func (m *model) getMetadataCmd() tea.Cmd {
-	if m.disableMetadata {
+	if m.disableMetadata || m.modelQuitState == quitDone {
 		return nil
 	}
 	if m.getFocusedFilePanel().EmptyOrInvalid() {
@@ -507,13 +534,21 @@ func (m *model) getMetadataCmd() tea.Cmd {
 	}
 
 	reqCnt := m.nextIoReqCnt()
+	if m.metadataCancel != nil {
+		m.metadataCancel()
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	m.metadataCancel = cancel
+	m.metadataReqID = reqCnt
 	// If there are too many metadata fetches, we need to have a cache with path as a key
 	// and timeout based eviction
 	slog.Debug("Submitting metadata fetch request", "id", reqCnt, "path", selectedItem.Location)
-	return func() tea.Msg {
-		return NewMetadataMsg(
-			metadata.GetMetadata(selectedItem.Location, metadataFocused, et), metadataFocused, reqCnt)
-	}
+	return m.trackTask("Metadata", selectedItem.Location, "", true, ctx, cancel, func() tea.Msg {
+		meta, err := metadata.GetMetadataContext(ctx, selectedItem.Location, metadataFocused, et)
+		msg := NewMetadataMsg(meta, metadataFocused, reqCnt)
+		msg.err = err
+		return msg
+	})
 }
 
 // Adjust window size based on msg information
@@ -643,6 +678,8 @@ func (m *model) handleKeyInput(msg tea.KeyPressMsg) tea.Cmd {
 	switch {
 	case m.spfError.IsOpen():
 		cmd = m.spfErrorModelOpenKey(msg.String())
+	case m.operations.open:
+		cmd = m.handleOperationKey(msg)
 	case m.helpMenu.IsOpen():
 		m.helpMenu.HandleKey(msg.String())
 	case m.promptModal.IsOpen():
@@ -952,6 +989,10 @@ func (m *model) updateRenderForOverlay(finalRender string) string {
 	if m.spfError.IsOpen() {
 		return m.centerOverlay(finalRender, m.spfError.Render(), common.ModalWidth, common.ModalHeight)
 	}
+	if m.operations.open {
+		width, height := m.operationSize()
+		return m.centerOverlay(finalRender, m.renderOperations(), width, height)
+	}
 
 	if m.helpMenu.IsOpen() {
 		return m.centerOverlay(finalRender, m.helpMenu.Render(), m.helpMenu.GetWidth(), m.helpMenu.GetHeight())
@@ -1056,6 +1097,8 @@ func (m *model) mainComponentsRender() string {
 // Close superfile application. Cd into the current dir if CdOnQuit on and save
 // the path in state direcotory
 func (m *model) quitSuperfile(cdOnQuit bool) {
+	m.processBarModel.Shutdown()
+	m.processBarModel.WaitWorkers()
 	if common.Config.RestoreLastSession {
 		if err := m.saveLastSession(); err != nil {
 			slog.Error("Could not save the current session", "error", err)
@@ -1109,4 +1152,18 @@ func (m *model) quitSuperfile(cdOnQuit bool) {
 func (m *model) nextIoReqCnt() int {
 	var res = atomic.AddInt32(&m.ioReqCnt, 1)
 	return int(res)
+}
+
+func (m *model) updateModelStateForMessage(msg tea.Msg) {
+	if _, polling := msg.(refreshTickMsg); polling {
+		_ = m.processBarModel.ObserveSync(
+			processbar.TaskSpec{Kind: "Directory refresh check", Background: true, GroupKey: "directory-poll"},
+			func() error {
+				m.updateModelStateAfterMsg()
+				return nil
+			},
+		)
+	} else {
+		m.updateModelStateAfterMsg()
+	}
 }

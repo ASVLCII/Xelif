@@ -1,0 +1,195 @@
+package internal
+
+import (
+	"archive/zip"
+	"context"
+	"errors"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/stretchr/testify/require"
+
+	"github.com/yorukot/superfile/src/internal/ui/commandpalette"
+	"github.com/yorukot/superfile/src/internal/ui/processbar"
+	"github.com/yorukot/superfile/src/pkg/utils"
+)
+
+func TestOperationCenterDispatchAndInputIsolation(t *testing.T) {
+	m := defaultTestModel(t.TempDir())
+	t.Cleanup(m.processBarModel.Shutdown)
+	m.applyCommandPaletteAction(commandpalette.ExecuteAction{ID: commandIDOperations})
+	require.True(t, m.operations.open)
+	require.True(t, m.IsOverlayModelOpen())
+	before := m.getFocusedFilePanel().Location
+	TeaUpdate(m, utils.TeaRuneKeyMsg("q"))
+	require.True(t, m.operations.open, "typing q filters, rather than quitting Xelif")
+	require.Equal(t, "q", m.operations.filter.Value())
+	require.Equal(t, before, m.getFocusedFilePanel().Location)
+	TeaUpdate(m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	require.False(t, m.operations.open)
+}
+
+func TestOperationCenterFooterClickAndBackgroundTabs(t *testing.T) {
+	m := defaultTestModelWithFooterAndFilePreview(t.TempDir())
+	t.Cleanup(m.processBarModel.Shutdown)
+	m.firstLoadingComplete = true
+	m.fileModel.FilePreview.Close()
+	m.handleLeftMouseClick(tea.Mouse{X: 1, Y: m.fullHeight - 2})
+	require.True(t, m.operations.open)
+	ctx, cancel := context.WithCancel(context.Background())
+	p := m.processBarModel.StartTask(processbar.TaskSpec{Kind: "Visible copy", Source: "hello"}, ctx, cancel)
+	require.Len(t, m.operationRows(), 1)
+	TeaUpdate(m, tea.KeyPressMsg{Code: tea.KeyTab})
+	require.True(t, m.operations.background)
+	require.Contains(t, ansi.Strip(m.renderOperations()), "Progress listener")
+	TeaUpdate(m, tea.KeyPressMsg{Code: tea.KeyTab})
+	TeaUpdate(m, utils.TeaRuneKeyMsg("ctrl+x"))
+	require.ErrorIs(t, ctx.Err(), context.Canceled)
+	stored, _ := m.processBarModel.GetByID(p.ID)
+	require.Equal(t, "Cancel requested", stored.StatusText())
+	TeaUpdate(m, tea.KeyPressMsg{Code: tea.KeyEscape})
+	require.False(t, m.operations.open)
+	require.Equal(t, processbar.InOperation, stored.State)
+}
+
+func TestOperationCenterSelectionDetailsFilterAndResize(t *testing.T) {
+	m := defaultTestModel(t.TempDir())
+	t.Cleanup(m.processBarModel.Shutdown)
+	for _, kind := range []string{"Alpha", "Beta", "Gamma"} {
+		m.processBarModel.StartTask(processbar.TaskSpec{Kind: kind, Source: "source\x1b[31m"}, nil, nil)
+	}
+	m.openOperations()
+	m.moveOperation(1)
+	selected := m.operations.selected
+	m.processBarModel.StartTask(processbar.TaskSpec{Kind: "Delta"}, nil, nil)
+	m.operationRows()
+	require.Equal(t, selected, m.operations.selected)
+	TeaUpdate(m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	rendered := ansi.Strip(m.renderOperations())
+	require.Contains(t, rendered, "State: Running")
+	require.Contains(t, rendered, "total unknown")
+	for _, size := range [][2]int{{80, 24}, {54, 16}, {30, 12}} {
+		m.fullWidth, m.fullHeight = size[0], size[1]
+		w, h := m.operationSize()
+		rendered := ansi.Strip(m.renderOperations())
+		require.Len(t, strings.Split(rendered, "\n"), h)
+		for _, line := range strings.Split(rendered, "\n") {
+			require.LessOrEqual(t, ansi.StringWidth(line), w)
+		}
+	}
+}
+
+func TestOperationCenterPasteFiltersWithoutDroppingPaths(t *testing.T) {
+	m := defaultTestModel(t.TempDir())
+	t.Cleanup(m.processBarModel.Shutdown)
+	m.processBarModel.StartTask(processbar.TaskSpec{Kind: "Copy task", Source: "example"}, nil, nil)
+	m.openOperations()
+	TeaUpdate(m, tea.PasteMsg{Content: "Copy task"})
+	require.Equal(t, "Copy task", m.operations.filter.Value())
+	require.Len(t, m.operationRows(), 1)
+	require.False(t, m.notifyModel.IsOpen())
+}
+
+func TestOperationCompressionFailureNeverPublishes(t *testing.T) {
+	dir := t.TempDir()
+	processes := processbar.New()
+	t.Cleanup(processes.Shutdown)
+	processes.ListenForChannelUpdates()
+	target := filepath.Join(dir, "failed.zip")
+	err := zipSources([]string{filepath.Join(dir, "missing")}, 0, target, &processes)
+	require.Error(t, err)
+	require.NoFileExists(t, target)
+	matches, err := filepath.Glob(filepath.Join(dir, ".xelif-archive-*"))
+	require.NoError(t, err)
+	require.Empty(t, matches)
+}
+
+func TestOperationCompressionExistingDestinationPreserved(t *testing.T) {
+	dir := t.TempDir()
+	processes := processbar.New()
+	t.Cleanup(processes.Shutdown)
+	target, source := filepath.Join(dir, "keep.zip"), filepath.Join(dir, "input.txt")
+	require.NoError(t, os.WriteFile(target, []byte("original"), 0o600))
+	require.NoError(t, os.WriteFile(source, []byte("input"), 0o600))
+	require.Error(t, zipSources([]string{source}, 1, target, &processes))
+	data, err := os.ReadFile(target)
+	require.NoError(t, err)
+	require.Equal(t, "original", string(data))
+}
+
+func TestOperationCompressionArchiveContents(t *testing.T) {
+	dir := t.TempDir()
+	source, target := filepath.Join(dir, "日本語.txt"), filepath.Join(dir, "output.zip")
+	require.NoError(t, os.WriteFile(source, []byte("complete data"), 0o600))
+	processes := processbar.New()
+	t.Cleanup(processes.Shutdown)
+	require.NoError(t, zipSources([]string{source}, 0, target, &processes))
+	archive, err := zip.OpenReader(target)
+	require.NoError(t, err)
+	defer archive.Close()
+	require.Len(t, archive.File, 1)
+	file, err := archive.File[0].Open()
+	require.NoError(t, err)
+	defer file.Close()
+	data, err := io.ReadAll(file)
+	require.NoError(t, err)
+	require.Equal(t, "complete data", string(data))
+}
+
+func TestOperationCancelledCopyAndMovePreserveSourceAndDestination(t *testing.T) {
+	dir := t.TempDir()
+	source, destination := filepath.Join(dir, "source"), filepath.Join(dir, "destination")
+	require.NoError(t, os.WriteFile(source, []byte("source"), 0o600))
+	require.NoError(t, os.WriteFile(destination, []byte("existing"), 0o600))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, copyFileContext(ctx, source, destination, 0o600), context.Canceled)
+	require.ErrorIs(t, moveElementContext(ctx, source, destination), context.Canceled)
+	require.Error(t, copyFileContext(context.Background(), source, destination, 0o600))
+	data, err := os.ReadFile(destination)
+	require.NoError(t, err)
+	require.Equal(t, "existing", string(data))
+	require.FileExists(t, source)
+}
+
+type cancelAfterFirstRead struct {
+	cancel context.CancelFunc
+	read   bool
+}
+
+func (r *cancelAfterFirstRead) Read(buffer []byte) (int, error) {
+	if r.read {
+		return 0, errors.New("reader must not be called after cancellation")
+	}
+	r.read = true
+	r.cancel()
+	return copy(buffer, "first chunk"), nil
+}
+
+func TestOperationStreamCancellationStopsBetweenChunks(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	reader := &cancelAfterFirstRead{cancel: cancel}
+	_, err := io.Copy(io.Discard, cancellationReader{ctx: ctx, reader: reader})
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+type failingArchiveWriter struct{ err error }
+
+func (w failingArchiveWriter) Write(_ []byte) (int, error) { return 0, w.err }
+
+func TestOperationZipFinalizationErrorIsReturned(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "small.txt")
+	require.NoError(t, os.WriteFile(source, []byte("small buffered archive"), 0o600))
+	processes := processbar.New()
+	t.Cleanup(processes.Shutdown)
+	p := processbar.NewProcess("close-error", source, processbar.OpCompress, 0)
+	writeErr := errors.New("final ZIP write failed")
+	err := writeZipContents(context.Background(), []string{source}, &processes, &p, failingArchiveWriter{err: writeErr})
+	require.ErrorIs(t, err, writeErr)
+}

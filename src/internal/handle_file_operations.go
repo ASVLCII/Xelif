@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -126,9 +127,9 @@ func (m *model) getDeleteCmd(permDelete bool) tea.Cmd {
 
 	reqID := m.nextIoReqCnt()
 	slog.Debug("Submitting delete request", "id", reqID, "items cnt", len(items))
-	return func() tea.Msg {
+	return m.processBarModel.Run(func() tea.Msg {
 		return m.deleteOperation(&m.processBarModel, items, useTrash, reqID)
-	}
+	})
 }
 
 func (m *model) deleteOperation(processBarModel *processbar.Model, items []string, useTrash bool, reqID int) tea.Msg {
@@ -140,6 +141,8 @@ func (m *model) deleteOperation(processBarModel *processbar.Model, items []strin
 		slog.Error("Cannot spawn a new process", "error", err)
 		return NewDeleteOperationMsg(processbar.Failed, reqID)
 	}
+	p.Source = strings.Join(items, "; ")
+	p.CancelReason = "Stops between selected items; an active OS delete/trash call must finish."
 	finalizer := func(state processbar.ProcessState, reqID int) tea.Msg { return NewDeleteOperationMsg(state, reqID) }
 	processor := makeDeleteProcessor(p, processBarModel, useTrash)
 	msg := m.runFileProcessor(processor, finalizer, items, reqID)
@@ -163,6 +166,11 @@ func makeDeleteProcessor(process processbar.Process,
 			}
 		}
 		for i, item := range items {
+			if cancelErr := processBarModel.ProcessContext(process.ID).Err(); cancelErr != nil {
+				process.State, process.ErrorMsg = processbar.Cancelled, cancelErr.Error()
+				process.Partial = fmt.Sprintf("Completed %d selected item(s); changes are retained.", process.Done)
+				break
+			}
 			err := deleteFunc(item)
 			if err != nil {
 				process.State = processbar.Failed
@@ -176,7 +184,7 @@ func makeDeleteProcessor(process processbar.Process,
 			processBarModel.TrySendingUpdateProcessMsg(process)
 		}
 
-		if process.State != processbar.Failed {
+		if process.State != processbar.Failed && process.State != processbar.Cancelled {
 			process.State = processbar.Successful
 		}
 		if len(notProcessed) == 0 {
@@ -250,7 +258,7 @@ func (m *model) getPasteItemCmd() tea.Cmd {
 	panelLocation := m.getFocusedFilePanel().Location
 
 	slog.Debug("Submitting pasteItems request", "id", reqID, "items cnt", len(copyItems), "dest", panelLocation)
-	return func() tea.Msg {
+	return m.processBarModel.Run(func() tea.Msg {
 		err := validatePasteOperation(panelLocation, copyItems, cut)
 		if err != nil {
 			return NewNotifyModalMsg(notify.New(true, "Invalid paste location", err.Error(), notify.NoAction),
@@ -259,7 +267,7 @@ func (m *model) getPasteItemCmd() tea.Cmd {
 		return m.executePasteOperation(
 			&m.processBarModel, panelLocation, copyItems, cut, clipboardGeneration, reqID,
 		)
-	}
+	})
 }
 
 func validatePasteOperation(panelLocation string, copyItems []string, cut bool) error {
@@ -284,54 +292,63 @@ func validatePasteOperation(panelLocation string, copyItems []string, cut bool) 
 	return nil
 }
 
-func makePasteProcessor(process processbar.Process,
-	processBarModel *processbar.Model,
+func makePasteProcessor(process processbar.Process, processBarModel *processbar.Model,
 	panelLocation string, cut bool, moves *[]pathMove,
 ) processbar.FileListProcessor {
-	processorFunction := func(items []string) (processbar.Process, []string) {
-		notProcessed := make([]string, 0)
+	return func(items []string) (processbar.Process, []string) {
 		if len(items) == 0 {
 			markProcessDone(process, processBarModel)
-			return process, notProcessed
+			return process, nil
 		}
-		var err error
+		process.State, process.ErrorMsg = processbar.InOperation, ""
+		var remaining []string
 		for i, filePath := range items {
-			errMessage := "cut item error"
-			if cut {
-				err = movePasteItem(filePath, panelLocation, moves)
-			} else {
-				// TODO : These error cases are hard to test. We have to somehow make the paste operations fail,
-				// which is time consuming and manual. We should test these with automated testcases
-				// UPD: use "chattr +i" for target catalog to fail past opeations
-				err = pasteDir(filePath, filepath.Join(panelLocation, filepath.Base(filePath)),
-					&process, false, processBarModel)
-				if err != nil {
-					errMessage = "paste item error"
-				}
-			}
-
+			err := pasteTaskItem(processBarModel, &process, filePath, panelLocation, cut, moves)
 			process.CurrentFile = filepath.Base(filePath)
 			if err != nil {
-				process.State = processbar.Failed
-				slog.Error(errMessage, "error", err)
-				slog.Debug("model.pasteItem - paste failure", "error", err,
-					"current item", filePath, "errMessage", errMessage)
 				process.ErrorMsg = formatFileError(filePath, err)
-				notProcessed = items[i:]
+				if errors.Is(err, context.Canceled) {
+					process.State = processbar.Cancelled
+				} else {
+					process.State, remaining = processbar.Failed, items[i:]
+					slog.Error("Paste operation failed", "path", filePath, "error", err)
+				}
 				break
+			}
+			if cut {
+				process.Done++
 			}
 			processBarModel.TrySendingUpdateProcessMsg(process)
 		}
-		if process.State != processbar.Failed {
-			process.State = processbar.Successful
-			process.Done = process.Total
-		}
-		if len(notProcessed) == 0 {
-			markProcessDone(process, processBarModel)
-		}
-		return process, notProcessed
+		finishPasteBatch(processBarModel, &process, len(remaining))
+		return process, remaining
 	}
-	return processorFunction
+}
+
+func finishPasteBatch(processes *processbar.Model, process *processbar.Process, remaining int) {
+	if process.State == processbar.InOperation {
+		process.State = processbar.Successful
+	}
+	if remaining != 0 {
+		return
+	}
+	if process.State == processbar.Cancelled {
+		process.Partial = "Completed files are retained; an incomplete cross-volume directory may remain. Sources are retained until copying succeeds."
+	}
+	markProcessDone(*process, processes)
+}
+
+func pasteTaskItem(processes *processbar.Model, process *processbar.Process, source, destination string,
+	cut bool, moves *[]pathMove,
+) error {
+	ctx := processes.ProcessContext(process.ID)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if cut {
+		return movePasteItemContext(ctx, source, destination, moves)
+	}
+	return pasteDir(source, filepath.Join(destination, filepath.Base(source)), process, false, processes)
 }
 
 func movePasteItem(filePath, panelLocation string, moves *[]pathMove) error {
@@ -341,6 +358,20 @@ func movePasteItem(filePath, panelLocation string, moves *[]pathMove) error {
 		return err
 	}
 	if err := moveElementNoReplace(filePath, destination); err != nil {
+		return err
+	}
+	if moves != nil {
+		*moves = append(*moves, pathMove{from: filePath, to: destination})
+	}
+	return nil
+}
+
+func movePasteItemContext(ctx context.Context, filePath, panelLocation string, moves *[]pathMove) error {
+	destination, err := renameIfDuplicate(filepath.Join(panelLocation, filepath.Base(filePath)))
+	if err != nil {
+		return err
+	}
+	if err := moveElementContext(ctx, filePath, destination); err != nil {
 		return err
 	}
 	if moves != nil {
@@ -365,11 +396,12 @@ func (m *model) executePasteOperation(processBarModel *processbar.Model,
 	p, err := processBarModel.SendAddProcessMsg(
 		filepath.Base(items[0]),
 		operation,
-		getPasteProgressTotal(items, cut), true)
+		pasteTaskTotal(items, cut), true)
 	if err != nil {
 		slog.Error("Cannot spawn a new process", "error", err)
 		return NewPasteOperationMsg(processbar.Failed, reqID)
 	}
+	p.Source, p.Destination = strings.Join(items, "; "), panelLocation
 	moves := make([]pathMove, 0, len(items))
 	finalizer := func(state processbar.ProcessState, reqId int) tea.Msg {
 		return newPasteOperationMsgWithContext(state, reqId, cut, clipboardGeneration, moves)
@@ -384,6 +416,15 @@ func getPasteProgressTotal(items []string, cut bool) int {
 		return len(items)
 	}
 	return getTotalFilesCnt(items)
+}
+
+// Copy discovers work as it walks. Avoid a second full tree traversal solely
+// for a percentage. Moves count selected roots without enumerating children.
+func pasteTaskTotal(items []string, cut bool) int {
+	if cut {
+		return len(items)
+	}
+	return 0
 }
 
 func getTotalFilesCnt(copyItems []string) int {
@@ -430,7 +471,7 @@ func (m *model) getExtractFileCmd() tea.Cmd {
 
 	slog.Debug("Submitting Extract file request", "reqID", reqID, "item", item)
 
-	return func() tea.Msg {
+	return m.processBarModel.Run(func() tea.Msg {
 		outputDir := common.FileNameWithoutExtension(item)
 		outputDir, err := renameIfDuplicate(outputDir)
 		if err != nil {
@@ -454,7 +495,7 @@ func (m *model) getExtractFileCmd() tea.Cmd {
 			return NewExtractOperationMsg(processbar.Failed, reqID)
 		}
 		return NewExtractOperationMsg(processbar.Successful, reqID)
-	}
+	})
 }
 
 func checkFileReadable(filename string) error {

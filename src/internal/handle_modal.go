@@ -59,9 +59,9 @@ func (m *model) getCreateCmd() tea.Cmd {
 	reqID := m.nextIoReqCnt()
 	slog.Debug("Submitting create request", "id", reqID, "items cnt", len(items))
 	m.cancelTypingModal()
-	return func() tea.Msg {
+	return m.processBarModel.Run(func() tea.Msg {
 		return m.createOperation(&m.processBarModel, location, items, reqID)
-	}
+	})
 }
 
 func (m *model) createOperation(

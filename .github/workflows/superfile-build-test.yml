@@ -67,6 +67,24 @@ jobs:
         env:
           GOMODCACHE: ${{ runner.temp }}/gomodcache
 
+      - name: Race detector (native runtime)
+        run: go test -race -short -p=1 -count=1 -timeout=10m ./...
+        env:
+          CGO_ENABLED: '1'
+          GOMODCACHE: ${{ runner.temp }}/gomodcache
+
+      - name: Task lifecycle and operation regressions (repeat under race detector)
+        run: go test -race -short -p=1 -count=20 -timeout=10m -run '^Test(Task|Operation)' ./src/internal ./src/internal/ui/processbar
+        env:
+          CGO_ENABLED: '1'
+          GOMODCACHE: ${{ runner.temp }}/gomodcache
+
+      - name: Race detector for extraction boundary fork
+        run: go test -race -p=1 -count=1 -timeout=5m golift.io/xtractr
+        env:
+          CGO_ENABLED: '1'
+          GOMODCACHE: ${{ runner.temp }}/gomodcache
+
       - name: Check gofmt (skip on Windows)
         if: runner.os != 'Windows'
         run: |

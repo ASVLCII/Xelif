@@ -39,7 +39,7 @@ import (
 //     to prevent noise in test logs. Same with imagePreviewer
 func defaultModelConfig(toggleDotFile, toggleFooter, firstUse bool,
 	firstPanelPaths []string, zClient *zoxidelib.Client) *model {
-	return &model{
+	m := &model{
 		focusPanel:        nonePanelFocus,
 		processBarModel:   processbar.New(),
 		clipboardWriter:   clipboard.WriteAll,
@@ -66,4 +66,17 @@ func defaultModelConfig(toggleDotFile, toggleFooter, firstUse bool,
 		firstUse:          firstUse,
 		hasTrash:          common.InitTrash(),
 	}
+	m.fileModel.Tasks = &m.processBarModel
+	m.globalSearchModal.Tasks = &m.processBarModel
+	m.processBarModel.StartTask(
+		processbar.TaskSpec{
+			Kind:         "Progress listener",
+			Background:   true,
+			Service:      true,
+			CancelReason: "Required for operation progress; stops with Xelif.",
+		},
+		nil,
+		nil,
+	)
+	return m
 }

@@ -46,8 +46,9 @@ func (m *model) gitDiffCmd(staged bool, paths []string) tea.Cmd {
 	location := m.getFocusedFilePanel().Location
 	client := m.gitClient
 	paths = append([]string(nil), paths...)
-	return func() tea.Msg {
-		content, err := client.Diff(context.Background(), location, gitstatus.DiffOptions{Staged: staged, Paths: paths})
+	ctx, cancel := context.WithCancel(context.Background())
+	return m.trackTask("Git diff", location, "", false, ctx, cancel, func() tea.Msg {
+		content, err := client.Diff(ctx, location, gitstatus.DiffOptions{Staged: staged, Paths: paths})
 		if err != nil {
 			return gitOperationMsg{err: err}
 		}
@@ -59,7 +60,7 @@ func (m *model) gitDiffCmd(staged bool, paths []string) tea.Cmd {
 			content = []byte("No matching changes.")
 		}
 		return gitOperationMsg{title: title, content: string(content)}
-	}
+	})
 }
 
 func (m *model) gitMutationCmd(mutation gitMutation, paths []string) tea.Cmd {
@@ -72,19 +73,20 @@ func (m *model) gitMutationCmd(mutation gitMutation, paths []string) tea.Cmd {
 	location := m.getFocusedFilePanel().Location
 	client := m.gitClient
 	paths = append([]string(nil), paths...)
-	return func() tea.Msg {
+	ctx, cancel := context.WithCancel(context.Background())
+	return m.trackTask("Git operation", location, "", false, ctx, cancel, func() tea.Msg {
 		var action string
 		var err error
 		switch mutation {
 		case gitMutationStage:
 			action = "Staged"
-			err = client.Stage(context.Background(), location, paths...)
+			err = client.Stage(ctx, location, paths...)
 		case gitMutationUnstage:
 			action = "Unstaged"
-			err = client.Unstage(context.Background(), location, paths...)
+			err = client.Unstage(ctx, location, paths...)
 		case gitMutationDiscard:
 			action = "Discarded worktree changes for"
-			err = client.Discard(context.Background(), location, paths...)
+			err = client.Discard(ctx, location, paths...)
 		default:
 			err = errors.New("unknown Git mutation")
 		}
@@ -96,7 +98,7 @@ func (m *model) gitMutationCmd(mutation gitMutation, paths []string) tea.Cmd {
 			content: fmt.Sprintf("%s %d item(s):\n%s", action, len(paths), strings.Join(paths, "\n")),
 			mutated: true,
 		}
-	}
+	})
 }
 
 func (m *model) confirmGitDiscard(paths []string) tea.Cmd {

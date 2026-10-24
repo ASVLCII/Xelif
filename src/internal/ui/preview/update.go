@@ -3,6 +3,7 @@ package preview
 // UpdateMsg represents an async query result
 
 type UpdateMsg struct {
+	Error error
 	// location can contain either the path of current content's file
 	// or path of file whose preview request is in flight.
 	// It should not have past data

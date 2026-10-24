@@ -63,10 +63,10 @@ func (m *model) loadRemoteListCmd() tea.Cmd {
 	m.remoteViewer.BeginRemotes()
 	ctx, reqID := m.nextRemoteContext()
 	client := m.remoteClient
-	return func() tea.Msg {
+	return m.trackTask("Remote list", "", "", false, ctx, m.remoteCancel, func() tea.Msg {
 		remotes, err := client.Remotes(ctx)
 		return remoteOperationMsg{reqID: reqID, kind: remoteLoadRemotes, remotes: remotes, err: err}
-	}
+	})
 }
 
 func (m *model) browseRemoteCmd(location remote.RemotePath) tea.Cmd {
@@ -82,12 +82,12 @@ func (m *model) browseRemoteCmd(location remote.RemotePath) tea.Cmd {
 	m.remoteViewer.BeginBrowse(normalized)
 	ctx, reqID := m.nextRemoteContext()
 	client := m.remoteClient
-	return func() tea.Msg {
+	return m.trackTask("Remote browse", normalized.String(), "", false, ctx, m.remoteCancel, func() tea.Msg {
 		entries, listErr := client.List(ctx, normalized)
 		return remoteOperationMsg{
 			reqID: reqID, kind: remoteListDirectory, location: normalized, entries: entries, err: listErr,
 		}
-	}
+	})
 }
 
 func (m *model) downloadRemoteCmd(entry remote.Entry) tea.Cmd {
@@ -99,12 +99,20 @@ func (m *model) downloadRemoteCmd(entry remote.Entry) tea.Cmd {
 	m.remoteViewer.BeginDownload()
 	ctx, reqID := m.nextRemoteContext()
 	client := m.remoteClient
-	return func() tea.Msg {
-		localPath, err := client.Download(ctx, entry, destination)
-		return remoteOperationMsg{
-			reqID: reqID, kind: remoteDownloadFile, destination: localPath, err: err,
-		}
-	}
+	return m.trackTask(
+		"Remote download",
+		entry.Remote+":"+entry.Path,
+		destination,
+		false,
+		ctx,
+		m.remoteCancel,
+		func() tea.Msg {
+			localPath, err := client.Download(ctx, entry, destination)
+			return remoteOperationMsg{
+				reqID: reqID, kind: remoteDownloadFile, destination: localPath, err: err,
+			}
+		},
+	)
 }
 
 func (m *model) nextRemoteContext() (context.Context, int) {

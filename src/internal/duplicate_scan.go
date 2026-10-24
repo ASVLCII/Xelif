@@ -39,12 +39,12 @@ func (m *model) startDuplicateScan(root string) tea.Cmd {
 		"Scanning read-only in the background…\nClose this view to keep working; use the palette to cancel.",
 	)
 	m.setTextViewerSize()
-	return func() tea.Msg {
+	return m.trackTask("Duplicate scan", root, "", false, ctx, cancel, func() tea.Msg {
 		result, err := duplicates.Scan(ctx, []string{root}, duplicates.Options{
 			MaxFiles: duplicateMaxFiles, MaxBytesHashed: duplicateMaxBytesHashed,
 		})
 		return duplicateScanMsg{reqID: reqID, root: root, result: result, err: err}
-	}
+	})
 }
 
 func (m *model) cancelDuplicateScan() {

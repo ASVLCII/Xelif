@@ -53,13 +53,13 @@ func (m *model) startDirectoryCompare(verifyContent bool) tea.Cmd {
 	ctx, reqID := m.newDirectoryCompareContext()
 	m.textViewer.Open("Directory comparison", "Comparing the focused panel with the next panel in the background…")
 	m.setTextViewerSize()
-	return func() tea.Msg {
+	return m.trackTask("Directory comparison", left, right, false, ctx, m.dirCompareCancel, func() tea.Msg {
 		result, compareErr := dircompare.Compare(ctx, left, right, dircompare.Options{VerifyContent: verifyContent})
 		return directoryCompareMsg{
 			reqID: reqID, left: left, right: right, result: result,
 			verifyContent: verifyContent, err: compareErr,
 		}
-	}
+	})
 }
 
 func (m *model) previewDirectorySync() tea.Cmd {
@@ -71,12 +71,12 @@ func (m *model) previewDirectorySync() tea.Cmd {
 	ctx, reqID := m.newDirectoryCompareContext()
 	m.textViewer.Open("Copy-missing preview", "Planning a safe one-way copy from the focused panel to the next panel…")
 	m.setTextViewerSize()
-	return func() tea.Msg {
+	return m.trackTask("Copy-missing preview", source, destination, false, ctx, m.dirCompareCancel, func() tea.Msg {
 		plan, planErr := dircompare.CopyMissing(ctx, source, destination, dircompare.CopyOptions{DryRun: true})
 		return directoryCompareMsg{
 			reqID: reqID, left: source, right: destination, copyPlan: &plan, err: planErr,
 		}
-	}
+	})
 }
 
 func (m *model) applyPendingDirectorySync() tea.Cmd {
@@ -99,7 +99,7 @@ func (m *model) applyPendingDirectorySync() tea.Cmd {
 	ctx, reqID := m.newDirectoryCompareContext()
 	m.textViewer.Open("Copying missing items", "Copying without overwriting or deleting destination items…")
 	m.setTextViewerSize()
-	return func() tea.Msg {
+	return m.trackTask("Copy missing", plan.source, plan.destination, false, ctx, m.dirCompareCancel, func() tea.Msg {
 		result, err := dircompare.CopyMissing(
 			ctx,
 			plan.source,
@@ -107,7 +107,7 @@ func (m *model) applyPendingDirectorySync() tea.Cmd {
 			dircompare.CopyOptions{ApprovedPlan: &plan.plan},
 		)
 		return directorySyncMsg{reqID: reqID, result: result, err: err}
-	}
+	})
 }
 
 func (m *model) newDirectoryCompareContext() (context.Context, int) {

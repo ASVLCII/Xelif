@@ -2,6 +2,7 @@ package xtractr
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -30,6 +31,9 @@ func (x *XFile) destinationName(path string) (string, error) {
 }
 
 func (x *XFile) destinationRoot() (*os.Root, func(), error) {
+	if err := x.contextError(); err != nil {
+		return nil, func() {}, err
+	}
 	if x.outputRoot != nil {
 		return x.outputRoot, func() {}, nil
 	}
@@ -39,6 +43,40 @@ func (x *XFile) destinationRoot() (*os.Root, func(), error) {
 		return nil, func() {}, err
 	}
 	return root, func() { _ = root.Close() }, nil
+}
+
+func (x *XFile) contextError() error {
+	if x.Context != nil {
+		return x.Context.Err()
+	}
+	return nil
+}
+
+type extractionReader struct {
+	x      *XFile
+	reader io.Reader
+}
+
+func (r extractionReader) Read(buffer []byte) (int, error) {
+	if err := r.x.contextError(); err != nil {
+		return 0, err
+	}
+	return r.reader.Read(buffer)
+}
+
+// Use the pinned root even after cancellation. Never remove a replacement.
+func (x *XFile) removeOwnedOutput(path string, owned fs.FileInfo) {
+	if x.outputRoot == nil {
+		return
+	}
+	name, err := x.destinationName(path)
+	if err != nil {
+		return
+	}
+	current, err := x.outputRoot.Lstat(name)
+	if err == nil && os.SameFile(owned, current) {
+		_ = x.outputRoot.Remove(name)
+	}
 }
 
 // acquireOutputRoot rejects a final symlink/junction and verifies that the
@@ -154,7 +192,7 @@ func (x *XFile) outputSymlink(target, path string) error {
 }
 
 func (x *XFile) writeOutput(path string, data []byte, mode os.FileMode) error {
-	file, _, err := x.openOutput(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+	file, _, err := x.openOutput(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 	if err != nil {
 		return err
 	}

@@ -60,12 +60,21 @@ func (m *model) executeMetadataAction(action common.MetadataAction) (string, tea
 			fmt.Sprintf("metadata-%d.json", time.Now().UTC().UnixNano()))
 		m.textViewer.Open(applyingMetadataTitle, "Applying the reviewed edit in the background…")
 		m.setTextViewerSize()
-		return applyingMetadataTitle, func() tea.Msg {
-			result, err := metadataedit.Apply(context.Background(), patch, journal)
-			return metadataOperationMsg{
-				operation: common.MetadataApply, result: result, journal: journal, err: err,
-			}
-		}, nil
+		ctx, cancel := context.WithCancel(context.Background())
+		return applyingMetadataTitle, m.trackTask(
+			applyingMetadataTitle,
+			m.getFocusedFilePanel().Location,
+			journal,
+			false,
+			ctx,
+			cancel,
+			func() tea.Msg {
+				result, err := metadataedit.Apply(ctx, patch, journal)
+				return metadataOperationMsg{
+					operation: common.MetadataApply, result: result, journal: journal, err: err,
+				}
+			},
+		), nil
 	case common.MetadataRestore:
 		if m.lastMetadataJournal == "" {
 			return "", nil, errors.New("no metadata journal is available to restore")
@@ -73,12 +82,21 @@ func (m *model) executeMetadataAction(action common.MetadataAction) (string, tea
 		journal := m.lastMetadataJournal
 		m.textViewer.Open(restoringMetadataTitle, "Restoring the journaled metadata in the background…")
 		m.setTextViewerSize()
-		return restoringMetadataTitle, func() tea.Msg {
-			result, err := metadataedit.Restore(context.Background(), journal)
-			return metadataOperationMsg{
-				operation: common.MetadataRestore, result: result, journal: journal, err: err,
-			}
-		}, nil
+		ctx, cancel := context.WithCancel(context.Background())
+		return restoringMetadataTitle, m.trackTask(
+			restoringMetadataTitle,
+			journal,
+			"",
+			false,
+			ctx,
+			cancel,
+			func() tea.Msg {
+				result, err := metadataedit.Restore(ctx, journal)
+				return metadataOperationMsg{
+					operation: common.MetadataRestore, result: result, journal: journal, err: err,
+				}
+			},
+		), nil
 	default:
 		return "", nil, errors.New("unknown metadata operation: " + string(action.Operation))
 	}

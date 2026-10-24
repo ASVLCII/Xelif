@@ -64,8 +64,18 @@ func FilePreviewPanelRenderer(totalHeight int, totalWidth int) *rendering.Render
 }
 
 func PromptRenderer(totalHeight int, totalWidth int) *rendering.Renderer {
+	return modalRenderer(totalHeight, totalWidth, true)
+}
+
+// FixedPromptRenderer keeps mouse hit regions and the modal's position stable
+// when a task list grows, shrinks, or switches to details.
+func FixedPromptRenderer(totalHeight int, totalWidth int) *rendering.Renderer {
+	return modalRenderer(totalHeight, totalWidth, false)
+}
+
+func modalRenderer(totalHeight int, totalWidth int, truncate bool) *rendering.Renderer {
 	cfg := rendering.DefaultRendererConfig(totalHeight, totalWidth)
-	cfg.TruncateHeight = true
+	cfg.TruncateHeight = truncate
 	cfg.ContentFGColor = common.ModalFGColor
 	cfg.ContentBGColor = common.ModalBGColor
 
