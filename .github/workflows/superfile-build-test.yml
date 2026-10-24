@@ -74,7 +74,7 @@ jobs:
           GOMODCACHE: ${{ runner.temp }}/gomodcache
 
       - name: Task lifecycle and operation regressions (repeat under race detector)
-        run: go test -race -short -p=1 -count=20 -timeout=10m -run '^Test(Task|Operation)' ./src/internal ./src/internal/ui/processbar
+        run: go test -race -short -p=1 -count=20 -timeout=10m -run '^Test(Task|Operation|AsyncPreviewPanelSync)' ./src/internal ./src/internal/ui/processbar
         env:
           CGO_ENABLED: '1'
           GOMODCACHE: ${{ runner.temp }}/gomodcache

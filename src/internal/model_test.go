@@ -323,8 +323,10 @@ func TestAsyncPreviewPanelSync(t *testing.T) {
 	utils.SetupFilesWithData(t, []byte(content2), file2)
 
 	m := defaultTestModelWithFilePreview(curTestDir)
-	// Extra width accommodates three panels; a modest height keeps rendering fast under -race.
-	p := NewTestTeaProgWithEventLoopWithWinSize(t, m, 4*DefaultTestModelWidth, DefaultTestModelHeight)
+	// Exercise three panels and both resize directions at ordinary terminal
+	// dimensions. Oversized fixtures spend the timeout rendering cells under
+	// race instrumentation rather than testing request/dimension synchronization.
+	p := NewTestTeaProgWithEventLoopWithWinSize(t, m, 2*DefaultTestModelWidth, common.MinimumHeight)
 
 	eventuallyEnsurePreviewContent(t, p, content1, "file1 content should load initially")
 	var pW int
@@ -350,13 +352,13 @@ func TestAsyncPreviewPanelSync(t *testing.T) {
 	eventuallyEnsurePreviewContent(t, p, content1, "content should update to file1 after closing panel")
 
 	// Upscale
-	p.Send(tea.WindowSizeMsg{Width: 8 * DefaultTestModelWidth,
-		Height: 2 * DefaultTestModelHeight})
+	p.Send(tea.WindowSizeMsg{Width: 3 * DefaultTestModelWidth,
+		Height: DefaultTestModelHeight})
 	eventuallyEnsurePreviewContent(t, p, content1, "content should update to file1 after resize")
 
 	// Downscale
-	p.Send(tea.WindowSizeMsg{Width: 6 * DefaultTestModelWidth,
-		Height: DefaultTestModelHeight})
+	p.Send(tea.WindowSizeMsg{Width: 2 * DefaultTestModelWidth,
+		Height: common.MinimumHeight})
 	eventuallyEnsurePreviewContent(t, p, content1, "content should update to file1 after resize")
 }
 

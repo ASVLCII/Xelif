@@ -45,7 +45,23 @@ type taskBus struct {
 	workers        sync.WaitGroup
 	lifetime       context.Context
 	cancelLifetime context.CancelFunc
+	ioBuffers      sync.Pool
 }
+
+const IOBufferSize = 128 * 1024
+
+// BorrowIOBuffer bounds scratch space per active copy worker. Returning the
+// array avoids allocating a fresh copy buffer for each file in a directory.
+func (m *Model) BorrowIOBuffer() *[IOBufferSize]byte {
+	if value := m.bus.ioBuffers.Get(); value != nil {
+		if buffer, ok := value.(*[IOBufferSize]byte); ok {
+			return buffer
+		}
+	}
+	return new([IOBufferSize]byte)
+}
+
+func (m *Model) ReturnIOBuffer(buffer *[IOBufferSize]byte) { m.bus.ioBuffers.Put(buffer) }
 
 func newTaskBus() *taskBus {
 	ctx, cancel := context.WithCancel(context.Background())

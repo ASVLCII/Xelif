@@ -26,8 +26,10 @@ The clickable controls also have keyboard equivalents:
 
 Cancellation first shows **Cancel requested**. Filesystem calls and decoders may
 need to finish their current call before stopping. Completed file changes remain;
-cancellation is not rollback. Incomplete copies and ZIP archives are staged away
-from the final filename and are not published. Cross-volume moves retain sources
+cancellation is not rollback. Large/growing copies and ZIP archives are staged away
+from the final filename and are not published until complete. Small copies read at
+most 64 KiB before checking cancellation and exclusively creating the destination;
+their bounded write completes before cancellation takes effect. Cross-volume moves retain sources
 until copying succeeds and cancellation is checked before source removal.
 Extraction retains completed members and removes the incomplete member when it
 still belongs to the operation. Existing extraction filenames are not overwritten.

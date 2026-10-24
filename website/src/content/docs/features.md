@@ -14,12 +14,12 @@ Xelif defaults to the customizable `monochrome` theme with neutral selection and
 
 ### Mouse and keyboard
 
-| Workflow                     | Mouse                                                                              | Keyboard                                                                                  |
-| ---------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Open and navigate            | Double-click an item; click a breadcrumb, sidebar folder, or tab                   | Enter, parent-directory and history bindings; panel/tab navigation bindings               |
-| Search and discover actions  | Click Search or Commands (Find/Menu in narrow panels)                              | `ctrl+g` or `ctrl+shift+p`                                                                |
-| Select several items         | Ctrl-click toggles an item; Shift-click selects a range from the anchor            | Selection mode, select/range/invert bindings                                              |
-| Browse results and commands  | Mouse wheel; click a result or command; click outside to dismiss                   | Up/Down, Page Up/Page Down, Enter, Escape                                                 |
+| Workflow | Mouse | Keyboard |
+| --- | --- | --- |
+| Open and navigate | Double-click an item; click a breadcrumb, sidebar folder, or tab | Enter, parent-directory and history bindings; panel/tab navigation bindings |
+| Search and discover actions | Click Search or Commands (Find/Menu in narrow panels) | `ctrl+g` or `ctrl+shift+p` |
+| Select several items | Ctrl-click toggles an item; Shift-click selects a range from the anchor | Selection mode, select/range/invert bindings |
+| Browse results and commands | Mouse wheel; click a result or command; click outside to dismiss | Up/Down, Page Up/Page Down, Enter, Escape |
 | Manage tabs and file actions | Click `[+]`/`[-]`; right-click an item; click a sort column or confirmation button | New/close tab bindings; `shift+f10` opens the same context menu; sort and action bindings |
 
 Back/forward mouse buttons navigate the focused panel's history when the terminal reports them. Mouse modifiers also depend on terminal support; some terminals reserve Shift-click for text selection. Both input methods use the same file-operation and confirmation handlers.
@@ -52,13 +52,7 @@ On Windows, simple filename searches query the running Everything application di
 
 ## Archives and project changes
 
-- **Operation center:** choose **Operations** in Commands or click the Processes
-  footer to inspect, filter and cancel tasks. Operations and Background tabs keep
-  explicit file work separate from grouped automatic requests. Enter opens details;
-  Ctrl+X requests cancellation, Ctrl+L clears finished history, and Escape returns
-  without cancelling. The latest 100 finished records are kept for this session.
-  Cancellation preserves completed changes and may wait for an active filesystem
-  call. Services expose their status without a separate cancel control.
+- **Operation center:** choose **Operations** in Commands or click the Processes footer to inspect, filter and cancel tasks. Operations and Background tabs keep explicit file work separate from grouped automatic requests. Enter opens details; Ctrl+X requests cancellation, Ctrl+L clears finished history, and Escape returns without cancelling. The latest 100 finished records are kept for this session. Cancellation preserves completed changes and may wait for an active filesystem call. Services expose their status without a separate cancel control.
 
 - **ZIP browsing:** choose **Browse ZIP as a folder** in the command palette to inspect a ZIP without unpacking it. Extraction rejects unsafe paths and preserves existing destination names instead of overwriting them.
 - **Git:** file panels show repository status. The command palette can show working-tree or staged diffs, stage selected paths, unstage them, and discard tracked changes. Discard always requires confirmation.
@@ -86,15 +80,15 @@ Command plugins add explicit external-tool actions to the command palette. Put o
 
 ```json
 {
-  "version": 1,
-  "id": "inspect-json",
-  "name": "Inspect JSON",
-  "executable": "jq",
-  "args": [".", "{path}"],
-  "extensions": [".json"],
-  "timeout_ms": 10000,
-  "max_output_bytes": 1048576,
-  "env_allowlist": []
+	"version": 1,
+	"id": "inspect-json",
+	"name": "Inspect JSON",
+	"executable": "jq",
+	"args": [".", "{path}"],
+	"extensions": [".json"],
+	"timeout_ms": 10000,
+	"max_output_bytes": 1048576,
+	"env_allowlist": []
 }
 ```
 

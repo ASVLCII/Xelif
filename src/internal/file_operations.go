@@ -124,7 +124,9 @@ func actualPasteOperation(info os.FileInfo, path string, newPath string,
 
 	// File
 	p.CurrentFile = filepath.Base(path)
-	err = copyFileContext(processBarModel.ProcessContext(p.ID), path, newPath, info.Mode())
+	buffer := processBarModel.BorrowIOBuffer()
+	defer processBarModel.ReturnIOBuffer(buffer)
+	err = copyFileContextSized(processBarModel.ProcessContext(p.ID), path, newPath, info.Mode(), info.Size(), buffer[:])
 
 	if err != nil {
 		p.State = processbar.Failed

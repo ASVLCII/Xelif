@@ -193,3 +193,110 @@ func TestOperationZipFinalizationErrorIsReturned(t *testing.T) {
 	err := writeZipContents(context.Background(), []string{source}, &processes, &p, failingArchiveWriter{err: writeErr})
 	require.ErrorIs(t, err, writeErr)
 }
+
+func TestOperationSmallCopyAndGrowingSource(t *testing.T) {
+	for _, snapshotSize := range []int64{1, 12} {
+		dir := t.TempDir()
+		source, destination := filepath.Join(dir, "source"), filepath.Join(dir, "destination")
+		require.NoError(t, os.WriteFile(source, []byte("complete data"), 0o600))
+		err := copyFileContextSized(
+			context.Background(),
+			source,
+			destination,
+			0o600,
+			snapshotSize,
+			make([]byte, copyBufferSize),
+		)
+		require.NoError(t, err)
+		contents, err := os.ReadFile(destination)
+		require.NoError(t, err)
+		require.Equal(t, "complete data", string(contents), "a source growing past its snapshot must not be truncated")
+		require.Error(
+			t,
+			copyFileContextSized(
+				context.Background(),
+				source,
+				destination,
+				0o600,
+				snapshotSize,
+				make([]byte, copyBufferSize),
+			),
+		)
+	}
+}
+
+func TestOperationSmallCopyChecksCancellationBeforeCreate(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	destination := filepath.Join(t.TempDir(), "not-created")
+	require.ErrorIs(t, publishSmallCopy(ctx, destination, 0o600, []byte("buffered")), context.Canceled)
+	require.NoFileExists(t, destination)
+	require.ErrorIs(
+		t,
+		copyFileContextSized(
+			context.Background(),
+			"unused",
+			destination,
+			os.ModeNamedPipe,
+			0,
+			make([]byte, copyBufferSize),
+		),
+		errors.ErrUnsupported,
+	)
+}
+
+type checkpointCancellation struct {
+	context.Context
+
+	cancel          context.CancelFunc
+	checks, trigger int
+}
+
+func (c *checkpointCancellation) Err() error {
+	c.checks++
+	if c.checks == c.trigger {
+		c.cancel()
+	}
+	return c.Context.Err()
+}
+
+func TestOperationCrossVolumeMoveAndCancellation(t *testing.T) {
+	base := os.Getenv("XELIF_CROSS_VOLUME_DIR")
+	if base == "" {
+		t.Skip("requires an explicitly isolated second-volume fixture")
+	}
+	for _, cancelCopy := range []bool{false, true} {
+		source := t.TempDir()
+		//nolint:usetesting // t.TempDir always uses TEMP; this test needs the explicitly supplied second volume.
+		destinationRoot, err := os.MkdirTemp(base, "operation-cross-volume-")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = os.RemoveAll(destinationRoot) })
+		if strings.EqualFold(filepath.VolumeName(source), filepath.VolumeName(destinationRoot)) {
+			t.Skip("fixture must be on another volume")
+		}
+		contents := []byte("complete cross-volume file")
+		require.NoError(t, os.WriteFile(filepath.Join(source, "one.txt"), contents, 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(source, "two.txt"), contents, 0o600))
+		destination := filepath.Join(destinationRoot, "moved")
+		ctx := context.Background()
+		if cancelCopy {
+			child, cancel := context.WithCancel(ctx)
+			defer cancel()
+			// Cancel after traversal has begun, without scheduling-dependent sleeps.
+			ctx = &checkpointCancellation{Context: child, cancel: cancel, trigger: 5}
+		}
+		err = moveElementContext(ctx, source, destination)
+		if cancelCopy {
+			require.ErrorIs(t, err, context.Canceled)
+			require.DirExists(t, source)
+			require.FileExists(t, filepath.Join(source, "one.txt"))
+			require.DirExists(t, destination)
+		} else {
+			require.NoError(t, err)
+			require.NoDirExists(t, source)
+			actual, err := os.ReadFile(filepath.Join(destination, "two.txt"))
+			require.NoError(t, err)
+			require.Equal(t, contents, actual)
+		}
+	}
+}
