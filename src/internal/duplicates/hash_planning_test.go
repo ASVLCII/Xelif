@@ -10,12 +10,13 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // Kept verbatim in behavior from aff5844 as a differential oracle and benchmark.
@@ -74,7 +75,10 @@ func TestHashPlanningMatchesAff5844(t *testing.T) {
 		count := random.IntN(300)
 		files := make([]candidate, count)
 		for i := range files {
-			files[i] = candidate{path: fmt.Sprintf("file-%04d", i), info: planningFileInfo{size: int64(random.IntN(30))}}
+			files[i] = candidate{
+				path: fmt.Sprintf("file-%04d", i),
+				info: planningFileInfo{size: int64(random.IntN(30))},
+			}
 		}
 		random.Shuffle(len(files), func(i, j int) { files[i], files[j] = files[j], files[i] })
 		for _, budget := range []int64{0, 1, 31, 127, math.MaxInt64} {
@@ -96,12 +100,14 @@ func compareHashPlanning(t *testing.T, files []candidate, budget int64) {
 	updated := scanner{files: slices.Clone(files), options: Options{MaxBytesHashed: budget}}
 	want := prepareHashJobsAff5844(&reference)
 	got := updated.prepareHashJobs()
-	if !slices.EqualFunc(got, want, func(a, b candidate) bool { return a.path == b.path && a.info.Size() == b.info.Size() }) {
+	if !slices.EqualFunc(
+		got,
+		want,
+		func(a, b candidate) bool { return a.path == b.path && a.info.Size() == b.info.Size() },
+	) {
 		t.Fatalf("budget=%d planning differs: got %#v want %#v", budget, got, want)
 	}
-	if !reflect.DeepEqual(updated.result, reference.result) {
-		t.Fatalf("budget=%d result differs: got %#v want %#v", budget, updated.result, reference.result)
-	}
+	require.Equal(t, reference.result, updated.result, "budget=%d", budget)
 	if cap(got) > 0 {
 		for _, file := range got[len(got):cap(got)] {
 			if file.info != nil || file.path != "" {
@@ -117,54 +123,62 @@ func BenchmarkHashPlanning(b *testing.B) {
 	for _, distribution := range []string{"unique", "pairs", "same"} {
 		for _, count := range []int{1000, 10000} {
 			b.Run(fmt.Sprintf("%s_%d", distribution, count), func(b *testing.B) {
-				files := make([]candidate, count)
-				random := rand.New(rand.NewPCG(7, 13))
-				for i := range files {
-					size := i
-					if distribution == "pairs" {
-						size = i / 2
-					}
-					if distribution == "same" {
-						size = 32
-					}
-					files[i] = candidate{path: fmt.Sprintf("file-%06d", i), info: planningFileInfo{int64(size)}}
-				}
-				random.Shuffle(len(files), func(i, j int) { files[i], files[j] = files[j], files[i] })
-				for _, baseline := range []bool{true, false} {
-					name := "candidate"
-					if baseline {
-						name = "aff5844"
-					}
-					b.Run(name, func(b *testing.B) {
-						storage := make([]candidate, len(files))
-						b.ReportAllocs()
-						for b.Loop() {
-							copy(storage, files)
-							s := scanner{files: storage}
-							var jobs []candidate
-							if baseline {
-								jobs = prepareHashJobsAff5844(&s)
-							} else {
-								jobs = s.prepareHashJobs()
-							}
-							want := count
-							if distribution == "unique" {
-								want = 0
-							}
-							if len(jobs) != want {
-								b.Fatalf("jobs=%d want %d", len(jobs), want)
-							}
-						}
-					})
-				}
+				files := hashPlanningBenchmarkFiles(distribution, count)
+				b.Run("aff5844", func(b *testing.B) { benchmarkHashPlan(b, files, distribution, true) })
+				b.Run("candidate", func(b *testing.B) { benchmarkHashPlan(b, files, distribution, false) })
 			})
+		}
+	}
+}
+
+func hashPlanningBenchmarkFiles(distribution string, count int) []candidate {
+	files := make([]candidate, count)
+	random := rand.New(rand.NewPCG(7, 13))
+	for i := range files {
+		size := i
+		if distribution == "pairs" {
+			size = i / 2
+		}
+		if distribution == "same" {
+			size = 32
+		}
+		files[i] = candidate{path: fmt.Sprintf("file-%06d", i), info: planningFileInfo{int64(size)}}
+	}
+	random.Shuffle(len(files), func(i, j int) { files[i], files[j] = files[j], files[i] })
+	return files
+}
+
+func benchmarkHashPlan(b *testing.B, files []candidate, distribution string, baseline bool) {
+	storage := make([]candidate, len(files))
+	b.ReportAllocs()
+	for b.Loop() {
+		copy(storage, files)
+		s := scanner{files: storage}
+		var jobs []candidate
+		if baseline {
+			jobs = prepareHashJobsAff5844(&s)
+		} else {
+			jobs = s.prepareHashJobs()
+		}
+		want := len(files)
+		if distribution == "unique" {
+			want = 0
+		}
+		if len(jobs) != want {
+			b.Fatalf("jobs=%d want %d", len(jobs), want)
 		}
 	}
 }
 
 // The old worker's exact-size growth is retained to measure buffer churn with
 // the same hashFile implementation and identical on-disk input.
-func hashWorkerAff5844(ctx context.Context, jobs []candidate, outcomes []hashOutcome, next *atomic.Int64, wait *sync.WaitGroup) {
+func hashWorkerAff5844(
+	ctx context.Context,
+	jobs []candidate,
+	outcomes []hashOutcome,
+	next *atomic.Int64,
+	wait *sync.WaitGroup,
+) {
 	defer wait.Done()
 	var buffer []byte
 	for {
@@ -210,32 +224,29 @@ func BenchmarkHashWorkerGrowth(b *testing.B) {
 			b.Fatalf("warmup failed at %d: %#v", i, outcome)
 		}
 	}
-	for _, baseline := range []bool{true, false} {
-		name := "candidate"
+	b.Run("aff5844", func(b *testing.B) { benchmarkHashWorker(b, jobs, digests, totalBytes, true) })
+	b.Run("candidate", func(b *testing.B) { benchmarkHashWorker(b, jobs, digests, totalBytes, false) })
+}
+
+func benchmarkHashWorker(b *testing.B, jobs []candidate, digests []string, totalBytes int64, baseline bool) {
+	outcomes := make([]hashOutcome, len(jobs))
+	b.ReportAllocs()
+	b.SetBytes(totalBytes)
+	for b.Loop() {
+		var next atomic.Int64
+		var wait sync.WaitGroup
+		wait.Add(1)
 		if baseline {
-			name = "aff5844"
+			hashWorkerAff5844(context.Background(), jobs, outcomes, &next, &wait)
+		} else {
+			hashWorker(context.Background(), jobs, outcomes, &next, &wait)
 		}
-		b.Run(name, func(b *testing.B) {
-			outcomes := make([]hashOutcome, len(jobs))
-			b.ReportAllocs()
-			b.SetBytes(totalBytes)
-			for b.Loop() {
-				var next atomic.Int64
-				var wait sync.WaitGroup
-				wait.Add(1)
-				if baseline {
-					hashWorkerAff5844(context.Background(), jobs, outcomes, &next, &wait)
-				} else {
-					hashWorker(context.Background(), jobs, outcomes, &next, &wait)
-				}
-				wait.Wait()
-				for i, outcome := range outcomes {
-					if !outcome.done || outcome.bytes != jobs[i].info.Size() || outcome.digest != digests[i] {
-						b.Fatalf("incorrect hash at %d: %#v", i, outcome)
-					}
-				}
+		wait.Wait()
+		for i, outcome := range outcomes {
+			if !outcome.done || outcome.bytes != jobs[i].info.Size() || outcome.digest != digests[i] {
+				b.Fatalf("incorrect hash at %d: %#v", i, outcome)
 			}
-		})
+		}
 	}
 }
 
@@ -280,7 +291,8 @@ func TestHashWorkerIncreasingSizesPreserveDigests(t *testing.T) {
 		s := scanner{ctx: context.Background(), options: Options{Workers: workers}}
 		outcomes := s.hashJobs(jobs)
 		for i, outcome := range outcomes {
-			if !outcome.done || outcome.warn != nil || outcome.bytes != jobs[i].info.Size() || outcome.digest != expected[i] {
+			if !outcome.done || outcome.warn != nil || outcome.bytes != jobs[i].info.Size() ||
+				outcome.digest != expected[i] {
 				t.Fatalf("workers=%d job=%d outcome=%#v", workers, i, outcome)
 			}
 		}

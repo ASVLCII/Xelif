@@ -18,7 +18,9 @@ import (
 
 func newGitRefreshFixture(t testing.TB, count int) (*model, string) {
 	t.Helper()
-	root := t.TempDir()
+	// Git reports the physical root; macOS exposes temporary paths through /var.
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	for index := range count {
 		path := filepath.Join(root, fmt.Sprintf("file-%05d", index))
 		require.NoError(t, os.WriteFile(path, []byte("contents"), 0o600))

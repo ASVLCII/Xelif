@@ -133,7 +133,12 @@ func TestZoxide(t *testing.T) {
 
 		p.WithModel(func(m *model) {
 			assert.Greater(t, m.zoxideModal.GetWidth(), initialWidth, "Width should increase with larger window")
-			assert.Greater(t, m.zoxideModal.GetMaxHeight(), initialMaxHeight, "MaxHeight should increase with larger window")
+			assert.Greater(
+				t,
+				m.zoxideModal.GetMaxHeight(),
+				initialMaxHeight,
+				"MaxHeight should increase with larger window",
+			)
 		})
 	})
 
@@ -156,14 +161,7 @@ func TestZoxide(t *testing.T) {
 
 		p.SendKey(filepath.Base(multiSpaceDir))
 		assert.Eventually(t, func() bool {
-			return p.Check(func(m *model) bool {
-				for _, result := range m.zoxideModal.GetResults() {
-					if result.Path == multiSpaceDir {
-						return true
-					}
-				}
-				return false
-			})
+			return p.Check(func(m *model) bool { return zoxideHasResult(m, multiSpaceDir) })
 		}, DefaultTestTimeout, DefaultTestTick, "Multi-space directory should be found by zoxide")
 
 		// Reset textinput via Close-Open
@@ -172,14 +170,7 @@ func TestZoxide(t *testing.T) {
 
 		p.SendKey("di r 1")
 		assert.Eventually(t, func() bool {
-			return p.Check(func(m *model) bool {
-				for _, result := range m.zoxideModal.GetResults() {
-					if result.Path == dir1 {
-						return true
-					}
-				}
-				return false
-			})
+			return p.Check(func(m *model) bool { return zoxideHasResult(m, dir1) })
 		}, DefaultTestTimeout, DefaultTestTick, "dir1 should be found by zoxide")
 	})
 
@@ -190,4 +181,13 @@ func TestZoxide(t *testing.T) {
 			assert.False(t, m.zoxideModal.IsOpen(), "Zoxide modal should close on escape key")
 		})
 	})
+}
+
+func zoxideHasResult(m *model, path string) bool {
+	for _, result := range m.zoxideModal.GetResults() {
+		if result.Path == path {
+			return true
+		}
+	}
+	return false
 }

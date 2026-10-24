@@ -19,6 +19,8 @@ type ExtractOptions struct {
 	Overwrite bool
 }
 
+const windowsPlatform = "windows"
+
 // Extract writes explicitly selected members beneath destination. Selecting a
 // directory includes its descendants. At most one options value may be passed.
 func (a *Archive) Extract(ctx context.Context, members []string, destination string, options ...ExtractOptions) error {
@@ -56,8 +58,8 @@ func (a *Archive) Extract(ctx context.Context, members []string, destination str
 	if err != nil {
 		return err
 	}
-	if err := a.preflightExtraction(ctx, selected, root, opts.Overwrite); err != nil {
-		return err
+	if preflightErr := a.preflightExtraction(ctx, selected, root, opts.Overwrite); preflightErr != nil {
+		return preflightErr
 	}
 	destinationRoot, err := os.OpenRoot(root)
 	if err != nil {
@@ -149,14 +151,26 @@ func (a *Archive) extractSelected(
 	for _, n := range selected {
 		if err := ctx.Err(); err != nil {
 			rollbackExtraction(root, created)
-			return &Error{Op: operationExtract, Archive: a.path, Member: n.entry.Path, Destination: root.Name(), Err: err}
+			return &Error{
+				Op:          operationExtract,
+				Archive:     a.path,
+				Member:      n.entry.Path,
+				Destination: root.Name(),
+				Err:         err,
+			}
 		}
 		target := filepath.FromSlash(n.entry.Path)
 		newPaths, err := a.extractNode(ctx, n, root, target, overwrite)
 		created = append(created, newPaths...)
 		if err != nil {
 			rollbackExtraction(root, created)
-			return &Error{Op: operationExtract, Archive: a.path, Member: n.entry.Path, Destination: filepath.Join(root.Name(), target), Err: err}
+			return &Error{
+				Op:          operationExtract,
+				Archive:     a.path,
+				Member:      n.entry.Path,
+				Destination: filepath.Join(root.Name(), target),
+				Err:         err,
+			}
 		}
 	}
 	return nil
@@ -248,7 +262,7 @@ func compareNodes(left, right *node) int {
 }
 
 func extractionTarget(root, member string) (string, error) {
-	if runtime.GOOS == "windows" && unsafeWindowsMember(member) {
+	if runtime.GOOS == windowsPlatform && unsafeWindowsMember(member) {
 		return "", ErrUnsafePath
 	}
 	target := filepath.Join(root, filepath.FromSlash(member))
@@ -397,7 +411,10 @@ func (a *Archive) extractFile(ctx context.Context, n *node, root *os.Root, targe
 	if err != nil {
 		return err
 	}
-	defer parent.Remove(temporaryName)
+	defer func() {
+		// Successful publication renames this file; cleanup is best effort.
+		_ = parent.Remove(temporaryName)
+	}()
 	if err := temporary.Chmod(filePerm(n.entry.Mode)); err != nil {
 		_ = temporary.Close()
 		return err

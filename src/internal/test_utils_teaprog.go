@@ -45,6 +45,7 @@ type testCommandApplied struct{}
 
 type testProgramModel struct {
 	*model
+
 	pending     int
 	changed     chan struct{}
 	closing     bool
@@ -68,7 +69,10 @@ func (m *testProgramModel) track(cmd tea.Cmd) tea.Cmd {
 func (m *testProgramModel) Init() tea.Cmd {
 	cmd := m.track(m.model.Init())
 	return func() tea.Msg {
-		result := cmd().(testCommandResult)
+		result, ok := cmd().(testCommandResult)
+		if !ok {
+			panic("tracked initialization returned an unexpected message")
+		}
 		result.initial = true
 		return result
 	}
@@ -117,6 +121,10 @@ func (m *testProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 		}
 	}
+	return m.updateModel(msg)
+}
+
+func (m *testProgramModel) updateModel(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.closing {
 		switch msg.(type) {
 		case refreshTickMsg, cursor.BlinkMsg:
@@ -124,7 +132,11 @@ func (m *testProgramModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	next, cmd := m.model.Update(msg)
-	m.model = next.(*model)
+	nextModel, ok := next.(*model)
+	if !ok {
+		panic("test update returned an unexpected model")
+	}
+	m.model = nextModel
 	return m, m.track(cmd)
 }
 
@@ -266,7 +278,8 @@ func (p *TeaProg) SendKey(key string) {
 
 // waitPending observes command completion after its result has been applied.
 func (p *TeaProg) waitPending(maximum int) bool {
-	timer := time.NewTimer(10 * DefaultTestTimeout)
+	const commandDrainTimeout = 10 * DefaultTestTimeout
+	timer := time.NewTimer(commandDrainTimeout)
 	defer timer.Stop()
 	for {
 		var pending int

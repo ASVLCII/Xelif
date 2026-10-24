@@ -19,8 +19,9 @@ import (
 var errStopFileLimit = errors.New("stop after maximum file count")
 
 const (
-	minimumGroupSize = 2
-	hashBufferSize   = 128 * 1024
+	minimumGroupSize       = 2
+	hashBufferSize         = 128 * 1024
+	hashBufferGrowthFactor = 2
 )
 
 type candidate struct {
@@ -328,7 +329,7 @@ func hashWorker(
 		if len(buffer) < needed {
 			// Jobs are ordered by size. Geometric growth avoids reallocating for
 			// every slightly larger file while retaining the existing 128 KiB cap.
-			buffer = make([]byte, max(needed, min(2*len(buffer), hashBufferSize)))
+			buffer = make([]byte, max(needed, min(hashBufferGrowthFactor*len(buffer), hashBufferSize)))
 		}
 		outcomes[index] = hashFile(ctx, jobs[index], buffer)
 	}

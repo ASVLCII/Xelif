@@ -33,6 +33,7 @@ func TestPublishFailurePreservesExistingFile(t *testing.T) {
 // precisely when the first payload read starts. It avoids a probabilistic race.
 type swapParentContext struct {
 	context.Context
+
 	calls int
 	swap  func()
 }
@@ -110,6 +111,7 @@ func makeTestDirectoryLink(target, link string) error {
 
 type cancelAfterPayloadContext struct {
 	context.Context
+
 	calls int
 }
 
@@ -129,7 +131,15 @@ func TestExtractCancellationBeforePublishPreservesOriginal(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := &cancelAfterPayloadContext{Context: context.Background()}
-	if err := archive.Extract(ctx, []string{"keep.txt"}, destination, ExtractOptions{Overwrite: true}); !errors.Is(err, context.Canceled) {
+	if err := archive.Extract(
+		ctx,
+		[]string{"keep.txt"},
+		destination,
+		ExtractOptions{Overwrite: true},
+	); !errors.Is(
+		err,
+		context.Canceled,
+	) {
 		t.Fatalf("extraction error = %v, want cancellation", err)
 	}
 	assertFileContent(t, target, "original")
