@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"os"
 	"path/filepath"
 	"strconv"
 
@@ -102,8 +103,11 @@ func (m *model) introduceModalRender() string {
 			" Press any key to continue.",
 	)
 	body := title + "\n\n" + content
-	width := min(lipgloss.Width(body)+common.BorderPadding+1, max(m.fullWidth-common.BorderPadding, 1))
-	return common.FirstUseModal(0, width).Padding(1, 0).Render(body)
+	style := common.FirstUseModal(0, m.helpMenu.GetWidth())
+	if _, noColor := os.LookupEnv("NO_COLOR"); !noColor {
+		style = style.BorderForeground(lipgloss.Color("#FFFFFF"))
+	}
+	return style.Render(body)
 }
 
 func (m *model) promptModalRender() string {

@@ -16,8 +16,9 @@ func TestFirstUseFitsStandardTerminal(t *testing.T) {
 		TeaUpdate(m, tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 		view := m.introduceModalRender()
 		m.firstUse, m.firstLoadingComplete = true, true
-		require.LessOrEqual(t, lipgloss.Width(view), 60, "welcome box should fit its text, not the terminal")
-		require.LessOrEqual(t, lipgloss.Height(view), 20)
+		require.InDelta(t, m.helpMenu.GetWidth(), lipgloss.Width(view), 2, "preserve the reference box width")
+		require.LessOrEqual(t, lipgloss.Width(view), size[0])
+		require.LessOrEqual(t, lipgloss.Height(view), 15, "trim blank space above and below the text")
 		require.Contains(t, view, "Inspired by github.com/yorukot/superfile.")
 		require.NotContains(t, view, "Built from")
 		require.Contains(t, view, "continue")
