@@ -1059,7 +1059,8 @@ func (m *model) updateRenderForOverlay(finalRender string) string {
 	}
 
 	if m.firstUse {
-		return m.centerOverlay(finalRender, m.introduceModalRender(), m.helpMenu.GetWidth(), m.helpMenu.GetHeight())
+		welcome := m.introduceModalRender()
+		return m.centerOverlay(finalRender, welcome, lipgloss.Width(welcome), lipgloss.Height(welcome))
 	}
 
 	if m.typingModal.open {
