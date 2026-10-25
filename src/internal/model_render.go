@@ -98,11 +98,12 @@ func (m *model) introduceModalRender() string {
 			" Commands: ctrl+shift+p     Search: ctrl+g\n\n" +
 			" Themes and Vim bindings are configurable.\n" +
 			" Upstream configuration guide: superfile.dev\n\n" +
-			" Built from github.com/yorukot/superfile.\n\n" +
+			" Inspired by github.com/yorukot/superfile.\n\n" +
 			" Press any key to continue.",
 	)
-	return common.FirstUseModal(m.helpMenu.GetHeight(), m.helpMenu.GetWidth()).
-		Render(title + "\n\n" + content)
+	body := title + "\n\n" + content
+	width := min(lipgloss.Width(body)+1, max(m.fullWidth-common.BorderPadding, 1))
+	return common.FirstUseModal(0, width).Padding(1, 0).Render(body)
 }
 
 func (m *model) promptModalRender() string {

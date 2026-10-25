@@ -10,9 +10,13 @@ import (
 
 func TestFirstUseFitsStandardTerminal(t *testing.T) {
 	m := defaultTestModel(t.TempDir())
-	TeaUpdate(m, tea.WindowSizeMsg{Width: 80, Height: 24})
-	view := m.introduceModalRender()
-	require.LessOrEqual(t, lipgloss.Width(view), 80)
-	require.LessOrEqual(t, lipgloss.Height(view), 24)
-	require.Contains(t, view, "continue")
+	for _, size := range [][2]int{{80, 24}, {132, 40}, {180, 50}} {
+		TeaUpdate(m, tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+		view := m.introduceModalRender()
+		require.LessOrEqual(t, lipgloss.Width(view), 60, "welcome box should fit its text, not the terminal")
+		require.LessOrEqual(t, lipgloss.Height(view), 20)
+		require.Contains(t, view, "Inspired by github.com/yorukot/superfile.")
+		require.NotContains(t, view, "Built from")
+		require.Contains(t, view, "continue")
+	}
 }

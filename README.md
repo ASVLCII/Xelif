@@ -1,6 +1,6 @@
 # Xelif
 
-A terminal file manager with mouse and keyboard access. Built on [superfile](https://github.com/yorukot/superfile), developed by [ASVLCII](https://github.com/ASVLCII).
+A terminal file manager with mouse and keyboard access. Inspired by [superfile](https://github.com/yorukot/superfile), developed by [ASVLCII](https://github.com/ASVLCII).
 
 [Demo](#demo) · [Install](#install) · [Build](#build-from-source) · [Controls](#getting-around) · [Feature guide](website/src/content/docs/features.md) · [Verification](docs/completion-audit.md)
 
