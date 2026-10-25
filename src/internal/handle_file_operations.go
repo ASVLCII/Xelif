@@ -50,6 +50,8 @@ func (m *model) runFileProcessor(processor processbar.FileListProcessor,
 	return finalizer(result.State, reqID)
 }
 
+const fileProcessorLockPollInterval = 10 * time.Millisecond
+
 // A file-error dialog holds this lock until the event loop dismisses it.
 // Shutdown joins workers without dispatching more dialogs, so queued workers
 // must stop waiting rather than deadlocking the event loop during exit.
@@ -59,7 +61,7 @@ func (m *model) lockFileProcessor() bool {
 		return false
 	}
 	if !m.mutexErrorModal.TryLock() {
-		ticker := time.NewTicker(10 * time.Millisecond)
+		ticker := time.NewTicker(fileProcessorLockPollInterval)
 		defer ticker.Stop()
 		for {
 			select {
