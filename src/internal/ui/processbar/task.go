@@ -159,6 +159,15 @@ func (m *Model) WaitWorkers() {
 	}
 }
 
+// LifetimeContext stops finite workers even when they are queued behind a UI
+// resource rather than performing cancellable filesystem work.
+func (m *Model) LifetimeContext() context.Context {
+	if m.bus == nil {
+		return context.Background()
+	}
+	return m.bus.lifetime
+}
+
 func (m *Model) FinishTask(p Process, err error) {
 	p.DoneTime = time.Now()
 	p.State = Successful

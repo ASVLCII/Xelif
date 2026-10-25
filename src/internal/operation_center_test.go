@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -18,6 +19,58 @@ import (
 	"github.com/yorukot/superfile/src/internal/ui/processbar"
 	"github.com/yorukot/superfile/src/pkg/utils"
 )
+
+func TestOperationShutdownUnblocksQueuedFileProcessor(t *testing.T) {
+	m := defaultTestModel(t.TempDir())
+	t.Cleanup(m.processBarModel.Shutdown)
+	// A prior file error owns this lock until its dialog is dismissed. A queued
+	// worker must still be able to stop when shutdown no longer dispatches dialogs.
+	m.mutexErrorModal.Lock()
+	defer m.mutexErrorModal.Unlock()
+	m.processBarModel.Shutdown()
+	finished := make(chan processbar.ProcessState, 1)
+	go func() {
+		m.runFileProcessor(func([]string) (processbar.Process, []string) {
+			return processbar.Process{State: processbar.Successful}, nil
+		}, func(state processbar.ProcessState, _ int) tea.Msg {
+			finished <- state
+			return nil
+		}, nil, 1)
+	}()
+	select {
+	case state := <-finished:
+		require.Equal(t, processbar.Cancelled, state)
+	case <-time.After(time.Second):
+		t.Fatal("shutdown stranded a queued file processor behind an error dialog")
+	}
+}
+
+func TestOperationShutdownInterruptsQueuedFileProcessor(t *testing.T) {
+	m := defaultTestModel(t.TempDir())
+	t.Cleanup(m.processBarModel.Shutdown)
+	m.mutexErrorModal.Lock()
+	defer m.mutexErrorModal.Unlock()
+	entered, finished := make(chan struct{}), make(chan bool, 1)
+	cmd := m.processBarModel.Run(func() tea.Msg {
+		close(entered)
+		acquired := m.lockFileProcessor()
+		if acquired {
+			m.mutexErrorModal.Unlock()
+		}
+		finished <- acquired
+		return nil
+	})
+	go cmd()
+	<-entered
+	m.processBarModel.Shutdown()
+	select {
+	case acquired := <-finished:
+		require.False(t, acquired, "a queued processor must not start during shutdown")
+	case <-time.After(time.Second):
+		t.Fatal("shutdown did not interrupt the queued worker")
+	}
+	m.processBarModel.WaitWorkers()
+}
 
 func TestOperationCenterDispatchAndInputIsolation(t *testing.T) {
 	m := defaultTestModel(t.TempDir())

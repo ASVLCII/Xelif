@@ -40,7 +40,7 @@ Also includes Git status/actions, tags and collections, metadata preview/restore
 
 ## Install
 
-**Current stable release: `0.1.0`.** Install the published
+**Current stable release: `0.1.1`.** Install the published
 [`@asvlcii/xelif`](https://www.npmjs.com/package/@asvlcii/xelif) package with
 either npm or Bun. Native executables are available for Windows, macOS and Linux
 on x64 and ARM64.

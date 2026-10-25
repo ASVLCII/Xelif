@@ -34,7 +34,9 @@ func (m *model) runFileProcessor(processor processbar.FileListProcessor,
 	reqID int,
 ) tea.Msg {
 	slog.Debug("Lock mutex for modal error window")
-	m.mutexErrorModal.Lock()
+	if !m.lockFileProcessor() {
+		return finalizer(processbar.Cancelled, reqID)
+	}
 	result, toDo := processor(items)
 	if result.State == processbar.Failed && len(toDo) > 0 {
 		// we unlock mutexErrorModal on dispatch SpfErrorModalUpdateMsg
@@ -46,6 +48,39 @@ func (m *model) runFileProcessor(processor processbar.FileListProcessor,
 	slog.Debug("Unlock mutex for modal error window")
 	m.mutexErrorModal.Unlock()
 	return finalizer(result.State, reqID)
+}
+
+// A file-error dialog holds this lock until the event loop dismisses it.
+// Shutdown joins workers without dispatching more dialogs, so queued workers
+// must stop waiting rather than deadlocking the event loop during exit.
+func (m *model) lockFileProcessor() bool {
+	ctx := m.processBarModel.LifetimeContext()
+	if ctx.Err() != nil {
+		return false
+	}
+	if !m.mutexErrorModal.TryLock() {
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return false
+			case <-ticker.C:
+				if m.mutexErrorModal.TryLock() {
+					return m.fileProcessorLockAlive(ctx)
+				}
+			}
+		}
+	}
+	return m.fileProcessorLockAlive(ctx)
+}
+
+func (m *model) fileProcessorLockAlive(ctx context.Context) bool {
+	if ctx.Err() != nil {
+		m.mutexErrorModal.Unlock()
+		return false
+	}
+	return true
 }
 
 func markProcessDone(process processbar.Process, processBarModel *processbar.Model) {

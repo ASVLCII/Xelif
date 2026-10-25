@@ -1,6 +1,6 @@
 {
   "name": "@asvlcii/xelif",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Fast, accessible terminal file manager based on superfile",
   "license": "MIT",
   "repository": {
@@ -27,11 +27,11 @@
     "tag": "latest"
   },
   "optionalDependencies": {
-    "@asvlcii/xelif-darwin-arm64": "0.1.0",
-    "@asvlcii/xelif-darwin-x64": "0.1.0",
-    "@asvlcii/xelif-linux-arm64": "0.1.0",
-    "@asvlcii/xelif-linux-x64": "0.1.0",
-    "@asvlcii/xelif-win32-arm64": "0.1.0",
-    "@asvlcii/xelif-win32-x64": "0.1.0"
+    "@asvlcii/xelif-darwin-arm64": "0.1.1",
+    "@asvlcii/xelif-darwin-x64": "0.1.1",
+    "@asvlcii/xelif-linux-arm64": "0.1.1",
+    "@asvlcii/xelif-linux-x64": "0.1.1",
+    "@asvlcii/xelif-win32-arm64": "0.1.1",
+    "@asvlcii/xelif-win32-x64": "0.1.1"
   }
 }
