@@ -47,8 +47,9 @@ func TestMouseCanChooseSortAndDismissSearch(t *testing.T) {
 	m := defaultTestModel(t.TempDir())
 	m.sortModal.Open(sortmodel.SortByName)
 	x, y := renderedLabelPosition(t, m.sortModal.Render(), "Size")
-	x += m.fullWidth/2 - m.sortModal.Width/2
-	y += m.fullHeight/2 - m.sortModal.Height/2
+	left, top := m.sortMenuPosition()
+	x += left
+	y += top
 	TeaUpdate(m, clickAt(x, y, tea.MouseLeft))
 	assert.False(t, m.sortModal.IsOpen())
 	assert.Equal(t, sortmodel.SortBySize, m.getFocusedFilePanel().SortKind)

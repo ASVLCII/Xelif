@@ -14,7 +14,9 @@ func TestExecuteUndoCompletedJournalIsNilWithoutError(t *testing.T) {
 	original := filepath.Join(directory, "original.txt")
 	moved := filepath.Join(directory, "moved.txt")
 	require.NoError(t, os.WriteFile(moved, []byte("preserved content"), 0600))
-	action := &undoAction{name: "move", moves: []pathMove{{from: original, to: moved}}}
+	m := &model{}
+	m.recordUndo("move", []pathMove{{from: original, to: moved}})
+	action := m.lastUndo
 
 	remaining, err := executeUndo(action)
 

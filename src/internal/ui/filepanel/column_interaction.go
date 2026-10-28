@@ -41,6 +41,14 @@ func (m *Model) SortKindAtContentX(x int) (sortmodel.SortKind, bool) {
 	return 0, false
 }
 
+// ApplySort reorders the visible list immediately, keeping focus on its item.
+func (m *Model) ApplySort(kind sortmodel.SortKind, reversed bool) {
+	focusedPath := m.GetFocusedItem().Location
+	m.SortKind, m.SortReversed = kind, reversed
+	sort.Slice(m.element, getOrderingFunc(m.element, reversed, kind))
+	m.scrollToCursor(m.FindElementIndexByLocation(focusedPath))
+}
+
 func columnSortKind(name string) (sortmodel.SortKind, bool) {
 	switch strings.TrimSpace(name) {
 	case "Name":

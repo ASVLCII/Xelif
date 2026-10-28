@@ -84,6 +84,9 @@ func TestExportReadmeDemo(t *testing.T) {
 		frames = append(frames, readmeDemoFrame{title, m.View().Content, duration})
 	}
 	capture("01 / Browse a workspace", 2400)
+	m.openSortMenu()
+	capture("Sort files / field and direction", 2400)
+	m.sortModal.Close()
 	panel := m.getFocusedFilePanel()
 	for range 4 {
 		panel.ListDown()

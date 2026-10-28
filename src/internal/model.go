@@ -420,6 +420,8 @@ func (m *model) handlePanelLeftClick(mouse tea.Mouse, panelIndex, localX, panelW
 			return m.globalSearchModal.Open(panel.Location)
 		} else if commands {
 			return m.openCommandPalette()
+		} else if panel.SortActionAtContentX(localX - 1) {
+			m.openSortMenu()
 		}
 		return nil
 	}
@@ -439,7 +441,7 @@ func (m *model) handlePanelLeftClick(mouse tea.Mouse, panelIndex, localX, panelW
 		if action, ok := panel.FooterActionAtX(localX); ok {
 			switch action {
 			case filepanel.FooterActionSort:
-				m.sortModal.Open(panel.SortKind)
+				m.openSortMenu()
 			case filepanel.FooterActionMode:
 				panel.ChangeFilePanelMode()
 			}
@@ -1055,7 +1057,8 @@ func (m *model) updateRenderForOverlay(finalRender string) string {
 	}
 
 	if m.sortModal.IsOpen() {
-		return m.centerOverlay(finalRender, m.sortModal.Render(), m.sortModal.Width, m.sortModal.Height)
+		x, y := m.sortMenuPosition()
+		return stringfunction.PlaceOverlay(x, y, m.sortModal.Render(), finalRender)
 	}
 
 	if m.firstUse {

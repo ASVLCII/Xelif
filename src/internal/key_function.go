@@ -136,7 +136,7 @@ func (m *model) mainKey(msg string) tea.Cmd {
 		m.helpMenu.Open()
 
 	case slices.Contains(common.Hotkeys.OpenSortOptionsMenu, msg):
-		m.sortModal.Open(m.getFocusedFilePanel().SortKind)
+		m.openSortMenu()
 
 	case slices.Contains(common.Hotkeys.ToggleReverseSort, msg):
 		m.getFocusedFilePanel().ToggleReverseSort()
@@ -343,6 +343,8 @@ func (m *model) spfErrorModelOpenKey(msg string) tea.Cmd {
 // Handles key inputs inside sort options menu
 func (m *model) sortOptionsKey(msg string) {
 	switch {
+	case msg == "esc":
+		m.sortModal.Close()
 	case slices.Contains(common.Hotkeys.OpenSortOptionsMenu, msg):
 		m.sortModal.Close()
 	case slices.Contains(common.Hotkeys.Quit, msg):

@@ -56,7 +56,12 @@ func (m *Model) renderTopBar(r *rendering.Renderer) {
 	}
 	r.AddLines(line)
 	searchLabel, commandLabel := m.searchActionLabels()
-	r.AddLines(common.FilePanelTopPathStyle.Render(searchLabel + "  " + commandLabel))
+	r.AddLines(
+		common.FilePanelTopPathStyle.Render(
+			searchLabel+"  "+commandLabel+"  ",
+		) + sortmodel.ControlStyle().
+			Render(m.SortActionLabel()),
+	)
 }
 
 func (m *Model) renderSearchBar(r *rendering.Renderer) {

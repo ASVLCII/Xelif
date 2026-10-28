@@ -9,7 +9,6 @@ import (
 
 	"github.com/yorukot/superfile/src/internal/common"
 	"github.com/yorukot/superfile/src/internal/ui/notify"
-	"github.com/yorukot/superfile/src/internal/ui/sortmodel"
 	"github.com/yorukot/superfile/src/internal/ui/spferror"
 	"github.com/yorukot/superfile/src/pkg/utils"
 )
@@ -85,19 +84,19 @@ func (m *model) handleModalMouseClick(mouse tea.Mouse) (tea.Cmd, bool) {
 }
 
 func (m *model) handleSortModalMouseClick(mouse tea.Mouse) (tea.Cmd, bool) {
-	x := mouse.X - (m.fullWidth/common.CenterDivisor - m.sortModal.Width/common.CenterDivisor)
-	y := mouse.Y - (m.fullHeight/common.CenterDivisor - m.sortModal.Height/common.CenterDivisor)
+	left, top := m.sortMenuPosition()
+	x, y := mouse.X-left, mouse.Y-top
 	rendered := m.sortModal.Render()
 	if x < 0 || y < 0 || x >= lipgloss.Width(rendered) || y >= lipgloss.Height(rendered) {
 		m.sortModal.Close()
 		return nil, true
 	}
-	for index, label := range sortmodel.SortOptionsStr {
-		if renderedLabelHit(rendered, label, x, y) {
-			m.sortModal.Cursor = index
-			m.confirmSortOptions()
-			return nil, true
-		}
+	if x == 0 || x == lipgloss.Width(rendered)-1 {
+		return nil, true
+	}
+	if index, ok := m.sortModal.ItemAtRow(y - 1); ok {
+		m.sortModal.Cursor = index
+		m.confirmSortOptions()
 	}
 	return nil, true
 }

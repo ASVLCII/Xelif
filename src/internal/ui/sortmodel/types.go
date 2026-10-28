@@ -12,7 +12,7 @@ const (
 )
 
 var SortOptionsStr = []string{ //nolint: gochecknoglobals // Effectively const
-	"Name", "Size", "Date Modified", "Type", "Natural",
+	"Name", "Date modified", "Type", "Size", "Natural", "Ascending", "Descending",
 }
 
 var SortOptionsShortStr = []string{ //nolint: gochecknoglobals // Effectively const
@@ -26,5 +26,16 @@ type Model struct {
 	open   bool
 
 	// Cursor has meaning only during open state, its lost on close
-	Cursor int
+	Cursor       int
+	SelectedKind SortKind
+	Reversed     bool
+}
+
+//nolint:gochecknoglobals // Static display order; persisted enums stay unchanged.
+var menuKinds = [...]SortKind{
+	SortByName,
+	SortByDate,
+	SortByType,
+	SortBySize,
+	SortByNatural,
 }

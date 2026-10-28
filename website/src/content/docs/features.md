@@ -18,6 +18,7 @@ Xelif defaults to the customizable `monochrome` theme with neutral selection and
 | --- | --- | --- |
 | Open and navigate | Double-click an item; click a breadcrumb, sidebar folder, or tab | Enter, parent-directory and history bindings; panel/tab navigation bindings |
 | Search and discover actions | Click Search or Commands (Find/Menu in narrow panels) | `ctrl+g` or `ctrl+shift+p` |
+| Sort files | Click Sort beside Search and Commands; choose a field or Ascending/Descending | Existing sort-menu binding; Up/Down, Enter, Escape |
 | Select several items | Ctrl-click toggles an item; Shift-click selects a range from the anchor | Selection mode, select/range/invert bindings |
 | Browse results and commands | Mouse wheel; click a result or command; click outside to dismiss | Up/Down, Page Up/Page Down, Enter, Escape |
 | Manage tabs and file actions | Click `[+]`/`[-]`; right-click an item; click a sort column or confirmation button | New/close tab bindings; `shift+f10` opens the same context menu; sort and action bindings |

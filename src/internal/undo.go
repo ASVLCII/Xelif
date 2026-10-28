@@ -16,8 +16,10 @@ type pathMove struct {
 }
 
 type undoAction struct {
-	name  string
-	moves []pathMove
+	name        string
+	moves       []pathMove
+	identities  []os.FileInfo
+	snapshotErr error
 }
 
 func (m *model) recordUndo(name string, moves []pathMove) {
@@ -27,7 +29,22 @@ func (m *model) recordUndo(name string, moves []pathMove) {
 	}
 
 	copiedMoves := append([]pathMove(nil), moves...)
-	m.lastUndo = &undoAction{name: name, moves: copiedMoves}
+	action := &undoAction{name: name, moves: copiedMoves}
+	for _, move := range copiedMoves {
+		info, err := os.Lstat(move.to)
+		if err != nil {
+			action.snapshotErr = fmt.Errorf("capture moved item for undo: %w", err)
+			break
+		}
+		// Windows FileInfo loads its file ID lazily; freeze it while this
+		// path still names the item being entered into the journal.
+		if !os.SameFile(info, info) {
+			action.snapshotErr = errors.New("could not capture moved item identity for undo")
+			break
+		}
+		action.identities = append(action.identities, info)
+	}
+	m.lastUndo = action
 }
 
 func (m *model) undoLastFileOperation() error {
@@ -54,10 +71,16 @@ func executeUndo(action *undoAction) (*undoAction, error) {
 	if remaining == nil {
 		return nil, errors.New("nothing to undo")
 	}
+	if remaining.snapshotErr != nil {
+		return remaining, fmt.Errorf("cannot undo %s: %w", remaining.name, remaining.snapshotErr)
+	}
+	if len(remaining.identities) != len(remaining.moves) {
+		return remaining, fmt.Errorf("cannot undo %s: journal is missing filesystem identities", remaining.name)
+	}
 
-	for _, move := range remaining.moves {
-		if _, err := os.Lstat(move.to); err != nil {
-			return remaining, fmt.Errorf("cannot undo %s: moved item is unavailable: %w", remaining.name, err)
+	for index, move := range remaining.moves {
+		if err := validateUndoItem(move, remaining.identities[index]); err != nil {
+			return remaining, fmt.Errorf("cannot undo %s: %w", remaining.name, err)
 		}
 		if _, err := os.Lstat(move.from); err == nil {
 			if !sameFileIdentity(move.from, move.to) {
@@ -74,6 +97,9 @@ func executeUndo(action *undoAction) (*undoAction, error) {
 
 	for i := len(remaining.moves) - 1; i >= 0; i-- {
 		move := remaining.moves[i]
+		if err := validateUndoItem(move, remaining.identities[i]); err != nil {
+			return remaining, fmt.Errorf("cannot undo %s: %w", remaining.name, err)
+		}
 		var err error
 		if sameFileIdentity(move.from, move.to) {
 			err = os.Rename(move.to, move.from)
@@ -84,9 +110,21 @@ func executeUndo(action *undoAction) (*undoAction, error) {
 			return remaining, fmt.Errorf("cannot undo %s: %w", remaining.name, err)
 		}
 		remaining.moves = remaining.moves[:i]
+		remaining.identities = remaining.identities[:i]
 	}
 
 	return nil, nil //nolint:nilnil // Successful undo has no remaining journal; nil is the completed state.
+}
+
+func validateUndoItem(move pathMove, expected os.FileInfo) error {
+	current, err := os.Lstat(move.to)
+	if err != nil {
+		return fmt.Errorf("moved item is unavailable: %w", err)
+	}
+	if expected == nil || !os.SameFile(expected, current) {
+		return fmt.Errorf("moved item changed since the undo journal was recorded: %s", move.to)
+	}
+	return nil
 }
 
 func cloneUndoAction(action *undoAction) *undoAction {
@@ -94,8 +132,10 @@ func cloneUndoAction(action *undoAction) *undoAction {
 		return nil
 	}
 	return &undoAction{
-		name:  action.name,
-		moves: append([]pathMove(nil), action.moves...),
+		name:        action.name,
+		moves:       append([]pathMove(nil), action.moves...),
+		identities:  append([]os.FileInfo(nil), action.identities...),
+		snapshotErr: action.snapshotErr,
 	}
 }
 

@@ -172,7 +172,7 @@ func (m *model) confirmRename() {
 
 func (m *model) confirmSortOptions() {
 	panel := m.getFocusedFilePanel()
-	panel.SortKind = m.sortModal.GetSelectedKind()
+	panel.ApplySort(m.sortModal.GetSelectedKind(), m.sortModal.GetSelectedReversed())
 	m.sortModal.Close()
 }
 

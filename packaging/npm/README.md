@@ -4,7 +4,11 @@ A mouse- and keyboard-accessible terminal file manager based on
 [superfile](https://github.com/yorukot/superfile), developed by
 [ASVLCII](https://github.com/ASVLCII/Xelif).
 
-Install the stable `0.1.1` release with either npm or Bun:
+This archive contains Xelif `0.1.2` — Sort button. Native downloads are available
+from [GitHub Releases](https://github.com/ASVLCII/Xelif/releases/tag/v0.1.2).
+
+The public npm `latest` version is currently `0.1.0`; the commands below install
+that published version, which does not include the new Sort button:
 
 ```sh
 npm install -g @asvlcii/xelif@latest
