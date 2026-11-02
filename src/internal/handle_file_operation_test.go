@@ -192,10 +192,10 @@ func TestCompressSelectedFiles(t *testing.T) {
 			p := NewTestTeaProgWithEventLoop(t, m, observer)
 			compressStarted, extractStarted := false, false
 			t.Cleanup(func() {
-				if compressStarted && !compressed.wait(t, "compress") {
+				if compressStarted && !waitArchiveWithDiagnostics(t, p, compressed, "compress") {
 					return
 				}
-				if extractStarted && !extracted.wait(t, "extract") {
+				if extractStarted && !waitArchiveWithDiagnostics(t, p, extracted, "extract") {
 					return
 				}
 				p.Close()
@@ -207,7 +207,7 @@ func TestCompressSelectedFiles(t *testing.T) {
 			compressStarted = true
 			p.SendKey(common.Hotkeys.CompressFile[0])
 			// The final command message follows deferred ZIP writer/file closes.
-			require.True(t, compressed.wait(t, "compress"))
+			require.True(t, waitArchiveWithDiagnostics(t, p, compressed, "compress"))
 			// The filter observes command completion before model.Update applies
 			// its forced refresh. Rendezvous with the next event before reading UI state.
 			p.Send(nil)
@@ -228,7 +228,7 @@ func TestCompressSelectedFiles(t *testing.T) {
 
 			extractStarted = true
 			p.SendKey(common.Hotkeys.ExtractFile[0])
-			require.True(t, extracted.wait(t, "extract"))
+			require.True(t, waitArchiveWithDiagnostics(t, p, extracted, "extract"))
 			p.Send(nil)
 			require.Equal(t, processbar.Successful, extracted.state)
 			for _, name := range tt.expectedFilesAfterExtract {

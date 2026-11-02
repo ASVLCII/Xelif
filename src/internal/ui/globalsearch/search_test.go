@@ -16,7 +16,7 @@ import (
 func TestParseEverythingCSV(t *testing.T) {
 	t.Parallel()
 
-	input := strings.NewReader("\"C:\\Docs\\report, final.txt\",A\r\n\"C:\\Projects\",D\r\n")
+	input := strings.NewReader("\"C:\\Docs\\report, final.txt\",32\r\n\"C:\\Projects\",16\r\n")
 
 	results, err := parseEverythingCSV(input, 10)
 
@@ -98,6 +98,7 @@ func TestBuildEverythingArgsUsesBoundedLiteralRegex(t *testing.T) {
 		"-attributes",
 		"-csv",
 		"-no-header",
+		"-code-page", "65001",
 		"-timeout", "400",
 	}
 	if !reflect.DeepEqual(want, args) {
@@ -111,7 +112,7 @@ func TestSearchEverythingReturnsParsedResults(t *testing.T) {
 	runner := func(_ context.Context, executable string, args ...string) ([]byte, error) {
 		assert.Equal(t, `C:\Tools\es.exe`, executable)
 		assert.Equal(t, buildEverythingArgs("report", 10), args)
-		return []byte("\"C:\\Docs\\report.txt\",A\r\n\"C:\\Reports\",D\r\n"), nil
+		return []byte("\"C:\\Docs\\report.txt\",32\r\n\"C:\\Reports\",16\r\n"), nil
 	}
 
 	results, err := searchEverything(
@@ -129,7 +130,7 @@ func TestSearchFuncUsesEverythingWhenAvailable(t *testing.T) {
 	t.Parallel()
 
 	runner := func(_ context.Context, _ string, _ ...string) ([]byte, error) {
-		return []byte("\"C:\\Docs\\report.txt\",A\r\n"), nil
+		return []byte("\"C:\\Docs\\report.txt\",32\r\n"), nil
 	}
 	search := newSearchFunc(`C:\Tools\es.exe`, runner)
 

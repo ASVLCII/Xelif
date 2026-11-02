@@ -58,6 +58,14 @@ that loses correctness during warmup or measurement fails the test and leaves
 a comparison against Everything. A successful test alone does not establish
 that multiple providers were measured: inspect `Status` and `ComparisonValid`.
 
+The CLI adapter requests UTF-8 explicitly with `-code-page 65001` and reads
+decimal Win32 attribute masks from CSV (directory bit `0x10`). Human-readable
+attribute letters are not the CSV protocol. Fixtures for that parser must use
+real numeric masks and include Unicode output; an ASCII-file-only check can miss
+both directory misclassification and code-page corruption. See the
+[official CLI source](https://github.com/voidtools/ES/blob/1.1.0.38/src/es.c) for
+`_es_output_cell_attribute_property` and its `code-page` option handling.
+
 The first invocation is recorded separately before readiness. It may reflect
 index lag and is excluded from all distributions; it is not a cold-cache claim.
 Corpus generation, manifest construction, readiness, and validation are outside

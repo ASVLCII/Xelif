@@ -346,3 +346,90 @@ provided a bounded max-reasoning proposal, corrected and tested by the parent.
 
 This follow-up repairs the observed hosted failures; the next exact-revision
 workflow results remain the acceptance evidence, not the existence of these fixes.
+
+## Hosted verification and live Everything follow-up (2026-11-02)
+
+Checkpoint `1b66594b087fbd22be49fa4fbe1cb0f2f8770b64` passed the complete
+[native Go workflow](https://github.com/ASVLCII/Xelif/actions/runs/41430205914)
+on Windows, macOS and Linux, including race checks and strict lint where enabled.
+Its [six-target npm/Bun installation checks](https://github.com/ASVLCII/Xelif/actions/runs/41430206125),
+[NOTICE check](https://github.com/ASVLCII/Xelif/actions/runs/41430205973),
+module check and Python workflow also passed. Nothing was published to npm and
+the installed executable was not replaced.
+
+After the user opened Everything, retained 10,000-file fixtures passed exact-set
+native IPC checks, including Unicode and cancellation. An independent signed
+official ES 1.1.0.38 client querying Everything 1.4.1.1030 exposed two real CLI
+fallback defects: exported attributes are decimal Win32 masks rather than letter
+flags, and piped output inherited a non-UTF-8 code page. The follow-up explicitly
+requests code page 65001, parses numeric directory bits, and rejects malformed
+CSV/attributes, invalid UTF-8 and NUL paths. Earlier mocks now use actual CSV
+attribute representations instead of inventing a legacy protocol.
+
+A live first-page model test also exposed a valid punctuation query exceeding
+the 500 ms transport-attempt budget. Each attempt now has 750 ms; the two-second
+overall search deadline and immediate supersession cancellation remain intact.
+Two attempts retain 500 ms of overall deadline margin. This intentionally waits
+longer before declaring a genuinely unresponsive transport unavailable; it does
+not delay successful responses.
+
+The retained evidence-only overlay test then passed seven query types with 30
+measured observations each, using the real 100-result page cap. It includes
+OpenQuery, the 75 ms debounce, provider dispatch, response application and modal
+rendering, but not Bubble Tea queue scheduling or physical terminal painting.
+The independent CLI passed all seven full-set correctness preflights. Failed
+readiness, harness and 500 ms pipeline runs remain preserved separately under
+`X:\Xelif-work\daily-driver-20261101`; they are not counted as passes.
+
+Observed model-pipeline medians were 291–392 ms versus 205–338 ms for equivalent
+direct IPC pages. Adjacent-pair overhead p95 estimates were 94–180 ms across
+queries, **exceeding the 150 ms target for punctuation and Unicode**. Thirty
+observations do not establish a stable population tail or physical input latency.
+The search performance gate remains open; do not substitute a difference between
+two independent p95 values for the p95 of observed paired differences.
+
+The exact-checkpoint panel comparison preserved equal ordered fixture identities.
+Navigation/render medians were 0.933 ms for this checkpoint, 0.912 ms for old
+Xelif `4e61438a`, and 1.806 ms for the preserved Superfile v1.6.0 baseline. These
+are internal panel timings, not whole-application or current-upstream claims.
+The current forced-reload median was 1.431 ms, but one sample mean reached
+11.164 ms versus 2.314 ms for old Xelif. Other variants also slowed in nearby
+rounds; background interference is only a hypothesis, not a resolved regression.
+No sample was dropped. Desktop platform acceptance, rich-font verification,
+the full resource-cycle matrix and five user daily-use sessions remain open.
+
+Follow-up verification is deliberately separate from the green hosted
+checkpoint above. Search-package native race tests passed three repetitions;
+`go vet ./...` passed. Initial broad local runs failed archive-completion waits,
+and one timed out while creating filesystem fixtures. The complete application
+package then passed with verbose tracing, but quiet archive repetitions still
+exposed intermittent failures. Failure-only model/task diagnostics now capture
+future timeouts without increasing deadlines or changing application behavior.
+Twenty-five instrumented quiet repetitions passed, including five alongside
+bounded fixture-creation I/O. This is not a demonstrated root-cause fix.
+
+Several quiet lint invocations stalled, including a fresh-cache and a scoped
+probe; they were stopped and are not passes. A full invocation with
+`GL_DEBUG=linters_output` completed with **zero findings and exit code 0**, using
+the same 78 linters and unchanged exclusions. This diagnostic mode exposes
+linter output rather than weakening checks; the underlying stall remains
+unexplained. Final combined checks must still be run after any further edits.
+
+The user confirmed only Windows desktop access is currently available.
+macOS/Linux desktop acceptance therefore requires external native testers;
+hosted CI success does not close that gate or justify claiming equal visual
+polish has been verified.
+
+The final sequential, non-short Go invocation completed successfully with exit
+code 0 (`search-followup-full-final.txt`), including the quiet application
+package in 132.463 seconds. Its earlier failures remain part of the record;
+this successful run is not proof that the intermittent archive timing issue
+has been eliminated. No operation/test deadlines were increased to obtain it.
+Final archive/test-harness and search regressions also passed three native
+Windows race repetitions (`search-followup-race-final.txt`).
+The final full strict lint invocation also passed with zero findings and exit
+code 0 (`search-followup-lint-final.txt`), with diagnostic output visible and
+all 78 configured linters retained. The 25 quiet instrumented archive repetitions
+are recorded separately from the final full-suite and race runs. Earlier failures
+remain an open stability investigation, not an assertion that the diagnostic
+helper repaired them.

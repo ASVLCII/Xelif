@@ -53,6 +53,30 @@ func TestCallerDeadlineDoesNotRunFallback(t *testing.T) {
 	require.False(t, called)
 }
 
+func TestEverythingAttemptBudgetsAllowObservedQueryLatency(t *testing.T) {
+	t.Parallel()
+	checkBudget := func(ctx context.Context) {
+		t.Helper()
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok)
+		remaining := time.Until(deadline)
+		require.Greater(t, remaining, 600*time.Millisecond)
+		require.LessOrEqual(t, remaining, everythingAttemptTimeout)
+	}
+	direct := withDirectEverything(func(ctx context.Context, _ string, _ int) ([]Result, error) {
+		checkBudget(ctx)
+		return []Result{}, nil
+	}, nil)
+	cli := newSearchFunc("es.exe", func(ctx context.Context, _ string, _ ...string) ([]byte, error) {
+		checkBudget(ctx)
+		return nil, nil
+	})
+	for _, search := range []SearchFunc{direct, cli} {
+		require.NoError(t, search(context.Background(), "literal(name)", t.TempDir(), 10).Err)
+	}
+	require.Less(t, 2*everythingAttemptTimeout, searchTimeout)
+}
+
 func TestDirectAttemptDeadlineFallsBackWhenCallerIsAlive(t *testing.T) {
 	t.Parallel()
 	search := withDirectEverything(func(context.Context, string, int) ([]Result, error) {
@@ -82,7 +106,7 @@ func TestKilledCLIReportsCallerCancellation(t *testing.T) {
 
 func TestEverythingCSVHonorsClientResultCap(t *testing.T) {
 	t.Parallel()
-	results, err := parseEverythingCSV(strings.NewReader("one,A\ntwo,A\nthree,A\n"), 2)
+	results, err := parseEverythingCSV(strings.NewReader("one,32\ntwo,32\nthree,32\n"), 2)
 	require.NoError(t, err)
 	require.Equal(t, []Result{{Path: "one"}, {Path: "two"}}, results)
 	require.Equal(t, defaultResultLimit, boundedEverythingLimit(0))
@@ -96,7 +120,7 @@ func TestEverythingResultCapIsVisibleForBothProviders(t *testing.T) {
 		return []Result{{Path: "one"}, {Path: "two"}}, nil
 	}, nil)
 	cli := newSearchFunc("es.exe", func(context.Context, string, ...string) ([]byte, error) {
-		return []byte("one,A\ntwo,A\n"), nil
+		return []byte("one,32\ntwo,32\n"), nil
 	})
 	for _, search := range []SearchFunc{direct, cli} {
 		response := search(context.Background(), "one", t.TempDir(), 1)

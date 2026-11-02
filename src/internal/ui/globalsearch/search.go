@@ -10,12 +10,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const localVisitLimit = 50_000
 
-// Bound optional Windows transport attempts without changing the chosen scope.
-const everythingAttemptTimeout = 500 * time.Millisecond
+// Live punctuation queries and the optional CLI can exceed 500 ms on a loaded
+// index. Two bounded attempts still leave 500 ms inside the overall deadline.
+const everythingAttemptTimeout = 750 * time.Millisecond
 
 var errSearchLimitReached = errors.New("search limit reached")
 
@@ -118,6 +120,7 @@ func buildEverythingArgs(query string, limit int) []string {
 		"-attributes",
 		"-csv",
 		"-no-header",
+		"-code-page", "65001",
 		"-timeout", "400",
 	}
 }
@@ -178,14 +181,27 @@ func parseEverythingCSV(input io.Reader, limit int) ([]Result, error) {
 			continue
 		}
 
-		attributes := ""
-		if len(record) > 1 {
-			attributes = strings.ToUpper(record[1])
+		if len(record) != 2 || !utf8.ValidString(record[0]) || strings.ContainsRune(record[0], '\x00') {
+			return nil, errors.New("invalid Everything CSV result")
+		}
+		directory, attrErr := everythingCSVDirectory(record[1])
+		if attrErr != nil {
+			return nil, attrErr
 		}
 		results = append(results, Result{
 			Path:      record[0],
-			Directory: strings.Contains(attributes, "D"),
+			Directory: directory,
 		})
 	}
 	return results, nil
+}
+
+func everythingCSVDirectory(attributes string) (bool, error) {
+	// ES exports a decimal Win32 attribute mask in CSV, not its human-readable
+	// display flags. Reject malformed output rather than guessing a file type.
+	mask, err := strconv.ParseUint(attributes, 10, 32)
+	if err != nil {
+		return false, errors.New("invalid Everything file attributes")
+	}
+	return mask&0x10 != 0, nil // FILE_ATTRIBUTE_DIRECTORY
 }
