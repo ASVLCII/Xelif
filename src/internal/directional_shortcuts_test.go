@@ -98,8 +98,8 @@ func TestDirectionalArrowsDoNotStealTextEditing(t *testing.T) {
 }
 
 func TestDirectionalWorkspaceCustomFolderBindingKeepsPrecedence(t *testing.T) {
-	previous := common.Hotkeys
-	t.Cleanup(func() { common.Hotkeys = previous })
+	previous := common.Hotkeys.PreviousFileTab
+	t.Cleanup(func() { common.Hotkeys.PreviousFileTab = previous })
 	common.Hotkeys.PreviousFileTab = []string{"ctrl+left"}
 	m := dailyDriverTestModel(t.TempDir())
 	_ = m.newWorkspace(t.TempDir())

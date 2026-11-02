@@ -46,20 +46,10 @@ func (m *model) mainKey(msg string) tea.Cmd {
 		m.getFocusedFilePanel().ChangeFilePanelMode()
 
 	case slices.Contains(common.Hotkeys.NextFilePanel, msg):
-		if len(m.workspaces) > 0 && msg == "shift+right" {
-			return m.moveBrowserFocus(1)
-		}
-		if m.focusPanel == nonePanelFocus {
-			m.fileModel.NextFilePanel()
-		}
+		return m.navigateFilePanel(msg, 1)
 
 	case slices.Contains(common.Hotkeys.PreviousFilePanel, msg):
-		if len(m.workspaces) > 0 && msg == "shift+left" {
-			return m.moveBrowserFocus(-1)
-		}
-		if m.focusPanel == nonePanelFocus {
-			m.fileModel.PreviousFilePanel()
-		}
+		return m.navigateFilePanel(msg, -1)
 
 	case slices.Contains(common.Hotkeys.CloseFilePanel, msg):
 		cmd, err := m.fileModel.CloseFilePanel()

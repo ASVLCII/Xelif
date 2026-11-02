@@ -8,6 +8,24 @@ import (
 	"github.com/yorukot/superfile/src/internal/common"
 )
 
+func (m *model) navigateFilePanel(msg string, delta int) tea.Cmd {
+	arrow := "shift+right"
+	if delta < 0 {
+		arrow = "shift+left"
+	}
+	if len(m.workspaces) > 0 && msg == arrow {
+		return m.moveBrowserFocus(delta)
+	}
+	if m.focusPanel == nonePanelFocus {
+		if delta > 0 {
+			m.fileModel.NextFilePanel()
+		} else {
+			m.fileModel.PreviousFilePanel()
+		}
+	}
+	return nil
+}
+
 // Move through the visible browser zones in screen order. Unlike Tab's legacy
 // file-panel cycling, directional arrows stop at the outside edges.
 func (m *model) moveBrowserFocus(delta int) tea.Cmd {
@@ -20,7 +38,7 @@ func (m *model) moveBrowserFocus(delta int) tea.Cmd {
 		index = 0
 	case nonePanelFocus:
 		index += delta
-	default:
+	case processBarFocus, metadataFocus:
 		return nil
 	}
 	if index < 0 {
