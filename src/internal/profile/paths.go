@@ -127,7 +127,7 @@ func normalizePaths(paths Paths) (Paths, error) {
 		if err != nil {
 			return Paths{}, fmt.Errorf("resolve profile root: %w", err)
 		}
-		*root = filepath.Clean(absolute)
+		*root = canonicalProfilePath(filepath.Clean(absolute))
 	}
 	if paths.ConfigFile == "" {
 		paths.ConfigFile = filepath.Join(paths.ConfigDir, "config.toml")
@@ -140,7 +140,14 @@ func normalizePaths(paths Paths) (Paths, error) {
 		if err != nil {
 			return Paths{}, fmt.Errorf("resolve profile file: %w", err)
 		}
-		*file = filepath.Clean(absolute)
+		*file = canonicalProfilePath(filepath.Clean(absolute))
+	}
+	if paths.CacheDir != "" {
+		absolute, err := filepath.Abs(paths.CacheDir)
+		if err != nil {
+			return Paths{}, fmt.Errorf("resolve profile cache: %w", err)
+		}
+		paths.CacheDir = canonicalProfilePath(filepath.Clean(absolute))
 	}
 	return paths, nil
 }

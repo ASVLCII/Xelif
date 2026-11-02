@@ -405,7 +405,8 @@ func RecoverImport(destination Paths) (ImportResult, error) {
 			"incomplete or unsupported import journal preserved in backup directory; no files activated",
 		)
 	}
-	if journal.Destination != destination {
+	journalDestination, normalizeErr := normalizePaths(journal.Destination)
+	if normalizeErr != nil || journalDestination != destination {
 		return result, errors.New("import belongs to a different destination profile")
 	}
 	return applyImport(destination, dir, journal, result)

@@ -304,3 +304,45 @@ The confirmation correctly accepted Escape, but its hint still advertised the
 quit binding. The source now advertises the cancel binding; a renderer/mouse
 regression verifies it (`dialog-hint-final.txt`). The recorded Terminal binary
 predates this display-only hint change; it is not a frozen release artifact.
+
+## First hosted checkpoint and portability follow-up
+
+Source checkpoint `7a6484338c44597af15f40c90b7127e3f5ec1cf8` was pushed normally
+to `main` with the confirmed ASVLCII author/committer identity. The checkout was
+clean, and a separate build reported that exact revision with `vcs.modified=false`.
+The installed command was not replaced.
+
+The [six-target package workflow](https://github.com/ASVLCII/Xelif/actions/runs/41426633671)
+passed native npm **and** Bun tarball-install smoke checks on Windows, macOS and
+Linux, each on x64 and ARM64. The [Python integration workflow](https://github.com/ASVLCII/Xelif/actions/runs/41426633772)
+and [module-tidy workflow](https://github.com/ASVLCII/Xelif/actions/runs/41426633736)
+also passed. These checks do not publish registry packages or prove desktop UI
+acceptance.
+
+The [first native Go workflow](https://github.com/ASVLCII/Xelif/actions/runs/41426633666)
+**failed**, and must not be described as green:
+
+- macOS profile checks rejected the system `/var` alias. Profile paths now
+  canonicalize only exact standard macOS `/var`, `/tmp` and `/etc` mappings into
+  `/private`; arbitrary profile links remain refused. Journal destinations use
+  the same canonical identity, and alias-based overlap remains blocked.
+- An isolated sidebar fixture supplied confirm/quit but omitted the cancel
+  binding required by the corrected renderer hint. The fixture now supplies its
+  intended Escape binding; no application keymap was reverted.
+- Windows prompt execution exceeded its existing shell deadlines on the hosted
+  image. A non-mutating Windows PowerShell warmup now precedes the suite. Local
+  prompt tests passed three race repetitions; production behavior, test
+  assertions and deadlines were not relaxed. Hosted verification is still needed.
+
+The [NOTICE workflow](https://github.com/ASVLCII/Xelif/actions/runs/41426633720)
+also found a stale inventory. It is regenerated with fsnotify attribution and
+the correct x/sync package grouping. The local extractor fork reports its
+declared upstream base as locally patched and links its retained license, rather
+than publishing `Unknown` metadata. Metadata URL separators are normalized for
+Windows generation without rewriting fenced legal text. Parser/normalization
+tests and affected profile/sidebar/script race tests pass locally; the strict
+linter remains unchanged and passes (`strict-lint-portability.txt`). Nexus
+provided a bounded max-reasoning proposal, corrected and tested by the parent.
+
+This follow-up repairs the observed hosted failures; the next exact-revision
+workflow results remain the acceptance evidence, not the existence of these fixes.

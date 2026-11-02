@@ -15,6 +15,7 @@ const maxProfileFileBytes = 8 << 20
 // Refuse symlinks both at the leaf and in existing parent directories. Import
 // must not write through a profile junction into a source or unrelated folder.
 func safePath(path string) error {
+	path = canonicalProfilePath(path)
 	for current := filepath.Clean(path); ; current = filepath.Dir(current) {
 		info, err := os.Lstat(current)
 		if err == nil && info.Mode()&os.ModeSymlink != 0 {

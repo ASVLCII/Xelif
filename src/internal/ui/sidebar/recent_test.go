@@ -128,6 +128,7 @@ func TestRecentAndFavoritesSectionsRender(t *testing.T) {
 	originalNone := common.SideBarNoneText
 	originalHotkeys := common.Hotkeys
 	common.Hotkeys.ConfirmTyping = []string{"enter"}
+	common.Hotkeys.CancelTyping = []string{"esc"}
 	common.Hotkeys.Quit = []string{"q"}
 	common.LoadPrerenderedVariables()
 	t.Cleanup(func() {

@@ -53,6 +53,14 @@ jobs:
         env:
           GOMODCACHE: ${{ runner.temp }}/gomodcache
 
+      - name: Warm Windows shell runtime
+        if: runner.os == 'Windows'
+        timeout-minutes: 2
+        # The prompt suite deliberately retains short command deadlines. Prime
+        # Windows PowerShell/.NET startup before exercising those deadlines on
+        # a cold hosted image; do not relax assertions or change user shells.
+        run: powershell.exe -NoLogo -NonInteractive -Command "Write-Output 'Xelif shell runtime ready'"
+
       - name: Test
         # Shell-startup tests have strict deadlines; avoid competing packages
         # spawning PowerShell at once on shared Windows runners.
