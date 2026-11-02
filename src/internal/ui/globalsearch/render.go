@@ -2,6 +2,7 @@ package globalsearch
 
 import (
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/yorukot/superfile/src/config/icon"
@@ -12,7 +13,7 @@ import (
 )
 
 const (
-	renderOverhead   = 6
+	renderOverhead   = 7
 	horizontalMargin = 4
 )
 
@@ -30,7 +31,10 @@ func (m *Model) Render() string {
 
 	switch {
 	case m.savedResults == nil && strings.TrimSpace(m.textInput.Value()) == "":
-		renderer.AddLines(" "+i18n.T("type_to_search"), " "+i18n.T("search_filters"))
+		renderer.AddLines(" " + i18n.T("type_to_search"))
+		if m.visibleResultCount() > 1 {
+			renderer.AddLines(" " + i18n.T("search_filters"))
+		}
 	case m.loading && len(m.results) == 0:
 		renderer.AddLines(" " + i18n.T("searching"))
 	case m.errText != "":
@@ -41,10 +45,36 @@ func (m *Model) Render() string {
 		m.renderResults(renderer)
 	}
 
-	if m.notice != "" {
+	switch {
+	case m.savedResults == nil:
+		renderer.AddSection()
+		identity, _ := providerDescription(runtime.GOOS, m.GetScope())
+		provider := m.provider
+		if provider == "" {
+			provider = identity.Name
+		}
+		scope := "indexed: system index"
+		hint := "Ctrl+S: folder · Enter: reveal"
+		if m.GetScope() == ScopeFolder {
+			scope = "folder: " + common.MakePrintableWithEscCheck(m.root, false)
+			hint = "Ctrl+S: indexed · Enter: reveal"
+		}
+		status := common.MakePrintableWithEscCheck(provider, false) + " · " + scope
+		renderer.AddLines(" " + common.TruncateText(status, m.width-horizontalMargin, "..."))
+		renderer.AddLines(" " + common.TruncateText(hint, m.width-horizontalMargin, "..."))
+		if m.notice != "" && m.maxHeight >= 10 {
+			renderer.AddLines(
+				" " + common.TruncateText(
+					common.MakePrintableWithEscCheck(m.notice, false),
+					m.width-horizontalMargin,
+					"...",
+				),
+			)
+		}
+	case m.notice != "":
 		renderer.AddSection()
 		renderer.AddLines(" " + common.TruncateText(m.notice, m.width-horizontalMargin, "..."))
-	} else if m.partial {
+	case m.partial:
 		renderer.AddSection()
 		renderer.AddLines(" Results truncated")
 	}
@@ -61,7 +91,11 @@ func (m *Model) renderResults(renderer *rendering.Renderer) {
 		if name != "." && name != string(filepath.Separator) {
 			path = filepath.Join(filepath.Dir(result.Path), name)
 		}
-		line := " " + common.TruncateTextBeginning(path, m.width-horizontalMargin, "...")
+		line := " " + common.TruncateTextBeginning(
+			common.MakePrintableWithEscCheck(path, false),
+			m.width-horizontalMargin,
+			"...",
+		)
 		if index == m.cursor {
 			line = common.ModalCursorStyle.Render(line)
 		}
@@ -70,5 +104,11 @@ func (m *Model) renderResults(renderer *rendering.Renderer) {
 }
 
 func (m *Model) visibleResultCount() int {
-	return max(1, m.maxHeight-renderOverhead)
+	overhead := renderOverhead
+	if m.savedResults != nil {
+		overhead = 6
+	} else if m.notice != "" && m.maxHeight >= 10 {
+		overhead++
+	}
+	return max(1, m.maxHeight-overhead)
 }

@@ -26,6 +26,7 @@ const (
 	contextGitDiscard
 	contextSelectRange
 	contextFavourite
+	contextNewWorkspace
 )
 
 var contextMenuItems = []string{ //nolint:gochecknoglobals // Static menu definition.
@@ -35,23 +36,26 @@ var contextMenuItems = []string{ //nolint:gochecknoglobals // Static menu defini
 	"Rename",
 	"Copy path",
 	"Move to trash",
-	"Git diff",
+	gitDiffTitle,
 	"Git stage",
 	"Git unstage",
 	"Git discard",
 	"Select range here",
 	"Toggle favourite",
+	"Open in new workspace",
 }
 
 type contextMenuState struct {
-	open           bool
-	x              int
-	y              int
-	panelIndex     int
-	targetPath     string
-	cursor         int
-	rangeStartPath string
-	sidebarTarget  bool
+	open              bool
+	x                 int
+	y                 int
+	panelIndex        int
+	targetPath        string
+	cursor            int
+	rangeStartPath    string
+	sidebarTarget     bool
+	workspaceTarget   bool
+	workspaceTargetID string
 }
 
 func (m *model) openContextMenu(mouse tea.Mouse, panelIndex int, targetPath string) {
@@ -63,13 +67,37 @@ func (m *model) openContextMenu(mouse tea.Mouse, panelIndex int, targetPath stri
 	m.positionContextMenu(mouse)
 }
 
+// openWorkspaceContextMenu targets a workspace by stable ID without activating it.
+// The parent passes the raw strip click; positionContextMenu accounts for the strip row.
+func (m *model) openWorkspaceContextMenu(mouse tea.Mouse, workspaceID string) {
+	if m.workspaceIndexByID(workspaceID) < 0 {
+		return
+	}
+	m.contextMenu = contextMenuState{open: true, workspaceTarget: true, workspaceTargetID: workspaceID}
+	mouse.Y--
+	m.positionContextMenu(mouse)
+}
+
 func (m *model) positionContextMenu(mouse tea.Mouse) {
+	if len(m.workspaces) > 0 {
+		mouse.Y++
+	}
 	totalWidth, totalHeight := m.contextMenuDimensions()
 	m.contextMenu.x = min(max(mouse.X, 0), max(m.fullWidth-totalWidth, 0))
 	m.contextMenu.y = min(max(mouse.Y, 0), max(m.fullHeight-totalHeight, 0))
 }
 
 func (m *model) contextMenuLabels() []string {
+	if m.contextMenu.workspaceTarget {
+		return []string{
+			"Rename workspace",
+			"Close workspace",
+			"Move left",
+			"Move right",
+			"New workspace",
+			"Reopen closed workspace",
+		}
+	}
 	if m.contextMenu.sidebarTarget {
 		return contextMenuItems[contextFavourite : contextFavourite+1]
 	}
@@ -88,8 +116,10 @@ func (m *model) contextMenuDimensions() (int, int) {
 func (m *model) contextMenuRender() string {
 	labels := m.contextMenuLabels()
 	lines := make([]string, len(labels))
+	width := contextMenuWidth
 	for i, label := range labels {
 		prefix := "  "
+		width = max(width, lipgloss.Width(prefix+label)+common.BorderPadding)
 		style := common.ModalStyle
 		if i == m.contextMenu.cursor {
 			prefix = "> "
@@ -98,7 +128,7 @@ func (m *model) contextMenuRender() string {
 		lines[i] = style.Render(prefix + label)
 	}
 	return common.SortOptionsModalBorderStyle(
-		len(labels), contextMenuWidth, common.Config.BorderBottom,
+		len(labels), width, common.Config.BorderBottom,
 	).Render(strings.Join(lines, "\n"))
 }
 
@@ -153,11 +183,32 @@ func containsKey(keys []string, key string) bool {
 func (m *model) executeContextMenuAction() tea.Cmd {
 	menu := m.contextMenu
 	m.closeContextMenu()
+	if menu.workspaceTarget {
+		return m.executeWorkspaceContextMenu(menu)
+	}
 	if menu.sidebarTarget {
 		m.toggleFavourite(menu.targetPath)
 		return nil
 	}
+	return m.executeFileContextMenu(menu)
+}
 
+func (m *model) executeWorkspaceContextMenu(menu contextMenuState) tea.Cmd {
+	actions := [...]string{
+		workspaceActionRename,
+		workspaceActionClose,
+		workspaceActionLeft,
+		workspaceActionRight,
+		workspaceActionNew,
+		workspaceActionReopen,
+	}
+	if menu.cursor >= 0 && menu.cursor < len(actions) {
+		return m.applyWorkspaceContextCommand(menu.workspaceTargetID, actions[menu.cursor])
+	}
+	return nil
+}
+
+func (m *model) executeFileContextMenu(menu contextMenuState) tea.Cmd {
 	if !m.fileModel.FocusPanel(menu.panelIndex) {
 		m.showUserError("Item is no longer available", errors.New("file panel was closed"))
 		return nil
@@ -171,6 +222,11 @@ func (m *model) executeContextMenuAction() tea.Cmd {
 	m.focusPanel = nonePanelFocus
 
 	switch menu.cursor {
+	case contextNewWorkspace:
+		if panel.GetFocusedItem().Directory {
+			return m.newWorkspace(menu.targetPath)
+		}
+		m.showUserError("Choose a folder", errors.New("only folders can open a new workspace"))
 	case contextFavourite:
 		m.toggleFavourite(menu.targetPath)
 	case contextSelectRange:

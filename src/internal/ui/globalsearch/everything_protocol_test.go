@@ -79,7 +79,7 @@ func TestDirectEverythingDoesNotLaunchFallbackOnSuccessOrCancellation(t *testing
 	}
 }
 
-func TestDirectEverythingFallsBackOnUnavailableAndPreservesFilteredQueries(t *testing.T) {
+func TestDirectEverythingTriesOptionalTransportOnlyForSupportedQuery(t *testing.T) {
 	for _, query := range []string{"report", "report type:file", `content:"needle"`} {
 		fallbackCalled := false
 		search := withDirectEverything(func(context.Context, string, int) ([]Result, error) {
@@ -87,9 +87,13 @@ func TestDirectEverythingFallsBackOnUnavailableAndPreservesFilteredQueries(t *te
 		}, func(_ context.Context, gotQuery, root string, limit int) Response {
 			fallbackCalled = true
 			assert.Equal(t, query, gotQuery)
-			return Response{Provider: ProviderLocal}
+			return Response{Provider: ProviderEverything}
 		})
-		assert.Equal(t, ProviderLocal, search(context.Background(), query, t.TempDir(), 10).Provider)
-		assert.True(t, fallbackCalled)
+		response := search(context.Background(), query, t.TempDir(), 10)
+		assert.Equal(t, ProviderEverything, response.Provider)
+		assert.Equal(t, query == "report", fallbackCalled)
+		if query != "report" {
+			require.ErrorIs(t, response.Err, ErrUnsupportedIndexedQuery)
+		}
 	}
 }

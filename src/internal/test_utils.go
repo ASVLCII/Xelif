@@ -48,9 +48,14 @@ func defaultTestModelWithFilePreview(dirs ...string) *model {
 }
 
 func setModelParamsForTest(m *model, disablePreview bool) *model {
+	// Historical workflow tests use the legacy panel-local geometry. Daily
+	// Driver tests opt into the full workspace shell with dailyDriverTestModel.
+	m.workspaces = nil
 	m.disableMetadata = true
 	if disablePreview {
 		m.fileModel.FilePreview.Close()
+	} else {
+		m.fileModel.FilePreview.SetOpen(true)
 	}
 	// async size updates like preview panel content update
 	// will not be done. Note: This is only for direct usage of 'model'

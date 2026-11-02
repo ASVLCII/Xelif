@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	variable "github.com/yorukot/superfile/src/config"
+	"github.com/yorukot/superfile/src/config/icon"
 	"github.com/yorukot/superfile/src/internal/common"
 	"github.com/yorukot/superfile/src/pkg/utils"
 )
@@ -62,14 +63,26 @@ func TestExportReadmeDemo(t *testing.T) {
 	}
 	original := common.Config
 	t.Cleanup(func() { common.SetConfig(original) })
-	common.Config.SidebarWidth = 20
+	common.Config.SidebarWidth = 24
 	common.Config.SidebarSections = []string{
-		utils.SidebarSectionRecent, utils.SidebarSectionPinned, utils.SidebarSectionDisks,
+		utils.SidebarSectionHome, utils.SidebarSectionPinned, utils.SidebarSectionRecent, utils.SidebarSectionDisks,
 	}
 	common.Config.Nerdfont, common.Config.ColorFileIcons = true, true
+	common.Config.PlainMode = false
+	require.NoError(
+		t,
+		common.PopulateThemeFromFile(filepath.Join("..", "superfile_config", "theme", "monochrome.toml")),
+	)
+	icon.InitIcon(true, common.Theme.DirectoryIconColor)
+	common.LoadThemeConfig()
+	common.LoadPrerenderedVariables()
 	common.Config.FilePanelExtraColumns = 2
 	common.Config.FilePanelNamePercent = 52
 	m := defaultTestModel(root)
+	m.ensureWorkspaces()
+	_ = m.newWorkspace(filepath.Join(root, "Documents"))
+	_ = m.newWorkspace(filepath.Join(root, "Projects"))
+	_ = m.activateWorkspace(0)
 	defer m.fileModel.FilePreview.CleanUp()
 	m.gitClient = nil
 	m.firstUse = false

@@ -23,11 +23,9 @@ import (
 	"github.com/yorukot/superfile/src/internal/ui/filepanel"
 	"github.com/yorukot/superfile/src/internal/ui/metadata"
 	"github.com/yorukot/superfile/src/internal/ui/notify"
-	"github.com/yorukot/superfile/src/internal/ui/preview"
 	"github.com/yorukot/superfile/src/internal/ui/processbar"
 
 	variable "github.com/yorukot/superfile/src/config"
-	zoxideui "github.com/yorukot/superfile/src/internal/ui/zoxide"
 	stringfunction "github.com/yorukot/superfile/src/pkg/string_function"
 )
 
@@ -79,6 +77,16 @@ func (m *model) Init() tea.Cmd {
 // application
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	slog.Debug("model.Update() called", "msgType", reflect.TypeOf(msg))
+	if m.inputBlockedByTerminalSize(msg) {
+		return m, nil
+	}
+	msg, current := m.unwrapWorkspaceMessage(msg)
+	if !current {
+		return m, nil
+	}
+	if cmd, consumed := m.handleExclusiveSetupInput(msg); consumed {
+		return m, cmd
+	}
 	operationsWasOpen, globalSearchWasOpen, operationsShortcut := m.operations.open, m.globalSearchModal.IsOpen(), m.handleOperationsShortcut(
 		msg,
 	)
@@ -116,33 +124,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.PasteMsg:
 		m.acceptPasteUnlessOperations(msg.Content)
 
-	// Has to handle zoxide messages separately as they could be generated via
-	// zoxide update commands, or batched commands from textinput
-	// Cannot do it like processbar messages
-	case zoxideui.UpdateMsg:
-		slog.Debug("Got ModelUpdate message", "id", msg.GetReqID())
-		updateCmd = msg.Apply(&m.zoxideModal)
-
-	// Its a pain to interconvert commands like processBar
-	case preview.UpdateMsg:
-		slog.Debug("Got ModelUpdate message", "id", msg.GetReqID())
-		updateCmd = m.fileModel.UpdatePreviewPanel(msg)
-	case refreshTickMsg:
-		updateCmd = refreshTickCmd()
 	case folderWatchEventMsg, folderWatchErrorMsg, folderWatchSyncMsg:
 		folderWatchCmd, gitStatusCmd = m.handleFolderWatchMessage(msg)
 	case gitOperationMsg:
 		gitStatusCmd = m.applyGitOperation(msg)
-	case editorFinishedMsg, gitStatusUpdateMsg, batchRenameOperationMsg, archiveOperationMsg,
-		remoteOperationMsg, pluginCommandFinishedMsg, duplicateScanMsg, directoryCompareMsg,
-		directorySyncMsg, metadataOperationMsg:
-		m.applyOperationResult(msg)
-	case ModelUpdateMessage:
-		slog.Debug("Got ModelUpdate message", "id", msg.GetReqID())
-		updateCmd = msg.ApplyToModel(m)
-
 	default:
-		slog.Debug("Message of type that is not explicitly handled")
+		updateCmd = m.handleBackgroundUpdate(msg)
 	}
 	m.refreshPanelsAfterOperation(msg)
 
@@ -161,9 +148,21 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	metadataCmd = m.getMetadataCmd()
 
-	return m, tea.Batch(sidebarCmd, helpMenuCmd, inputCmd, updateCmd,
-		panelCmd, metadataCmd, filePreviewCmd, resizeCmd, mouseCmd, globalSearchCmd, commandPaletteCmd,
-		folderWatchCmd, gitStatusCmd)
+	return m, tea.Batch(
+		sidebarCmd,
+		helpMenuCmd,
+		inputCmd,
+		updateCmd,
+		panelCmd,
+		m.workspaceCommand(metadataCmd),
+		m.workspaceCommand(filePreviewCmd),
+		resizeCmd,
+		mouseCmd,
+		globalSearchCmd,
+		commandPaletteCmd,
+		folderWatchCmd,
+		m.workspaceCommand(gitStatusCmd),
+	)
 }
 
 func (m *model) acceptPasteUnlessOperations(content string) {
@@ -210,6 +209,12 @@ func (m *model) handleMouseWheel(msg tea.MouseWheelMsg) tea.Cmd {
 	if m.spfError.IsOpen() || m.IsOverlayModelOpen() || m.contextMenu.open {
 		return nil
 	}
+	if len(m.workspaces) > 0 {
+		if msg.Y == 0 {
+			return nil
+		}
+		msg.Y--
+	}
 	if m.handleTabWheel(msg.Mouse()) {
 		return nil
 	}
@@ -219,7 +224,7 @@ func (m *model) handleMouseWheel(msg tea.MouseWheelMsg) tea.Cmd {
 		m.sidebarModel.SearchBarBlur()
 	} else if msg.Y >= 0 && msg.Y < m.fileModel.Height {
 		start := m.sidebarModel.GetWidth()
-		for index := range m.fileModel.FilePanels {
+		for _, index := range m.fileModel.VisiblePanelIndices() {
 			end := start + m.fileModel.FilePanels[index].GetWidth()
 			if msg.X > start && msg.X < end-1 {
 				m.fileModel.FocusPanel(index)
@@ -241,14 +246,55 @@ func (m *model) handleMouseClick(msg tea.MouseClickMsg) tea.Cmd {
 	if cmd, handled := m.handleViewerMouseClick(msg); handled {
 		return cmd
 	}
+	if cmd, handled := m.handleWorkspaceStripClick(msg); handled {
+		return cmd
+	}
+	return m.handleBrowserMouseClick(msg)
+}
+
+func (m *model) handleWorkspaceStripClick(msg tea.MouseClickMsg) (tea.Cmd, bool) {
+	if len(m.workspaces) > 0 && msg.Y == 0 && !m.IsOverlayModelOpen() && !m.contextMenu.open {
+		if index, ok := m.workspaceLayout().Hit(msg.X); ok {
+			if msg.Button == tea.MouseRight && index >= 0 {
+				m.openWorkspaceContextMenu(msg.Mouse(), m.workspaces[index].State.ID)
+				return nil, true
+			}
+			if msg.Button == tea.MouseLeft {
+				switch index {
+				case -1:
+					return m.newWorkspace(m.getFocusedFilePanel().Location), true
+				case -2:
+					return m.openWorkspacePicker(), true
+				default:
+					return m.activateWorkspace(index), true
+				}
+			}
+		}
+		return nil, true
+	}
+	return nil, false
+}
+
+func (m *model) handleBrowserMouseClick(msg tea.MouseClickMsg) tea.Cmd {
 	if msg.Button == tea.MouseLeft {
+		if len(m.workspaces) > 0 && m.fullWidth < sidebarDrawerBreakpoint && msg.Y == m.fullHeight-1 && msg.X < 9 {
+			return m.openSidebarDrawer()
+		}
 		if cmd, handled := m.contextMenuClick(msg.Mouse()); handled {
 			return cmd
 		}
-		return m.handleLeftMouseClick(msg.Mouse())
+		mouse := msg.Mouse()
+		if len(m.workspaces) > 0 {
+			mouse.Y--
+		}
+		return m.handleLeftMouseClick(mouse)
 	}
 	if msg.Button == tea.MouseRight {
-		return m.handleRightMouseClick(msg.Mouse())
+		mouse := msg.Mouse()
+		if len(m.workspaces) > 0 {
+			mouse.Y--
+		}
+		return m.handleRightMouseClick(mouse)
 	}
 	if !m.IsOverlayModelOpen() && !m.contextMenu.open && !m.spfError.IsOpen() &&
 		!m.fileModel.Renaming && !m.sidebarModel.IsRenaming() {
@@ -311,7 +357,7 @@ func (m *model) handleRightMouseClick(mouse tea.Mouse) tea.Cmd {
 		return nil
 	}
 	panelX := m.sidebarModel.GetWidth()
-	for panelIndex := range m.fileModel.FilePanels {
+	for _, panelIndex := range m.fileModel.VisiblePanelIndices() {
 		panel := &m.fileModel.FilePanels[panelIndex]
 		if mouse.X < panelX || mouse.X >= panelX+panel.GetWidth() {
 			panelX += panel.GetWidth()
@@ -360,7 +406,7 @@ func (m *model) handleLeftMouseClick(mouse tea.Mouse) tea.Cmd {
 	}
 
 	panelX := m.sidebarModel.GetWidth()
-	for panelIndex := range m.fileModel.FilePanels {
+	for _, panelIndex := range m.fileModel.VisiblePanelIndices() {
 		panelWidth := m.fileModel.FilePanels[panelIndex].GetWidth()
 		if mouse.X < panelX || mouse.X >= panelX+panelWidth {
 			panelX += panelWidth
@@ -414,24 +460,17 @@ func (m *model) handlePanelLeftClick(mouse tea.Mouse, panelIndex, localX, panelW
 		return nil
 	}
 
-	if mouse.Y == panelActionsRow {
+	if mouse.Y == panel.ActionsRow() {
 		m.mouse = mouseState{}
-		if search, commands := panel.SearchActionAtContentX(localX - 1); search {
-			return m.globalSearchModal.Open(panel.Location)
-		} else if commands {
-			return m.openCommandPalette()
-		} else if panel.SortActionAtContentX(localX - 1) {
-			m.openSortMenu()
-		}
-		return nil
+		return m.handlePanelToolbarClick(panel, localX-1, mouse.Y)
 	}
-	if mouse.Y == panelFilterRow {
+	if mouse.Y == panel.FilterRow() {
 		m.mouse = mouseState{}
 		panel.SearchBar.Focus()
 		m.firstTextInput = true
 		return nil
 	}
-	if panel.NeedRenderHeaders() && mouse.Y == 4 {
+	if panel.NeedRenderHeaders() && mouse.Y == panel.ColumnHeaderRow() {
 		m.mouse = mouseState{}
 		panel.ApplySortColumnAtContentX(localX - 1)
 		return nil
@@ -587,6 +626,9 @@ func (m *model) setHeightValues() {
 
 	// Main panel height = Total terminal height- 2(file panel border) - footer height
 	m.mainPanelHeight = m.fullHeight - common.BorderPadding - utils.FullFooterHeight(m.footerHeight, m.toggleFooter)
+	if len(m.workspaces) > 0 {
+		m.mainPanelHeight -= 2
+	}
 }
 
 func (m *model) updateComponentDimensions() tea.Cmd {
@@ -608,10 +650,24 @@ func (m *model) updateComponentDimensions() tea.Cmd {
 
 func (m *model) setMainModelDimensions() tea.Cmd {
 	fileModelWidth := m.fullWidth
-	if common.Config.SidebarWidth != 0 {
-		fileModelWidth -= common.Config.SidebarWidth + common.BorderPadding
+	width := common.Config.SidebarWidth
+	if len(m.workspaces) > 0 {
+		if m.fullWidth < sidebarDrawerBreakpoint {
+			width = 0
+		} else if m.fullWidth < sidebarCompactBreakpoint {
+			width = min(width, sidebarCompactContentWidth)
+		}
 	}
+	if width > 0 {
+		width += common.BorderPadding
+	}
+	m.sidebarModel.SetViewportWidth(width)
+	fileModelWidth -= width
 	m.sidebarModel.SetHeight(m.mainPanelHeight + common.BorderPadding)
+	m.fileModel.Responsive = len(m.workspaces) > 0
+	for i := range m.fileModel.FilePanels {
+		m.fileModel.FilePanels[i].WorkspaceChrome = len(m.workspaces) > 0
+	}
 	return m.fileModel.SetDimensions(fileModelWidth, m.mainPanelHeight+common.BorderPadding)
 }
 
@@ -680,6 +736,9 @@ func (m *model) handleKeyInput(msg tea.KeyPressMsg) tea.Cmd {
 	if m.firstUse {
 		m.firstUse = false
 		return nil
+	}
+	if cmd, handled := m.handleWorkspaceKey(msg); handled {
+		return cmd
 	}
 	var cmd tea.Cmd
 	cdOnQuit := common.Config.CdOnQuit
@@ -848,11 +907,11 @@ func (m *model) executeWorkspaceAction(action common.WorkspaceAction) (string, t
 	case common.WorkspaceSave:
 		return "Workspace saved: " + action.Name, nil, m.saveWorkspace(action.Name)
 	case common.WorkspaceLoad:
-		err := m.loadWorkspace(action.Name)
+		cmd, err := m.loadWorkspace(action.Name)
 		if err != nil {
 			return "", nil, err
 		}
-		return "Workspace loaded: " + action.Name, m.updateComponentDimensions(), nil
+		return "Workspace loaded: " + action.Name, cmd, nil
 	case common.WorkspaceDelete:
 		return "Workspace deleted: " + action.Name, nil, m.deleteWorkspace(action.Name)
 	case common.WorkspaceList:
@@ -993,6 +1052,14 @@ func (m *model) viewContent() string {
 }
 
 func (m *model) updateRenderForOverlay(finalRender string) string {
+	if m.firstUse || m.appearanceOpen {
+		content := m.appearanceRender()
+		return m.centerOverlay(finalRender, content, lipgloss.Width(content), lipgloss.Height(content))
+	}
+	if m.workspaceRenaming {
+		content := m.workspaceRenameRender()
+		return m.centerOverlay(finalRender, content, lipgloss.Width(content), lipgloss.Height(content))
+	}
 	// check if need pop up modal
 	if m.spfError.IsOpen() {
 		return m.centerOverlay(finalRender, m.spfError.Render(), common.ModalWidth, common.ModalHeight)
@@ -1094,6 +1161,9 @@ func (m *model) mainComponentsRender() string {
 	mainPanel := lipgloss.JoinHorizontal(0, sidebar, fileModel)
 
 	if !m.toggleFooter {
+		if len(m.workspaces) > 0 {
+			return lipgloss.JoinVertical(0, m.renderWorkspaceStrip(), mainPanel, m.compactStatus())
+		}
 		return mainPanel
 	}
 
@@ -1101,12 +1171,16 @@ func (m *model) mainComponentsRender() string {
 	metaData := m.fileMetaData.Render(m.focusPanel == metadataFocus)
 	clipboardBar := m.clipboard.Render()
 	footer := lipgloss.JoinHorizontal(0, processBar, metaData, clipboardBar)
+	if len(m.workspaces) > 0 {
+		return lipgloss.JoinVertical(0, m.renderWorkspaceStrip(), mainPanel, footer, m.compactStatus())
+	}
 	return lipgloss.JoinVertical(0, mainPanel, footer)
 }
 
 // Close superfile application. Cd into the current dir if CdOnQuit on and save
 // the path in state direcotory
 func (m *model) quitSuperfile(cdOnQuit bool) {
+	m.cancelWorkspaceWork()
 	m.processBarModel.Shutdown()
 	m.processBarModel.WaitWorkers()
 	if common.Config.RestoreLastSession {

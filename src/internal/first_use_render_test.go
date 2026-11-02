@@ -12,17 +12,16 @@ import (
 
 func TestFirstUseFitsStandardTerminal(t *testing.T) {
 	m := defaultTestModel(t.TempDir())
-	for _, size := range [][2]int{{80, 24}, {132, 40}, {180, 50}} {
+	for _, size := range [][2]int{{60, 24}, {80, 24}, {132, 40}, {180, 50}} {
 		TeaUpdate(m, tea.WindowSizeMsg{Width: size[0], Height: size[1]})
-		view := m.introduceModalRender()
+		view := m.appearanceRender()
 		m.firstUse, m.firstLoadingComplete = true, true
-		require.InDelta(t, m.helpMenu.GetWidth(), lipgloss.Width(view), 2, "preserve the reference box width")
 		require.LessOrEqual(t, lipgloss.Width(view), size[0])
-		require.LessOrEqual(t, lipgloss.Height(view), 15, "trim blank space above and below the text")
-		require.Contains(t, view, "Inspired by github.com/yorukot/superfile.")
-		require.NotContains(t, view, "Built from")
-		require.Contains(t, view, "continue")
-		require.Contains(t, ansi.Strip(view), "Click folders, breadcrumbs, tabs, Search, or Commands.")
+		require.LessOrEqual(t, lipgloss.Height(view), size[1])
+		require.Contains(t, view, "Portable mode")
+		require.Contains(t, view, "Rich icons")
+		require.Contains(t, view, "AND selected")
+		require.Zero(t, m.appearanceChoice, "safe choice has first focus")
 		frame := strings.Split(ansi.Strip(m.View().Content), "\n")
 		x, y := size[0]/2-lipgloss.Width(view)/2, size[1]/2-lipgloss.Height(view)/2
 		require.Equal(t, strings.Split(ansi.Strip(view), "\n")[0], ansi.Cut(frame[y], x, x+lipgloss.Width(view)))

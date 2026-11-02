@@ -104,6 +104,20 @@ func FilePanelItemRenderWithIcon(
 		slog.Debug("Too low width for rendering file name", "width", width, "filenameWidth", filenameWidth)
 		return ""
 	}
+	// Portable mode must still distinguish folders and links without a font.
+	// Reserve the suffix cell so truncating a long name cannot hide its type.
+	if Config.PlainMode && !Config.Nerdfont {
+		suffix := ""
+		switch {
+		case isLink:
+			suffix = "@"
+		case isDir:
+			suffix = "/"
+		}
+		if suffix != "" {
+			name = ansi.Truncate(name, filenameWidth-len(suffix), "...") + suffix
+		}
+	}
 	return StringColorRender(lipgloss.Color(style.Color), bgColor).
 		Background(bgColor).Render(iconData) +
 		FilePanelItemRender(name, filenameWidth, isSelected, bgColor, lipgloss.Left)

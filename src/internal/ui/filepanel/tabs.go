@@ -64,6 +64,9 @@ func (m *Model) visibleTabs() []visibleTab {
 
 // TabAtContentX returns the tab label at a file-panel content X coordinate.
 func (m *Model) TabAtContentX(x int) (int, bool) {
+	if m.WorkspaceChrome {
+		return 0, false
+	}
 	if len(m.tabs) == 1 {
 		return 0, false
 	}
@@ -87,6 +90,9 @@ func (m *Model) tabLabel(index int) string {
 }
 
 func (m *Model) renderTabBar() string {
+	if m.WorkspaceChrome {
+		return ""
+	}
 	if len(m.tabs) <= 1 {
 		return ""
 	}
@@ -109,6 +115,9 @@ func (m *Model) renderTabBar() string {
 // TabControlAtContentX maps the visible create/close controls on the tab row.
 // A single tab cannot be closed, matching CloseTab's keyboard behavior.
 func (m *Model) TabControlAtContentX(x int) (bool, bool) {
+	if m.WorkspaceChrome {
+		return false, false
+	}
 	if len(m.tabs) == 1 {
 		return x >= m.GetContentWidth()-len("[+]") && x < m.GetContentWidth(), false
 	}

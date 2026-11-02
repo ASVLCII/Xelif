@@ -142,7 +142,7 @@ func TestSearchFuncUsesEverythingWhenAvailable(t *testing.T) {
 	assert.Equal(t, []Result{{Path: `C:\Docs\report.txt`}}, response.Results)
 }
 
-func TestSearchFuncUsesLocalProviderForFilteredQuery(t *testing.T) {
+func TestSearchFuncRequiresExplicitFolderForFilteredQuery(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -157,14 +157,14 @@ func TestSearchFuncUsesLocalProviderForFilteredQuery(t *testing.T) {
 
 	response := search(context.Background(), "report type:file ext:txt", root, 10)
 
-	require.NoError(t, response.Err)
+	require.ErrorIs(t, response.Err, ErrUnsupportedIndexedQuery)
 	assert.False(t, runnerCalled)
-	assert.Equal(t, ProviderLocal, response.Provider)
-	assert.Contains(t, response.Notice, "local filtering")
-	assert.Equal(t, []Result{{Path: wantPath}}, response.Results)
+	assert.Equal(t, ProviderEverything, response.Provider)
+	assert.Contains(t, response.Notice, "Ctrl+S")
+	assert.Empty(t, response.Results)
 }
 
-func TestSearchFuncFallsBackLocallyWhenEverythingIsMissing(t *testing.T) {
+func TestSearchFuncKeepsIndexedScopeWhenEverythingIsMissing(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -174,13 +174,13 @@ func TestSearchFuncFallsBackLocallyWhenEverythingIsMissing(t *testing.T) {
 
 	response := search(context.Background(), "needle", root, 10)
 
-	require.NoError(t, response.Err)
-	assert.Equal(t, ProviderLocal, response.Provider)
-	assert.Contains(t, response.Notice, "Everything CLI unavailable")
-	assert.Equal(t, []Result{{Path: wantPath}}, response.Results)
+	require.ErrorIs(t, response.Err, ErrIndexedUnavailable)
+	assert.Equal(t, ProviderEverything, response.Provider)
+	assert.Contains(t, response.Notice, "Ctrl+S")
+	assert.Empty(t, response.Results)
 }
 
-func TestSearchFuncFallsBackLocallyWhenEverythingFails(t *testing.T) {
+func TestSearchFuncKeepsIndexedScopeWhenEverythingFails(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -193,10 +193,10 @@ func TestSearchFuncFallsBackLocallyWhenEverythingFails(t *testing.T) {
 
 	response := search(context.Background(), "needle", root, 10)
 
-	require.NoError(t, response.Err)
-	assert.Equal(t, ProviderLocal, response.Provider)
-	assert.Contains(t, response.Notice, "Everything search failed")
-	assert.Equal(t, []Result{{Path: wantPath}}, response.Results)
+	require.ErrorIs(t, response.Err, ErrIndexedUnavailable)
+	assert.Equal(t, ProviderEverything, response.Provider)
+	assert.Contains(t, response.Notice, "Everything query failed")
+	assert.Empty(t, response.Results)
 }
 
 func TestSearchFuncDoesNotFallBackAfterCancellation(t *testing.T) {

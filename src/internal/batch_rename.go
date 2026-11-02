@@ -16,6 +16,7 @@ import (
 type batchRenameOperationMsg struct {
 	plan *batchrename.Plan
 	err  error
+	view operationView
 }
 
 func (m *model) executeBatchRenameAction(action common.BatchRenameAction) (string, tea.Cmd, error) {
@@ -45,6 +46,8 @@ func (m *model) executeBatchRenameAction(action common.BatchRenameAction) (strin
 			return "", nil, errors.New("no batch rename preview is pending")
 		}
 		plan := m.pendingBatchRename
+		m.pendingBatchRename = nil // Consume approval exactly once; the submitted plan is immutable.
+		view := m.operationSubmissionView()
 		m.textViewer.Open("Applying batch rename", "Renaming the reviewed items in the background…")
 		m.setTextViewerSize()
 		ctx, cancel := context.WithCancel(context.Background())
@@ -57,7 +60,7 @@ func (m *model) executeBatchRenameAction(action common.BatchRenameAction) (strin
 			cancel,
 			func() tea.Msg {
 				err := batchrename.Apply(ctx, *plan, moveElementNoReplace)
-				return batchRenameOperationMsg{plan: plan, err: err}
+				return batchRenameOperationMsg{plan: plan, err: err, view: view}
 			},
 		), nil
 	case common.BatchRenameCancel:
@@ -69,11 +72,13 @@ func (m *model) executeBatchRenameAction(action common.BatchRenameAction) (strin
 }
 
 func (m *model) applyBatchRenameOperation(msg batchRenameOperationMsg) {
-	if msg.plan != m.pendingBatchRename {
+	if msg.plan == nil {
 		return
 	}
 	if msg.err != nil {
-		m.showTextViewerError("Batch rename failed", msg.err, "")
+		if msg.view.current(m) {
+			m.showTextViewerError("Batch rename failed", msg.err, "")
+		}
 		return
 	}
 	moves := make([]pathMove, len(msg.plan.Entries))
@@ -82,7 +87,12 @@ func (m *model) applyBatchRenameOperation(msg batchRenameOperationMsg) {
 	}
 	m.recordUndo("batch rename", moves)
 	m.updateCatalogMoves(moves)
-	m.pendingBatchRename = nil
+	if msg.plan == m.pendingBatchRename {
+		m.pendingBatchRename = nil
+	}
+	if !msg.view.current(m) {
+		return
+	}
 	m.fileModel.UpdateFilePanelsIfNeeded(true)
 	m.textViewer.Open("Batch rename complete", fmt.Sprintf("Renamed %d item(s). Undo is available.\n", len(moves)))
 	m.setTextViewerSize()

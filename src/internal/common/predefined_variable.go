@@ -122,7 +122,11 @@ func wrapFilePreviewErrorMsg(msg string) string {
 // LoadPrerenderedVariables populates global UI component variables with their styled versions.
 // This should be called after theme and icons are initialized.
 func LoadPrerenderedVariables() {
-	divider := " " + strings.Repeat("─", SidebarDividerLength)
+	dividerGlyph := "─"
+	if Config.PlainMode {
+		dividerGlyph = "-"
+	}
+	divider := " " + strings.Repeat(dividerGlyph, SidebarDividerLength)
 	SideBarSuperfileTitle = SidebarTitleStyle.Render(" " + icon.SuperfileIcon + icon.Space + "Xelif")
 	SideBarHomeDivider = SidebarTitleStyle.Render(icon.Home+icon.Space+"Home") + SidebarDividerStyle.Render(divider)
 	SideBarRecentDivider = SidebarTitleStyle.Render(icon.Directory+icon.Space+"Recent") +
@@ -185,6 +189,6 @@ func LoadPrerenderedVariables() {
 	ModalOkayInputText = MainStyle.AlignHorizontal(lipgloss.Center).AlignVertical(lipgloss.Center).Render(
 		ModalConfirm.Render(" (" + Hotkeys.ConfirmTyping[0] + ") Okay "))
 	ModalConfirmInputText = ModalConfirm.Render(" (" + Hotkeys.ConfirmTyping[0] + ") Confirm ")
-	ModalCancelInputText = ModalCancel.Render(" (" + Hotkeys.Quit[0] + ") Cancel ")
+	ModalCancelInputText = ModalCancel.Render(" (" + Hotkeys.CancelTyping[0] + ") Cancel ")
 	ModalInputSpacingText = lipgloss.NewStyle().Background(ModalBGColor).Render("           ")
 }

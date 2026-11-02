@@ -38,13 +38,22 @@ func TestArchiveQueuedOperationDoesNotReadReplacementArchive(t *testing.T) {
 	assert.False(t, m.notifyModel.IsOpen(), "cancelled old work must not show an error over the new archive")
 }
 
-func TestArchiveQueuedExtractionIsCancelledBeforeWriting(t *testing.T) {
+func TestArchiveQueuedExtractionCanBeCancelledInOperationsBeforeWriting(t *testing.T) {
 	archivePath := writeLifecycleArchive(t, map[string]string{"member.txt": "archive content"}, zip.Store)
 	destination := t.TempDir()
 	m := defaultTestModel(destination)
 	require.NoError(t, m.openArchive(archivePath))
+	t.Cleanup(func() { _ = m.archiveViewer.Close() })
 	cmd := m.handleArchiveAction(archiveviewer.Action{Kind: archiveviewer.ExtractAction, Member: "member.txt"})
 	require.NotNil(t, cmd)
+	tasks := m.processBarModel.TaskSnapshot()
+	cancelled := false
+	for _, task := range tasks {
+		if task.Kind == "Archive member" {
+			cancelled = m.processBarModel.Cancel(task.ID)
+		}
+	}
+	require.True(t, cancelled)
 	require.NoError(t, m.archiveViewer.Close())
 
 	msg := cmd().(archiveOperationMsg)
@@ -235,19 +244,27 @@ func TestArchiveCloseDoesNotWaitForActiveReadOrExtraction(t *testing.T) {
 			release()
 			select {
 			case msg := <-result:
-				require.ErrorIs(t, msg.err, context.Canceled)
-				m.applyArchiveOperation(msg)
+				assertArchiveClosedResult(t, m, msg, destination, content)
 			case <-time.After(time.Second):
 				t.Fatal("cancelled archive worker did not finish")
 			}
 			assert.False(t, m.textViewer.IsOpen())
 			assert.False(t, m.notifyModel.IsOpen())
-			if kind == archiveviewer.ExtractAction {
-				_, err := os.Stat(filepath.Join(destination, "member.txt"))
-				require.ErrorIs(t, err, os.ErrNotExist, "cancelled extraction must remove its partial file")
-			}
 		})
 	}
+}
+
+func assertArchiveClosedResult(t *testing.T, m *model, msg archiveOperationMsg, destination, content string) {
+	t.Helper()
+	if msg.kind == archiveviewer.ExtractAction {
+		require.NoError(t, msg.err, "submitted extraction survives closing the viewer")
+		data, err := os.ReadFile(filepath.Join(destination, "member.txt"))
+		require.NoError(t, err)
+		require.Equal(t, content, string(data))
+	} else {
+		require.ErrorIs(t, msg.err, context.Canceled)
+	}
+	m.applyArchiveOperation(msg)
 }
 
 func writeLifecycleArchive(t *testing.T, members map[string]string, method uint16) string {

@@ -55,7 +55,7 @@ func TestExplorerSortToolbarAndDirectionApplyImmediately(t *testing.T) {
 
 func TestExplorerSortSeparatorAndOutsideClicksDoNotReachFiles(t *testing.T) {
 	m := defaultTestModel(t.TempDir())
-	TeaUpdate(m, tea.WindowSizeMsg{Width: 80, Height: 22})
+	TeaUpdate(m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	m.openSortMenu()
 	left, top := m.sortMenuPosition()
 	TeaUpdate(m, clickAt(left+4, top+6, tea.MouseLeft))
@@ -70,13 +70,13 @@ func TestExplorerSortSeparatorAndOutsideClicksDoNotReachFiles(t *testing.T) {
 func TestExplorerSortDropdownStaysWithinResizedScreen(t *testing.T) {
 	m := defaultTestModel(t.TempDir())
 	for _, width := range []int{60, 80, 120} {
-		TeaUpdate(m, tea.WindowSizeMsg{Width: width, Height: 22})
+		TeaUpdate(m, tea.WindowSizeMsg{Width: width, Height: 24})
 		m.openSortMenu()
 		x, y := m.sortMenuPosition()
 		require.GreaterOrEqual(t, x, 0)
 		require.GreaterOrEqual(t, y, 0)
 		require.LessOrEqual(t, x+lipgloss.Width(m.sortModal.Render()), width)
-		require.LessOrEqual(t, y+lipgloss.Height(m.sortModal.Render()), 22)
+		require.LessOrEqual(t, y+lipgloss.Height(m.sortModal.Render()), 24)
 		m.sortModal.Close()
 	}
 }

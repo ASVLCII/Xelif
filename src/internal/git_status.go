@@ -41,7 +41,11 @@ func (m *model) refreshGitStatusCmd(force bool) tea.Cmd {
 	m.gitStatusReqID++
 	reqID := m.gitStatusReqID
 	client := m.gitClient
+	if m.gitStatusCancel != nil {
+		m.gitStatusCancel()
+	}
 	ctx, cancel := context.WithCancel(context.Background())
+	m.gitStatusCancel = cancel
 	return m.trackTask("Git refresh", strings.Join(locations, "; "), "", true, ctx, cancel, func() tea.Msg {
 		return readGitStatusTargetsContext(ctx, client, targets, reqID)
 	})

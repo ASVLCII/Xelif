@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/yorukot/superfile/src/internal/common"
+	"github.com/yorukot/superfile/src/internal/profile"
 	"github.com/yorukot/superfile/src/pkg/utils"
 
 	tea "charm.land/bubbletea/v2"
@@ -23,7 +24,7 @@ import (
 	internal "github.com/yorukot/superfile/src/internal"
 )
 
-// Run Xelif, retaining superfile-compatible configuration and command flags.
+// Run Xelif with its own profile and compatible command flags.
 func Run(content embed.FS) {
 	// Enable custom colored help output
 	cli.HelpPrinter = CustomHelpPrinter //nolint:reassign // Intentionally reassigning to customize help output
@@ -31,20 +32,28 @@ func Run(content embed.FS) {
 	// Before we open log file, set all "non debug" logs to stdout
 	utils.SetRootLoggerToStdout(false)
 
-	common.LoadInitialPrerenderedVariables()
-	common.LoadAllDefaultConfig(content)
+	app := newApp(content)
+	err := app.Run(context.Background(), os.Args)
+	if err != nil {
+		utils.PrintlnAndExit(err)
+	}
+}
 
-	app := &cli.Command{
+// Building and dispatching informational commands must not initialize a profile.
+func newApp(content embed.FS) *cli.Command {
+	return &cli.Command{
 		Name:        "xelif",
 		Version:     variable.CurrentVersion + variable.PreReleaseSuffix,
 		Description: "Fast, accessible terminal file manager based on superfile",
 		ArgsUsage:   "[PATH]...",
 		Commands: []*cli.Command{
+			doctorCommand(),
 			{
 				Name:    "path-list",
 				Aliases: []string{"pl"},
 				Usage:   "Print the path to the configuration and directory",
 				Action: func(_ context.Context, c *cli.Command) error {
+					paths := pathsForCommand(c)
 					if c.Bool("lastdir-file") {
 						fmt.Println(variable.LastDirFile)
 						return nil
@@ -52,12 +61,12 @@ func Run(content embed.FS) {
 					fmt.Printf("%-*s %s\n",
 						common.HelpKeyColumnWidth,
 						lipgloss.NewStyle().Foreground(lipgloss.Color("#66b2ff")).Render("[Configuration file path]"),
-						variable.ConfigFile,
+						paths.ConfigFile,
 					)
 					fmt.Printf("%-*s %s\n",
 						common.HelpKeyColumnWidth,
 						lipgloss.NewStyle().Foreground(lipgloss.Color("#ffcc66")).Render("[Hotkeys file path]"),
-						variable.HotkeysFile,
+						paths.HotkeysFile,
 					)
 					logStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#66ff66"))
 					configStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#ff9999"))
@@ -124,16 +133,13 @@ func Run(content embed.FS) {
 				Value:   "", // Default to the blank string indicating non-usage of flag
 			},
 		},
-		Action: spfAppAction,
-	}
-
-	err := app.Run(context.Background(), os.Args)
-	if err != nil {
-		utils.PrintlnAndExit(err)
+		Action: func(ctx context.Context, command *cli.Command) error {
+			return spfAppAction(ctx, command, content)
+		},
 	}
 }
 
-func spfAppAction(_ context.Context, c *cli.Command) error {
+func spfAppAction(_ context.Context, c *cli.Command, content embed.FS) error {
 	variable.UpdateVarFromCliArgs(c)
 
 	if c.Bool("debug-info") {
@@ -146,9 +152,21 @@ func spfAppAction(_ context.Context, c *cli.Command) error {
 		firstPanelPaths = c.Args().Slice()
 	}
 
-	InitConfigFile()
-
 	firstUse := checkFirstUse()
+	if firstUse {
+		if err := profile.BeginSetup(profile.ActivePaths()); err != nil {
+			return fmt.Errorf("prepare profile setup: %w", err)
+		}
+	}
+	common.LoadInitialPrerenderedVariables()
+	common.LoadAllDefaultConfig(content)
+	InitConfigFile()
+	// A bundled legacy keymap is an opt-in file, never the active bindings.
+	if legacy, err := content.ReadFile(variable.EmbedLegacyHotkeysFile); err == nil {
+		if err := writeConfigFile(variable.LegacyHotkeysFile, string(legacy)); err != nil {
+			return fmt.Errorf("install optional legacy keymap: %w", err)
+		}
+	}
 
 	m := internal.InitialModel(firstPanelPaths, firstUse, c.Args().Present())
 	p := tea.NewProgram(m)
@@ -205,18 +223,14 @@ func InitConfigFile() {
 	}
 }
 
-// Check if is the first time initializing the app, if it is create
-// use check file
+// Setup confirmation is written only after an explicit appearance choice.
 func checkFirstUse() bool {
-	file := variable.FirstUseCheck
-	firstUse := false
-	if _, err := os.Stat(file); os.IsNotExist(err) {
-		firstUse = true
-		if err = os.WriteFile(file, nil, utils.ConfigFilePerm); err != nil {
-			utils.PrintfAndExitf("Failed to create file: %v", err)
-		}
+	status, err := profile.Inspect(profile.ActivePaths())
+	if err != nil {
+		slog.Error("Could not inspect Xelif setup state; existing profile preserved", "error", err)
+		return false
 	}
-	return firstUse
+	return !status.Initialized
 }
 
 // Write data to the path file if it does not exists

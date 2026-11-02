@@ -24,7 +24,10 @@ type folderWatchErrorMsg struct {
 	closed bool
 }
 
-type folderWatchSyncMsg struct{ err error }
+type folderWatchSyncMsg struct {
+	err        error
+	generation uint64
+}
 
 func (m *model) startFolderWatcher() error {
 	watcher, err := folderwatch.New(context.Background())
@@ -72,8 +75,15 @@ func (m *model) syncFolderWatcherCmd() tea.Cmd {
 	}
 	m.folderWatchPaths = slices.Clone(paths)
 	watcher := m.folderWatcher
+	generation := m.folderWatchGeneration.Add(1)
+	gate, latest := &m.folderWatchSyncMu, &m.folderWatchGeneration
 	return m.trackTask("Watch synchronization", strings.Join(paths, "; "), "", true, nil, nil, func() tea.Msg {
-		return folderWatchSyncMsg{err: watcher.Sync(paths)}
+		gate.Lock()
+		defer gate.Unlock()
+		if latest.Load() != generation {
+			return folderWatchSyncMsg{generation: generation}
+		}
+		return folderWatchSyncMsg{err: watcher.Sync(paths), generation: generation}
 	})
 }
 

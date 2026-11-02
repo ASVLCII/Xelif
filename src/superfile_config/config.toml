@@ -30,7 +30,7 @@ cd_on_quit = false
 #-- File Preview
 # Should we open a file preview by default whenever selection-hovering over a
 # file?
-default_open_file_preview = true
+default_open_file_preview = false
 
 #-- Session Restoration
 # Restore panels, tabs, layout, and navigation history on normal launches.
@@ -84,7 +84,7 @@ debug = false
 #-- Plain / accessible display
 # Uses ASCII borders, disables Nerd Font glyphs, and disables image previews.
 # Setting the standard NO_COLOR environment variable also disables colors.
-plain_mode = false
+plain_mode = true
 
 #-- UI language
 # Values: auto, en, zh-TW
@@ -118,7 +118,7 @@ code_previewer = ""
 #-- Nerd Fonts Support
 # Whether to enable support for Nerd Fonts symbols.
 # Requires:  Font patched with the Nerd Fonts patch.
-nerdfont = true
+nerdfont = false
 
 # Color only file-type icons. Disable for fully monochrome file lists.
 color_file_icons = true
@@ -145,8 +145,8 @@ enable_file_preview_border = false
 
 #-- Sidebar Width
 # If you don't want to display the sidebar, you can input 0 directly.
-# Values recommended to be in 5–20.
-sidebar_width = 20
+# Use 5–40 columns, or 0 to hide the sidebar. The responsive default is 24.
+sidebar_width = 24
 
 #-- Sidebar Section Order
 # Order of sidebar sections (valid values: "home", "recent", "pinned", "disks")

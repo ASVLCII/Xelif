@@ -26,4 +26,7 @@ type Model struct {
 	ioReqCnt             int
 	activePreviewReqID   int
 	DisplayDotFiles      bool
+	collapsed            bool
+	previewHidden        bool
+	Responsive           bool
 }

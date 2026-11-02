@@ -43,6 +43,10 @@ func TestMouseConfirmationUsesRenderedButtonsWithoutClickThrough(t *testing.T) {
 	assert.Empty(t, m.pendingGitDiscard)
 }
 
+func TestDialogCancelAdvertisesTheCancelBinding(t *testing.T) {
+	require.Contains(t, ansi.Strip(common.ModalCancelInputText), "("+common.Hotkeys.CancelTyping[0]+") Cancel")
+}
+
 func TestMouseCanChooseSortAndDismissSearch(t *testing.T) {
 	m := defaultTestModel(t.TempDir())
 	m.sortModal.Open(sortmodel.SortByName)

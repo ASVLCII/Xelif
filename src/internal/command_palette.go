@@ -105,8 +105,16 @@ func (m *model) paletteItems() []commandpalette.Item {
 	if panel.PanelMode == filepanel.SelectMode {
 		hasOperationItems = panel.SelectedCount() > 0
 	}
+	items := basePaletteItems()
+	items = append(items, m.workspaceCommandItems()...)
+	items = m.appendStoredPaletteItems(items)
+	items = append(items, m.pluginCommandPaletteItems(hasOperationItems)...)
+	m.updatePaletteAvailability(items, panel, hasFocusedItem, hasOperationItems)
+	return items
+}
 
-	items := []commandpalette.Item{
+func basePaletteItems() []commandpalette.Item {
+	return []commandpalette.Item{
 		operationsPaletteItem(),
 		paletteItem(commandIDOpen, "Open focused item", "Files", common.Hotkeys.Confirm, "enter", "launch"),
 		paletteItem(commandIDParent, "Open parent folder", "Navigation", common.Hotkeys.ParentDirectory, "up"),
@@ -195,10 +203,6 @@ func (m *model) paletteItems() []commandpalette.Item {
 		paletteItem(commandIDFocusMetadata, "Focus metadata", "Focus", common.Hotkeys.FocusOnMetaData),
 		paletteItem(commandIDQuit, "Quit Xelif", "General", common.Hotkeys.Quit),
 	}
-	items = m.appendStoredPaletteItems(items)
-	items = append(items, m.pluginCommandPaletteItems(hasOperationItems)...)
-	m.updatePaletteAvailability(items, panel, hasFocusedItem, hasOperationItems)
-	return items
 }
 
 func (m *model) updatePaletteAvailability(items []commandpalette.Item, panel *filepanel.Model,
@@ -316,6 +320,9 @@ func (m *model) applyCommandPaletteAction(action common.ModelAction) tea.Cmd {
 	execute, ok := action.(commandpalette.ExecuteAction)
 	if !ok {
 		return nil
+	}
+	if cmd, handled := m.applyWorkspaceCommand(execute.ID); handled {
+		return cmd
 	}
 	if cmd, handled := m.applyPaletteLaunchCommand(execute.ID); handled {
 		return cmd
@@ -455,11 +462,12 @@ func (m *model) runPaletteHotkey(id string) tea.Cmd {
 func (m *model) applyStoredPaletteCommand(id string) (tea.Cmd, bool) {
 	if strings.HasPrefix(id, commandIDWorkspaceLoadPrefix) {
 		name := strings.TrimPrefix(id, commandIDWorkspaceLoadPrefix)
-		if err := m.loadWorkspace(name); err != nil {
+		cmd, err := m.loadWorkspace(name)
+		if err != nil {
 			m.showUserError("Could not load workspace", err)
 			return nil, true
 		}
-		return m.updateComponentDimensions(), true
+		return cmd, true
 	}
 	if strings.HasPrefix(id, commandIDSavedSearchPrefix) {
 		name := strings.TrimPrefix(id, commandIDSavedSearchPrefix)

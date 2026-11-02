@@ -3,6 +3,7 @@ package sidebar
 import (
 	"log/slog"
 
+	"github.com/yorukot/superfile/src/internal/common"
 	"github.com/yorukot/superfile/src/pkg/utils"
 )
 
@@ -115,4 +116,32 @@ func (m *Model) SetHeight(height int) {
 // Disabled returns true if the sidebar is currently disabled.
 func (m *Model) Disabled() bool {
 	return m.disabled
+}
+
+// SetViewportWidth changes responsive visibility without discarding navigation.
+func (m *Model) SetViewportWidth(width int) {
+	m.width = max(0, width)
+	m.disabled = width == 0
+	if width > 0 {
+		m.searchBar.SetWidth(max(1, width-common.InnerPadding))
+	}
+}
+
+type Location struct{ Name, Path, Section string }
+
+// Locations exposes only navigation values for the accessible narrow drawer.
+func (m *Model) Locations() []Location {
+	if m.pinnedMgr != nil && m.recentMgr != nil {
+		disabled := m.disabled
+		m.disabled = false
+		m.UpdateDirectories()
+		m.disabled = disabled
+	}
+	locations := make([]Location, 0, len(m.directories))
+	for _, d := range m.directories {
+		if !d.isDivider() {
+			locations = append(locations, Location{Name: d.Name, Path: d.Location, Section: d.Section})
+		}
+	}
+	return locations
 }

@@ -18,7 +18,7 @@ func TestDimensionsClampToMinimums(t *testing.T) {
 	assert.Equal(t, MinHeight, m.GetMaxHeight())
 }
 
-func TestRenderShowsQueryAndResultsWithoutBackendDetails(t *testing.T) {
+func TestRenderShowsQueryResultsProviderAndExplicitScope(t *testing.T) {
 	t.Parallel()
 
 	m := New(func(context.Context, string, string, int) Response { return Response{} })
@@ -36,7 +36,9 @@ func TestRenderShowsQueryAndResultsWithoutBackendDetails(t *testing.T) {
 	output := m.Render()
 
 	assert.Contains(t, output, "Search Everywhere")
-	assert.NotContains(t, output, "["+ProviderEverything+"]")
+	assert.Contains(t, output, ProviderEverything)
+	assert.Contains(t, output, "indexed: system index")
+	assert.Contains(t, output, "Ctrl+S: folder")
 	assert.Contains(t, output, "report")
 	assert.Contains(t, output, `C:\Docs\report.txt`)
 	assert.Contains(t, output, `C:\Reports`)

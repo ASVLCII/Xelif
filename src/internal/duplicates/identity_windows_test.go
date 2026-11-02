@@ -2,10 +2,10 @@ package duplicates
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -43,7 +43,11 @@ func TestWindowsIdentityJunctionCycleAndDirectoryAliases(t *testing.T) {
 			t.Fatal("indexed identity did not recognize the junction's directory target")
 		}
 		if len(set.indexed) != 1 || len(set.fallback) != 0 {
-			t.Fatalf("junction query unexpectedly used fallback: indexed=%d fallback=%d", len(set.indexed), len(set.fallback))
+			t.Fatalf(
+				"junction query unexpectedly used fallback: indexed=%d fallback=%d",
+				len(set.indexed),
+				len(set.fallback),
+			)
 		}
 	})
 
@@ -52,8 +56,13 @@ func TestWindowsIdentityJunctionCycleAndDirectoryAliases(t *testing.T) {
 		defer cancel()
 		// IncludeHardLinks makes a missed directory alias visible in file
 		// counts instead of concealing it behind file identity deduplication.
-		result, err := Scan(ctx, []string{root, alias, directory}, Options{FollowSymlinks: true, IncludeHardLinks: true})
-		if err != nil || result.FilesScanned != 2 || result.FilesHashed != 2 || len(result.Groups) != 1 || len(result.Warnings) != 0 {
+		result, err := Scan(
+			ctx,
+			[]string{root, alias, directory},
+			Options{FollowSymlinks: true, IncludeHardLinks: true},
+		)
+		if err != nil || result.FilesScanned != 2 || result.FilesHashed != 2 || len(result.Groups) != 1 ||
+			len(result.Warnings) != 0 {
 			t.Fatalf("junction cycle/alias scan = %#v, error=%v", result, err)
 		}
 	})
@@ -89,7 +98,7 @@ func TestWindowsIdentityFallbackCrossLookup(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, fallbackFirst := range []bool{false, true} {
-		t.Run(fmt.Sprint("fallbackFirst=", fallbackFirst), func(t *testing.T) {
+		t.Run("fallbackFirst="+strconv.FormatBool(fallbackFirst), func(t *testing.T) {
 			info, err := os.Stat(path)
 			if err != nil {
 				t.Fatal(err)
@@ -153,7 +162,7 @@ func TestWindowsIdentityPromotionRetainsUnavailableEntries(t *testing.T) {
 	var set identitySet
 	var unavailable os.FileInfo
 	for index := range identityIndexThreshold + 1 {
-		path := filepath.Join(root, fmt.Sprint(index))
+		path := filepath.Join(root, strconv.Itoa(index))
 		writeFile(t, path, "content")
 		info, err := os.Stat(path)
 		if err != nil {
@@ -173,7 +182,12 @@ func TestWindowsIdentityPromotionRetainsUnavailableEntries(t *testing.T) {
 		}
 	}
 	if !set.promoted || len(set.indexed) != identityIndexThreshold || len(set.fallback) != 1 {
-		t.Fatalf("promotion lost entries: indexed=%d fallback=%d promoted=%v", len(set.indexed), len(set.fallback), set.promoted)
+		t.Fatalf(
+			"promotion lost entries: indexed=%d fallback=%d promoted=%v",
+			len(set.indexed),
+			len(set.fallback),
+			set.promoted,
+		)
 	}
 	if !set.containsOrAdd(filepath.Join(root, "0"), unavailable) {
 		t.Fatal("promotion lost the entry whose identity query failed")
@@ -186,49 +200,61 @@ func TestWindowsIdentityPromotionRetainsUnavailableEntries(t *testing.T) {
 // requiring a second checkout or private Go runtime fields.
 func BenchmarkWindowsIdentitySet(b *testing.B) {
 	for _, count := range []int{256, 2048, 8192} {
-		root := b.TempDir()
-		paths := make([]string, count)
-		infos := make([]os.FileInfo, count)
-		for index := range paths {
-			paths[index] = filepath.Join(root, fmt.Sprint(index))
-			if err := os.WriteFile(paths[index], nil, 0600); err != nil {
-				b.Fatal(err)
-			}
-			info, err := os.Stat(paths[index])
-			if err != nil {
-				b.Fatal(err)
-			}
-			if !os.SameFile(info, info) {
-				b.Fatal("could not load native identity")
-			}
-			infos[index] = info
-		}
-		b.Run(fmt.Sprint(count), func(b *testing.B) {
-			b.Run("indexed", func(b *testing.B) {
-				b.ReportAllocs()
-				for b.Loop() {
-					var set identitySet
-					for index, info := range infos {
-						if set.containsOrAdd(paths[index], info) {
-							b.Fatal("unexpected duplicate")
-						}
-					}
-				}
-			})
-			b.Run("aff5844-fallback", func(b *testing.B) {
-				b.ReportAllocs()
-				for b.Loop() {
-					var fallback []os.FileInfo
-					for _, info := range infos {
-						for _, previous := range fallback {
-							if os.SameFile(previous, info) {
-								b.Fatal("unexpected duplicate")
-							}
-						}
-						fallback = append(fallback, info)
-					}
-				}
-			})
+		paths, infos := windowsIdentityBenchmarkFixture(b, count)
+		b.Run(strconv.Itoa(count), func(b *testing.B) {
+			b.Run("indexed", func(b *testing.B) { benchmarkIndexedIdentity(b, paths, infos) })
+			b.Run("aff5844-fallback", func(b *testing.B) { benchmarkFallbackIdentity(b, infos) })
 		})
+	}
+}
+
+func windowsIdentityBenchmarkFixture(b *testing.B, count int) ([]string, []os.FileInfo) {
+	b.Helper()
+	root := b.TempDir()
+	paths := make([]string, count)
+	infos := make([]os.FileInfo, count)
+	for index := range paths {
+		paths[index] = filepath.Join(root, strconv.Itoa(index))
+		if err := os.WriteFile(paths[index], nil, 0600); err != nil {
+			b.Fatal(err)
+		}
+		info, err := os.Stat(paths[index])
+		if err != nil {
+			b.Fatal(err)
+		}
+		if !os.SameFile(info, info) {
+			b.Fatal("could not load native identity")
+		}
+		infos[index] = info
+	}
+	return paths, infos
+}
+
+func benchmarkIndexedIdentity(b *testing.B, paths []string, infos []os.FileInfo) {
+	b.Helper()
+	b.ReportAllocs()
+	for b.Loop() {
+		var set identitySet
+		for index, info := range infos {
+			if set.containsOrAdd(paths[index], info) {
+				b.Fatal("unexpected duplicate")
+			}
+		}
+	}
+}
+
+func benchmarkFallbackIdentity(b *testing.B, infos []os.FileInfo) {
+	b.Helper()
+	b.ReportAllocs()
+	for b.Loop() {
+		var fallback []os.FileInfo
+		for _, info := range infos {
+			for _, previous := range fallback {
+				if os.SameFile(previous, info) {
+					b.Fatal("unexpected duplicate")
+				}
+			}
+			fallback = append(fallback, info)
+		}
 	}
 }

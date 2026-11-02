@@ -1,6 +1,10 @@
 package internal
 
-import "github.com/yorukot/superfile/src/internal/ui/filepanel"
+import (
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/yorukot/superfile/src/internal/ui/filepanel"
+)
 
 const (
 	panelActionsRow = 2
@@ -35,4 +39,20 @@ func (m *model) handlePanelHeaderClick(panel *filepanel.Model, contentX int) {
 			m.showUserError("Could not open folder", err)
 		}
 	}
+}
+
+func (m *model) handlePanelToolbarClick(panel *filepanel.Model, x, y int) tea.Cmd {
+	search, commands := panel.SearchActionAtContentX(x)
+	switch {
+	case search:
+		return m.globalSearchModal.Open(panel.Location)
+	case commands:
+		return m.openCommandPalette()
+	case panel.SortActionAtContentX(x):
+		m.openSortMenu()
+	case y == panel.FilterRow() && x < panel.FilterTextWidth()+1:
+		panel.SearchBar.Focus()
+		m.firstTextInput = true
+	}
+	return nil
 }

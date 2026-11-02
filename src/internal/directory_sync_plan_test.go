@@ -99,6 +99,7 @@ func TestDirectorySyncCancelledCommandCannotWriteOrConsumeNewPreview(t *testing.
 	completeDirectorySyncPreview(t, m)
 	oldCommand := m.applyPendingDirectorySync()
 	require.NotNil(t, oldCommand)
+	m.cancelDirectoryCompare() // Explicit cancellation, not merely opening a new preview.
 	completeDirectorySyncPreview(t, m)
 	newApproval := m.pendingSync
 	msg, ok := oldCommand().(directorySyncMsg)

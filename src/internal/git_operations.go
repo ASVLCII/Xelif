@@ -15,6 +15,8 @@ import (
 
 type gitMutation uint8
 
+const gitDiffTitle = "Git diff"
+
 const (
 	gitMutationStage gitMutation = iota + 1
 	gitMutationUnstage
@@ -22,6 +24,8 @@ const (
 )
 
 type gitOperationMsg struct {
+	view    operationView
+	diffID  uint64
 	title   string
 	content string
 	err     error
@@ -40,35 +44,40 @@ func (m *model) gitOperationPaths() []string {
 }
 
 func (m *model) gitDiffCmd(staged bool, paths []string) tea.Cmd {
+	view := m.operationSubmissionView()
 	if m.gitClient == nil {
-		return func() tea.Msg { return gitOperationMsg{err: errors.New("git integration is unavailable")} }
+		return func() tea.Msg { return gitOperationMsg{view: view, err: errors.New("git integration is unavailable")} }
 	}
 	location := m.getFocusedFilePanel().Location
 	client := m.gitClient
 	paths = append([]string(nil), paths...)
+	m.cancelGitDiff()
+	reqID := m.gitDiffReqID
 	ctx, cancel := context.WithCancel(context.Background())
-	return m.trackTask("Git diff", location, "", false, ctx, cancel, func() tea.Msg {
+	m.gitDiffCancel = cancel
+	return m.trackTask(gitDiffTitle, location, "", false, ctx, cancel, func() tea.Msg {
 		content, err := client.Diff(ctx, location, gitstatus.DiffOptions{Staged: staged, Paths: paths})
 		if err != nil {
-			return gitOperationMsg{err: err}
+			return gitOperationMsg{view: view, diffID: reqID, err: err}
 		}
-		title := "Git diff"
+		title := gitDiffTitle
 		if staged {
 			title = "Git staged diff"
 		}
 		if len(content) == 0 {
 			content = []byte("No matching changes.")
 		}
-		return gitOperationMsg{title: title, content: string(content)}
+		return gitOperationMsg{view: view, diffID: reqID, title: title, content: string(content)}
 	})
 }
 
 func (m *model) gitMutationCmd(mutation gitMutation, paths []string) tea.Cmd {
+	view := m.operationSubmissionView()
 	if len(paths) == 0 {
 		return nil
 	}
 	if m.gitClient == nil {
-		return func() tea.Msg { return gitOperationMsg{err: errors.New("git integration is unavailable")} }
+		return func() tea.Msg { return gitOperationMsg{view: view, err: errors.New("git integration is unavailable")} }
 	}
 	location := m.getFocusedFilePanel().Location
 	client := m.gitClient
@@ -91,9 +100,10 @@ func (m *model) gitMutationCmd(mutation gitMutation, paths []string) tea.Cmd {
 			err = errors.New("unknown Git mutation")
 		}
 		if err != nil {
-			return gitOperationMsg{err: err}
+			return gitOperationMsg{view: view, err: err}
 		}
 		return gitOperationMsg{
+			view:    view,
 			title:   "Git",
 			content: fmt.Sprintf("%s %d item(s):\n%s", action, len(paths), strings.Join(paths, "\n")),
 			mutated: true,
@@ -116,6 +126,15 @@ func (m *model) confirmGitDiscard(paths []string) tea.Cmd {
 }
 
 func (m *model) applyGitOperation(msg gitOperationMsg) tea.Cmd {
+	if msg.diffID != 0 {
+		if msg.diffID != m.gitDiffReqID {
+			return nil
+		}
+		m.cancelGitDiff()
+	}
+	if !msg.view.current(m) {
+		return nil
+	}
 	if msg.err != nil {
 		m.showUserError("Git operation failed", msg.err)
 		return nil
@@ -128,4 +147,12 @@ func (m *model) applyGitOperation(msg gitOperationMsg) tea.Cmd {
 		return m.refreshGitStatusCmd(true)
 	}
 	return nil
+}
+
+func (m *model) cancelGitDiff() {
+	if m.gitDiffCancel != nil {
+		m.gitDiffCancel()
+		m.gitDiffCancel = nil
+	}
+	m.gitDiffReqID++
 }

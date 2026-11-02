@@ -10,10 +10,17 @@ func (m *model) openSortMenu() {
 // Anchor the dropdown to its focused panel's toolbar, clamped to the screen.
 func (m *model) sortMenuPosition() (int, int) {
 	x := m.sidebarModel.GetWidth() + 1
-	for index := range m.fileModel.FocusedPanelIndex {
+	for _, index := range m.fileModel.VisiblePanelIndices() {
+		if index == m.fileModel.FocusedPanelIndex {
+			break
+		}
 		x += m.fileModel.FilePanels[index].GetWidth()
 	}
 	x += m.getFocusedFilePanel().SortActionContentX()
 	width, height := lipgloss.Width(m.sortModal.Render()), lipgloss.Height(m.sortModal.Render())
-	return min(max(x, 0), max(m.fullWidth-width, 0)), min(panelActionsRow+1, max(m.fullHeight-height, 0))
+	y := panelActionsRow + 1
+	if len(m.workspaces) > 0 {
+		y++
+	}
+	return min(max(x, 0), max(m.fullWidth-width, 0)), min(y, max(m.fullHeight-height, 0))
 }

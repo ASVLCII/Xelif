@@ -3,16 +3,18 @@ package filemodel
 import "charm.land/lipgloss/v2"
 
 func (m *Model) Render() string {
-	f := make([]string, m.PanelCount()+1)
-	for i, filePanel := range m.FilePanels {
+	visible := m.VisiblePanelIndices()
+	f := make([]string, len(visible)+1)
+	for i, index := range visible {
+		filePanel := &m.FilePanels[index]
 		f[i] = filePanel.Render(filePanel.IsFocused)
 	}
-	f[m.PanelCount()] = m.GetFilePreviewRender()
+	f[len(visible)] = m.GetFilePreviewRender()
 	return lipgloss.JoinHorizontal(lipgloss.Top, f...)
 }
 
 func (m *Model) GetFilePreviewRender() string {
-	if !m.FilePreview.IsOpen() {
+	if !m.PreviewVisible() {
 		return ""
 	}
 	// Check if width and height have been synced yet

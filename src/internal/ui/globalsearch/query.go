@@ -57,11 +57,18 @@ const (
 	bytesPerMebibyte       = bytesPerKibibyte * bytesPerKibibyte
 	bytesPerGibibyte       = bytesPerMebibyte * bytesPerKibibyte
 	hoursPerDay            = 24
+	maxQueryBytes          = 8192
 )
 
 // ParseQuery parses free-text name terms and inline type, ext, size, modified,
 // and quoted content filters.
 func ParseQuery(input string) (Query, error) {
+	if strings.ContainsRune(input, '\x00') {
+		return Query{}, errors.New("search text cannot contain NUL")
+	}
+	if len(input) > maxQueryBytes {
+		return Query{}, fmt.Errorf("search text exceeds the %d-byte limit", maxQueryBytes)
+	}
 	tokens, err := tokenizeQuery(input)
 	if err != nil {
 		return Query{}, err
@@ -159,7 +166,7 @@ func parseEntryType(value string) (EntryType, error) {
 	switch strings.ToLower(value) {
 	case "file":
 		return EntryTypeFile, nil
-	case "folder":
+	case string(ScopeFolder):
 		return EntryTypeFolder, nil
 	default:
 		return EntryTypeAny, fmt.Errorf("invalid type filter %q: want file or folder", value)

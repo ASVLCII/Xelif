@@ -116,7 +116,7 @@ func (m *Model) BreadcrumbPathAtContentX(x int) (string, bool) {
 		return "", false
 	}
 	availableWidth := m.GetContentWidth() - prefixWidth
-	if m.TabCount() == 1 {
+	if m.TabCount() == 1 && !m.WorkspaceChrome {
 		availableWidth -= len(" [+]")
 	}
 	if availableWidth <= 0 {

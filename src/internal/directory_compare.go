@@ -30,9 +30,11 @@ type directoryCompareMsg struct {
 }
 
 type directorySyncMsg struct {
-	reqID  int
-	result dircompare.CopyResult
-	err    error
+	reqID       int
+	result      dircompare.CopyResult
+	err         error
+	operationID int
+	view        operationView
 }
 
 func (m *model) comparisonPanels() (string, string, error) {
@@ -80,6 +82,10 @@ func (m *model) previewDirectorySync() tea.Cmd {
 }
 
 func (m *model) applyPendingDirectorySync() tea.Cmd {
+	if m.dirSyncCancel != nil {
+		m.workspaceNotice = "Copy already running; inspect Operations"
+		return nil
+	}
 	if m.pendingSync == nil {
 		m.textViewer.Open(
 			"Could not copy missing items",
@@ -96,32 +102,43 @@ func (m *model) applyPendingDirectorySync() tea.Cmd {
 		m.setTextViewerSize()
 		return nil
 	}
-	ctx, reqID := m.newDirectoryCompareContext()
+	m.cancelDirectoryPreview()
+	reqID := m.dirCompareReqID
+	ctx, cancel := context.WithCancel(context.Background())
+	m.dirSyncCancel = cancel
+	m.dirSyncReqID++
+	operationID, view := m.dirSyncReqID, m.operationSubmissionView()
 	m.textViewer.Open("Copying missing items", "Copying without overwriting or deleting destination items…")
 	m.setTextViewerSize()
-	return m.trackTask("Copy missing", plan.source, plan.destination, false, ctx, m.dirCompareCancel, func() tea.Msg {
+	return m.trackTask("Copy missing", plan.source, plan.destination, false, ctx, cancel, func() tea.Msg {
 		result, err := dircompare.CopyMissing(
 			ctx,
 			plan.source,
 			plan.destination,
 			dircompare.CopyOptions{ApprovedPlan: &plan.plan},
 		)
-		return directorySyncMsg{reqID: reqID, result: result, err: err}
+		return directorySyncMsg{reqID: reqID, result: result, err: err, operationID: operationID, view: view}
 	})
 }
 
 func (m *model) newDirectoryCompareContext() (context.Context, int) {
-	if m.dirCompareCancel != nil {
-		m.dirCompareCancel()
-	}
-	m.pendingSync = nil
+	m.cancelDirectoryPreview()
 	ctx, cancel := context.WithCancel(context.Background())
 	m.dirCompareCancel = cancel
-	m.dirCompareReqID++
 	return ctx, m.dirCompareReqID
 }
 
 func (m *model) cancelDirectoryCompare() {
+	m.cancelDirectoryPreview()
+	if m.dirSyncCancel != nil {
+		m.dirSyncCancel()
+		m.dirSyncCancel = nil
+	}
+}
+
+// Switching workspaces discards an ephemeral comparison/approval, never an
+// explicitly submitted file copy. Operations retains that copy's cancellation.
+func (m *model) cancelDirectoryPreview() {
 	if m.dirCompareCancel != nil {
 		m.dirCompareCancel()
 		m.dirCompareCancel = nil
@@ -152,12 +169,15 @@ func (m *model) applyDirectoryCompare(msg directoryCompareMsg) {
 }
 
 func (m *model) applyDirectorySync(msg directorySyncMsg) {
+	if msg.operationID != 0 && msg.operationID == m.dirSyncReqID {
+		m.dirSyncCancel = nil
+	}
 	// Even a superseded/cancelled copy may have published complete entries.
 	// Reconcile the visible filesystem without consuming a newer approval.
 	if len(msg.result.Created) > 0 {
 		m.fileModel.UpdateFilePanelsIfNeeded(true)
 	}
-	if msg.reqID != m.dirCompareReqID {
+	if msg.reqID != m.dirCompareReqID || !msg.view.current(m) {
 		return
 	}
 	m.dirCompareCancel = nil

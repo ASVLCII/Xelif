@@ -220,6 +220,10 @@ func (m *model) filePanelSelectModeKey(msg string) tea.Cmd {
 
 func (m *model) filePanelNormalModeKey(msg string) tea.Cmd {
 	switch {
+	case slices.Contains(common.Hotkeys.FilePanelSelectAllItem, msg):
+		panel := m.getFocusedFilePanel()
+		panel.PanelMode = filepanel.SelectMode
+		panel.SelectAllItem()
 	case slices.Contains(common.Hotkeys.Confirm, msg):
 		m.enterPanel()
 	case slices.Contains(common.Hotkeys.ParentDirectory, msg):
@@ -343,7 +347,7 @@ func (m *model) spfErrorModelOpenKey(msg string) tea.Cmd {
 // Handles key inputs inside sort options menu
 func (m *model) sortOptionsKey(msg string) {
 	switch {
-	case msg == "esc":
+	case msg == browserEscapeKey:
 		m.sortModal.Close()
 	case slices.Contains(common.Hotkeys.OpenSortOptionsMenu, msg):
 		m.sortModal.Close()

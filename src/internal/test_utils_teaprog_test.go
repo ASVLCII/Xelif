@@ -1,11 +1,14 @@
 package internal
 
 import (
+	"context"
 	"runtime"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
+
+	"github.com/yorukot/superfile/src/internal/ui/processbar"
 )
 
 func TestTeaProgSendAcknowledgesUpdate(t *testing.T) {
@@ -17,6 +20,34 @@ func TestTeaProgSendAcknowledgesUpdate(t *testing.T) {
 		// happens-before edge even without a second synchronized inspection.
 		require.Equal(t, width, m.fullWidth)
 	}
+}
+
+func TestTeaProgCloseCancelsAndJoinsContextBoundWork(t *testing.T) {
+	p := NewTestTeaProgWithEventLoop(t, defaultTestModel(t.TempDir()))
+	started := make(chan struct{})
+	finished := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	var command tea.Cmd
+	p.WithModel(func(m *model) {
+		command = p.owner.track(m.processBarModel.Track(
+			processbar.TaskSpec{Kind: "Closing fixture worker"}, ctx, cancel,
+			func() tea.Msg {
+				close(started)
+				<-ctx.Done()
+				close(finished)
+				return nil
+			}, nil,
+		))
+	})
+	go func() { p.prog.Send(command()) }()
+	<-started
+	p.Close()
+	select {
+	case <-finished:
+	default:
+		t.Fatal("Close returned before the context-bound worker exited")
+	}
+	require.Zero(t, p.owner.pending)
 }
 
 func TestTeaProgWithModelReleasesAfterGoexit(t *testing.T) {

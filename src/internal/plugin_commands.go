@@ -23,6 +23,7 @@ type pluginCommandFinishedMsg struct {
 	manifest plugincommands.Manifest
 	result   plugincommands.Result
 	err      error
+	view     operationView
 }
 
 func (m *model) initializePluginCommands() {
@@ -87,6 +88,7 @@ func (m *model) runPluginCommand(pluginID string) tea.Cmd {
 	m.pluginCommandCancel = cancel
 	m.pluginCommandReqID++
 	reqID := m.pluginCommandReqID
+	view := m.operationSubmissionView()
 	paths := append([]string(nil), m.pluginCommandPaths()...)
 	cwd := m.getFocusedFilePanel().Location
 	registry := m.pluginCommands
@@ -99,13 +101,14 @@ func (m *model) runPluginCommand(pluginID string) tea.Cmd {
 		if registry == nil {
 			return pluginCommandFinishedMsg{
 				reqID:    reqID,
+				view:     view,
 				manifest: manifest,
 				result:   plugincommands.Result{PluginID: pluginID, ExitCode: -1},
 				err:      &plugincommands.NotFoundError{PluginID: pluginID},
 			}
 		}
 		result, err := registry.Execute(ctx, pluginID, paths, cwd)
-		return pluginCommandFinishedMsg{reqID: reqID, manifest: manifest, result: result, err: err}
+		return pluginCommandFinishedMsg{reqID: reqID, manifest: manifest, result: result, err: err, view: view}
 	})
 }
 
@@ -116,6 +119,9 @@ func (m *model) applyPluginCommandResult(msg pluginCommandFinishedMsg) {
 	if m.pluginCommandCancel != nil {
 		m.pluginCommandCancel()
 		m.pluginCommandCancel = nil
+	}
+	if !msg.view.current(m) {
+		return
 	}
 	m.textViewer.Open(pluginCommandTitle(msg.manifest, msg.result.PluginID), renderPluginCommandResult(msg))
 	m.setTextViewerSize()

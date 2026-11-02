@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/yorukot/superfile/src/internal/session"
 )
 
@@ -23,7 +25,17 @@ func (m *model) saveLastSession() error {
 	if m.sessionStore == nil {
 		return nil
 	}
-	if err := m.sessionStore.SaveLast(m.snapshotSession()); err != nil {
+	m.ensureWorkspaces()
+	m.captureWorkspace()
+	state := session.AppState{
+		Version:           session.CurrentAppVersion,
+		ActiveWorkspaceID: m.workspaces[m.activeWorkspace].State.ID,
+		Workspaces:        make([]session.WorkspaceState, len(m.workspaces)),
+	}
+	for i, w := range m.workspaces {
+		state.Workspaces[i] = w.State
+	}
+	if err := m.sessionStore.SaveAppLast(state); err != nil {
 		return fmt.Errorf("save last session: %w", err)
 	}
 	return nil
@@ -33,14 +45,24 @@ func (m *model) restoreLastSession() error {
 	if m.sessionStore == nil {
 		return nil
 	}
-	state, err := m.sessionStore.LoadLast()
+	state, err := m.sessionStore.LoadAppLast()
 	if errors.Is(err, session.ErrNotFound) {
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("restore last session: %w", err)
 	}
-	m.applySessionState(state)
+	m.ensureWorkspaces()
+	m.cancelWorkspaceWork()
+	m.workspaces = make([]workspaceRuntime, len(state.Workspaces))
+	m.activeWorkspace = 0
+	for i, w := range state.Workspaces {
+		m.workspaces[i] = workspaceRuntime{State: w}
+		if w.ID == state.ActiveWorkspaceID {
+			m.activeWorkspace = i
+		}
+	}
+	_ = m.restoreActiveWorkspace()
 	return nil
 }
 
@@ -54,16 +76,33 @@ func (m *model) saveWorkspace(name string) error {
 	return nil
 }
 
-func (m *model) loadWorkspace(name string) error {
-	if m.sessionStore == nil {
-		return errors.New("workspace storage is unavailable")
+func (m *model) loadWorkspace(name string) (tea.Cmd, error) {
+	if !m.canAddWorkspace() {
+		return nil, errors.New("close an open workspace before loading another")
 	}
+	if m.sessionStore == nil {
+		return nil, errors.New("workspace storage is unavailable")
+	}
+	m.ensureWorkspaces()
 	state, err := m.sessionStore.LoadWorkspace(name)
 	if err != nil {
-		return fmt.Errorf("load workspace %q: %w", name, err)
+		return nil, fmt.Errorf("load workspace %q: %w", name, err)
 	}
-	m.applySessionState(state)
-	return nil
+	if !m.workspaceSwitchAllowed() {
+		return nil, errors.New("finish or cancel the current dialog before loading a workspace")
+	}
+	id, err := session.NewWorkspaceID()
+	if err != nil {
+		return nil, err
+	}
+	m.captureWorkspace()
+	m.cancelWorkspaceWork()
+	m.workspaces = append(
+		m.workspaces,
+		workspaceRuntime{State: session.WorkspaceState{ID: id, Title: m.uniqueWorkspaceTitle(name, -1), Layout: state}},
+	)
+	m.activeWorkspace = len(m.workspaces) - 1
+	return m.restoreActiveWorkspace(), nil
 }
 
 func (m *model) deleteWorkspace(name string) error {
@@ -74,16 +113,4 @@ func (m *model) deleteWorkspace(name string) error {
 		return fmt.Errorf("delete workspace %q: %w", name, err)
 	}
 	return nil
-}
-
-func (m *model) applySessionState(state session.State) {
-	fallbackLocation := m.getFocusedFilePanel().Location
-	m.fileModel.RestoreSession(state.Panels, state.FocusedPanel, state.ShowDotFiles, fallbackLocation)
-	m.fileModel.FilePreview.SetOpen(state.PreviewVisible)
-	m.toggleFooter = state.FooterVisible
-	m.focusPanel = nonePanelFocus
-	m.setHeightValues()
-	if m.fullWidth > 0 && m.fullHeight > 0 {
-		_ = m.updateComponentDimensions()
-	}
 }

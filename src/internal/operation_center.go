@@ -130,7 +130,7 @@ func (m *model) moveOperation(delta int) {
 func (m *model) handleOperationKey(msg tea.KeyPressMsg) tea.Cmd {
 	m.operationRows()
 	switch msg.String() {
-	case "esc":
+	case browserEscapeKey:
 		if m.operations.details {
 			m.operations.details = false
 			return nil
@@ -143,7 +143,7 @@ func (m *model) handleOperationKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.operations.details = false
 	case "up":
 		m.moveOperation(-1)
-	case "down":
+	case browserDownKey:
 		m.moveOperation(1)
 	case "pgup":
 		_, height := m.operationSize()
@@ -151,7 +151,7 @@ func (m *model) handleOperationKey(msg tea.KeyPressMsg) tea.Cmd {
 	case "pgdown":
 		_, height := m.operationSize()
 		m.moveOperation(height - operationHeaderRows - common.BorderPadding)
-	case "enter":
+	case browserEnterKey:
 		m.operations.details = !m.operations.details
 		m.operations.detailOffset = 0
 	case "ctrl+x":

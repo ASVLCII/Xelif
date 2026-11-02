@@ -307,18 +307,21 @@ func (p *TeaProg) Close() {
 		default:
 			p.WithModel(func(m *model) {
 				p.owner.closing = true
+				// Match application shutdown: invalidate previews/search and cancel
+				// registry work before draining, rather than waiting for subprocess
+				// deadlines while the fixture is already closing.
+				m.cancelWorkspaceWork()
+				m.processBarModel.Shutdown()
 				if m.folderWatcher != nil {
 					_ = m.folderWatcher.Close()
 				}
 			})
-			// A live model always has one processbar channel listener. Keep it
-			// consuming progress until all finite work and its results are finished.
-			if p.waitPending(1) {
-				p.m.processBarModel.SendStopListeningMsgBlocking()
-				p.waitPending(0)
-			}
+			// Shutdown releases the permanent listener as well as finite workers.
+			// Continue applying queued results until every tracked command exits.
+			p.waitPending(0)
 			p.prog.Kill()
 			<-p.done
+			p.m.processBarModel.WaitWorkers()
 		}
 		if p.err != nil && !errors.Is(p.err, tea.ErrProgramKilled) {
 			p.t.Errorf("test event loop failed: %v", p.err)

@@ -31,6 +31,7 @@ const (
 )
 
 type remoteOperationMsg struct {
+	view        operationView
 	reqID       int
 	kind        remoteOperationKind
 	location    remote.RemotePath
@@ -63,9 +64,10 @@ func (m *model) loadRemoteListCmd() tea.Cmd {
 	m.remoteViewer.BeginRemotes()
 	ctx, reqID := m.nextRemoteContext()
 	client := m.remoteClient
+	view := m.operationSubmissionView()
 	return m.trackTask("Remote list", "", "", false, ctx, m.remoteCancel, func() tea.Msg {
 		remotes, err := client.Remotes(ctx)
-		return remoteOperationMsg{reqID: reqID, kind: remoteLoadRemotes, remotes: remotes, err: err}
+		return remoteOperationMsg{reqID: reqID, view: view, kind: remoteLoadRemotes, remotes: remotes, err: err}
 	})
 }
 
@@ -82,10 +84,11 @@ func (m *model) browseRemoteCmd(location remote.RemotePath) tea.Cmd {
 	m.remoteViewer.BeginBrowse(normalized)
 	ctx, reqID := m.nextRemoteContext()
 	client := m.remoteClient
+	view := m.operationSubmissionView()
 	return m.trackTask("Remote browse", normalized.String(), "", false, ctx, m.remoteCancel, func() tea.Msg {
 		entries, listErr := client.List(ctx, normalized)
 		return remoteOperationMsg{
-			reqID: reqID, kind: remoteListDirectory, location: normalized, entries: entries, err: listErr,
+			reqID: reqID, view: view, kind: remoteListDirectory, location: normalized, entries: entries, err: listErr,
 		}
 	})
 }
@@ -97,19 +100,24 @@ func (m *model) downloadRemoteCmd(entry remote.Entry) tea.Cmd {
 	}
 	destination := m.getFocusedFilePanel().Location
 	m.remoteViewer.BeginDownload()
-	ctx, reqID := m.nextRemoteContext()
+	// Cancel only an obsolete listing; downloads belong to the global task registry.
+	m.closeRemoteRead()
+	m.remoteReqID++
+	reqID := m.remoteReqID
+	ctx, cancel := context.WithCancel(context.Background())
 	client := m.remoteClient
+	view := m.operationSubmissionView()
 	return m.trackTask(
 		"Remote download",
 		entry.Remote+":"+entry.Path,
 		destination,
 		false,
 		ctx,
-		m.remoteCancel,
+		cancel,
 		func() tea.Msg {
 			localPath, err := client.Download(ctx, entry, destination)
 			return remoteOperationMsg{
-				reqID: reqID, kind: remoteDownloadFile, destination: localPath, err: err,
+				reqID: reqID, view: view, kind: remoteDownloadFile, destination: localPath, err: err,
 			}
 		},
 	)
@@ -126,12 +134,16 @@ func (m *model) nextRemoteContext() (context.Context, int) {
 }
 
 func (m *model) closeRemoteBrowser() {
+	m.closeRemoteRead()
+	m.remoteReqID++ // Ignore a completion already queued by Bubble Tea.
+	m.remoteViewer.Close()
+}
+
+func (m *model) closeRemoteRead() {
 	if m.remoteCancel != nil {
 		m.remoteCancel()
 		m.remoteCancel = nil
 	}
-	m.remoteReqID++ // Ignore a completion already queued by Bubble Tea.
-	m.remoteViewer.Close()
 }
 
 func (m *model) handleRemoteViewerKey(key string) tea.Cmd {
@@ -192,6 +204,9 @@ func (m *model) applyRemoteOperation(msg remoteOperationMsg) {
 		return
 	}
 	m.remoteCancel = nil
+	if !msg.view.current(m) {
+		return
+	}
 	if msg.err != nil {
 		if errors.Is(msg.err, context.Canceled) {
 			return

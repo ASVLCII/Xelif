@@ -99,7 +99,7 @@ type ConfigType struct {
 	FilePreviewWidth        int      `toml:"file_preview_width"         comment:"\nFile preview width allow '0' (this mean same as file panel),'x' x must be less than 10 and greater than 1 (This means that the width of the file preview will be one xth of the total width.)"`
 	EnableFilePreviewBorder bool     `toml:"enable_file_preview_border" comment:"\nEnable border around the file preview panel (default: false)"`
 	CodePreviewer           string   `toml:"code_previewer"             comment:"\nWhether to use the builtin syntax highlighting with chroma or use bat. Values: \"\" for builtin chroma, \"bat\" for bat"`
-	SidebarWidth            int      `toml:"sidebar_width"              comment:"\nThe length of the sidebar(excluding borders). If you don't find to display the sidebar, you can input 0 directly. If you want to display the value, please place it in the range of 5-20."`
+	SidebarWidth            int      `toml:"sidebar_width"              comment:"\nSidebar content width: 5-40 columns, or 0 to hide it. The responsive default is 24."`
 	SidebarSections         []string `toml:"sidebar_sections"           comment:"\nOrder of sidebar sections (valid values: \"home\", \"recent\", \"pinned\", \"disks\").\nOnly sections included in this list will be displayed."`
 
 	BorderTop         string `toml:"border_top"          comment:"\nBorder style"`
@@ -124,9 +124,16 @@ func (c *ConfigType) GetIgnoreMissingFields() bool {
 }
 
 type HotkeysType struct {
-	Confirm []string `toml:"confirm" comment:"=================================================================================================\nGlobal hotkeys (cannot conflict with other hotkeys)"`
-	Quit    []string `toml:"quit"`
-	CdQuit  []string `toml:"cd_quit"`
+	NewWorkspace      []string `toml:"new_workspace"`
+	CloseWorkspace    []string `toml:"close_workspace"`
+	NextWorkspace     []string `toml:"next_workspace"`
+	PreviousWorkspace []string `toml:"previous_workspace"`
+	CycleFocus        []string `toml:"cycle_focus"`
+	ReverseCycleFocus []string `toml:"reverse_cycle_focus"`
+	ContextMenu       []string `toml:"context_menu"`
+	Confirm           []string `toml:"confirm"             comment:"=================================================================================================\nGlobal hotkeys (cannot conflict with other hotkeys)"`
+	Quit              []string `toml:"quit"`
+	CdQuit            []string `toml:"cd_quit"`
 
 	// movement
 	ListUp   []string `toml:"list_up"   comment:"movement"`

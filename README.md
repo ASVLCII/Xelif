@@ -8,6 +8,19 @@ A terminal file manager with mouse and keyboard access. Inspired by [superfile](
 
 ## Demo
 
+### Daily Driver development checkpoint (unreleased)
+
+`main` now includes a full-width workspace strip, independent workspace state,
+one default file pane, portable/rich appearance setup, Xelif-owned profiles with
+explicit legacy import, and indexed search adapters for Everything, Spotlight,
+and installed `plocate`. Folder search remains a separate explicit scope.
+
+This work is **not a new stable release**. The published downloads and demos
+below describe the earlier release. See the [Daily Driver checkpoint and open
+acceptance gates](docs/daily-driver-progress.md) before trying the development
+source. Native desktop acceptance and Everything-equivalent speed are not yet
+confirmed across all three operating systems.
+
 Browse files, move through individual rows, filter a folder, select a range, open Commands, and reveal the information panels.
 
 <details>
@@ -108,7 +121,12 @@ go build -o bin/xelif.exe .
 
 A Nerd Font is recommended for the illustrated icons; the demo uses CaskaydiaMono Nerd Font Mono. Windows Terminal is the primary development environment. Everything must be installed and running for its native Windows search provider; local search remains available without it.
 
-Xelif currently retains superfile's Go module path, `spf` compatibility, and configuration directory names. These are intentional compatibility choices.
+Development builds retain superfile's Go module path and `spf` compatibility,
+but use independent `xelif` directories under the normal OS/XDG configuration,
+data, state and cache roots. Existing configuration-file overrides remain
+supported. **Appearance and setup** offers an explicit, validated copy/import of
+supported Superfile preferences; it never moves or edits the source profile.
+Use `xelif doctor --json` to inspect the actual paths and selected appearance.
 
 ## Getting around
 
@@ -122,8 +140,17 @@ Xelif currently retains superfile's Go module path, `spf` compatibility, and con
 | Favourite a folder | Right-click a folder or sidebar entry â†’ **Toggle favourite** | `Shift+P`; sidebar context menu: `Shift+F10` |
 | Information panels | Use the footer command | `Shift+F` |
 | Range selection | Selection controls | `Shift+Space` |
+| New / close workspace | Workspace strip / tab context menu | `Ctrl+T` / `Ctrl+W` |
+| Next / previous workspace | Click a tab or use **Workspaces** | `Ctrl+Tab` / `Ctrl+Shift+Tab` |
+| Rename / undo rename or move | File actions / Commands | `F2` / `Ctrl+Z` |
+| Cycle focus / quit | Commands | `F6` / `Ctrl+Q` |
 
-Bindings are customizable. Mouse-wheel handling advances one row per wheel event; physical wheels and terminals can emit multiple events.
+These development defaults apply to new profiles. Existing custom bindings are
+preserved; `hotkeys-legacy.toml` is available as an explicit alternative. Escape
+closes the current edit/overlay rather than quitting in the familiar keymap.
+Some terminals reserve shortcuts; Commands and the Workspaces picker provide
+keyboard alternatives. Mouse-wheel handling advances one row per delivered
+event; physical wheels and terminals can emit multiple events.
 
 ## Performance and verification
 

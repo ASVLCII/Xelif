@@ -16,7 +16,7 @@
 #-- Basic Actions
 confirm = ['enter', 'right', 'l']
 cd_quit = ['Q', '']
-quit = ['q', 'esc']
+quit = ['ctrl+q']
 
 #-- Navigation
 list_down = ['down', 'j']
@@ -34,12 +34,19 @@ previous_file_panel = ['shift+left', 'H']
 split_file_panel = ['N', '']
 toggle_file_preview_panel = ['f', '']
 toggle_reverse_sort = ['R', '']
-new_file_tab = ['ctrl+t', '']
+new_file_tab = ['alt+t']
 close_file_tab = ['ctrl+shift+w', 'alt+w']
 next_file_tab = ['ctrl+right', '']
 previous_file_tab = ['ctrl+left', '']
 history_back = ['alt+left', '']
 history_forward = ['alt+right', '']
+new_workspace = ['ctrl+t']
+close_workspace = ['ctrl+w']
+next_workspace = ['ctrl+tab']
+previous_workspace = ['ctrl+shift+tab']
+cycle_focus = ['f6']
+reverse_cycle_focus = ['shift+f6']
+context_menu = ['shift+f10']
 
 #-- Focus Manipulation
 focus_on_metadata = ['m', '']
@@ -48,18 +55,18 @@ focus_on_sidebar = ['s', '']
 
 #-- File/Dir Creation/Renaming
 file_panel_item_create = ['ctrl+n', '']
-file_panel_item_rename = ['ctrl+r', '']
+file_panel_item_rename = ['f2']
 
 #-- Main File Operations
 copy_items = ['ctrl+c', '']
 cut_items = ['ctrl+x', '']
 undo_last_file_operation = ['ctrl+z', '']
 delete_items = ['ctrl+d', 'delete', '']
-paste_items = ['ctrl+v', 'ctrl+w', '']
-permanently_delete_items = ['D', '']
+paste_items = ['ctrl+v']
+permanently_delete_items = ['shift+delete']
 
 #-- Archive Manipulation
-compress_file = ['ctrl+a', '']
+compress_file = ['alt+a']
 extract_file = ['ctrl+e', '']
 
 #-- Editor Actions
@@ -103,7 +110,7 @@ search_bar = ['/', '']
 #-- Selection Mode Actions
 file_panel_select_mode_items_select_down = ['shift+down', 'J']
 file_panel_select_mode_items_select_up = ['shift+up', 'K']
-file_panel_select_all_items = ['A', '']
+file_panel_select_all_items = ['ctrl+a', 'A']
 file_panel_select_range = ['shift+space', '']
 file_panel_invert_selection = ['ctrl+shift+i', '']
 file_panel_select_files = ['ctrl+shift+f', '']

@@ -18,4 +18,7 @@ if platform.system() == "Windows" :
 CONF_DIR = Path(__file__).parent.parent.parent / "src" / "superfile_config"
 
 CONFIG_FILE = CONF_DIR / "config.toml"
-HOTKEY_FILE = CONF_DIR / "hotkeys.toml"
+# These retained workflows exercise the legacy Ctrl+A/compress and Esc/quit
+# contract. Daily Driver defaults are tested independently; never change users'
+# active keymap merely to make legacy workflow inputs pass.
+HOTKEY_FILE = CONF_DIR / "hotkeys-legacy.toml"

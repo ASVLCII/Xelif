@@ -18,6 +18,7 @@ func (m *Model) FocusPanel(index int) bool {
 	m.GetFocusedFilePanel().IsFocused = false
 	m.FocusedPanelIndex = index
 	m.FilePanels[index].IsFocused = true
+	m.updateChildComponentWidth()
 	return true
 }
 
@@ -29,4 +30,5 @@ func (m *Model) MoveFocusedPanelBy(delta int) {
 	m.GetFocusedFilePanel().IsFocused = false
 	m.FocusedPanelIndex = (m.FocusedPanelIndex + delta + m.PanelCount()) % m.PanelCount()
 	m.FilePanels[m.FocusedPanelIndex].IsFocused = true
+	m.updateChildComponentWidth()
 }

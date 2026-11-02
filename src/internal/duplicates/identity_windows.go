@@ -23,15 +23,15 @@ func identityOf(path string, info os.FileInfo) (fileIdentity, bool) {
 	}
 	current, err := handle.Stat()
 	if err != nil {
-		handle.Close()
+		_ = handle.Close() // Identity is already unavailable after Stat failed.
 		return fileIdentity{}, false
 	}
 	var data windows.ByHandleFileInformation
 	err = windows.GetFileInformationByHandle(windows.Handle(handle.Fd()), &data)
-	handle.Close()
+	closeErr := handle.Close()
 	// Close first: os.SameFile may lazily open the snapshot's path with
 	// exclusive sharing. Keeping a read handle open would make that fail.
-	if err != nil || !os.SameFile(info, current) {
+	if err != nil || closeErr != nil || !os.SameFile(info, current) {
 		// The path may have been replaced since the snapshot was taken. Never
 		// associate that snapshot with the replacement's identity.
 		return fileIdentity{}, false

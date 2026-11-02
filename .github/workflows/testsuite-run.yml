@@ -27,12 +27,15 @@ jobs:
       - name: Build superfile
         run: ./build.sh
 
-      # timeout command just launches and kills spf, to create the config directories
+      # Keep this non-mutating: killing fresh setup leaves an unconfirmed profile.
+      # Workflow cases provide an explicit valid config and legacy keymap.
       - name: Check installation
-        run: tmux -V; ls; pwd; ls bin/; bin/spf path-list; timeout 1s bin/spf
-        continue-on-error: true
-      - name: set debug
-        run: sed -i 's/debug = false/debug = true/g' /home/runner/.config/superfile/config.toml
+        run: tmux -V && bin/spf doctor --json
+        env:
+          XDG_CONFIG_HOME: ${{ runner.temp }}/xelif-tests/config
+          XDG_DATA_HOME: ${{ runner.temp }}/xelif-tests/data
+          XDG_STATE_HOME: ${{ runner.temp }}/xelif-tests/state
+          XDG_CACHE_HOME: ${{ runner.temp }}/xelif-tests/cache
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -49,7 +52,14 @@ jobs:
 
       - name: Run Tests
         run: python testsuite/main.py -d
+        env:
+          XDG_CONFIG_HOME: ${{ runner.temp }}/xelif-tests/config
+          XDG_DATA_HOME: ${{ runner.temp }}/xelif-tests/data
+          XDG_STATE_HOME: ${{ runner.temp }}/xelif-tests/state
+          XDG_CACHE_HOME: ${{ runner.temp }}/xelif-tests/cache
       
       - name: Print logs
         if: always()
-        run: cat ~/.local/state/superfile/superfile.log
+        run: if [ -f "$XDG_STATE_HOME/xelif/xelif.log" ]; then cat "$XDG_STATE_HOME/xelif/xelif.log"; fi
+        env:
+          XDG_STATE_HOME: ${{ runner.temp }}/xelif-tests/state

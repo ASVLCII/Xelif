@@ -39,7 +39,9 @@ type localSearchWalker struct {
 // Content matching reads regular files only, skips NUL-containing data, and is
 // case-insensitive.
 func SearchLocalQuery(ctx context.Context, root string, query Query, options LocalSearchOptions) Response {
-	response := Response{Provider: ProviderLocal}
+	identity, capabilities := providerDescription("", ScopeFolder)
+	response := Response{Provider: ProviderLocal, Identity: identity, Capabilities: capabilities,
+		RequestedScope: ScopeFolder, Root: root}
 	if err := ctx.Err(); err != nil {
 		response.Err = err
 		return response
@@ -57,6 +59,7 @@ func SearchLocalQuery(ctx context.Context, root string, query Query, options Loc
 	switch {
 	case errors.Is(err, errSearchLimitReached):
 		response.Partial = true
+		response.Truncated = true
 		response.Notice = walker.stopReason
 	case err != nil:
 		response.Err = err

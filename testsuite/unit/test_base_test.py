@@ -4,9 +4,17 @@ from unittest.mock import Mock, call, patch
 
 from core.base_test import GenericTestImpl
 import core.keys as keys
+import core.test_constants as tconst
 
 
 class GenericTestDiagnosticsTest(unittest.TestCase):
+    def test_legacy_workflow_uses_explicit_compatibility_keymap(self) -> None:
+        testcase = GenericTestImpl(
+            test_env=Mock(), test_root=Path("fixture"), start_dir=Path("fixture"), test_dirs=[],
+        )
+        self.assertEqual(tconst.HOTKEY_FILE.name, "hotkeys-legacy.toml")
+        self.assertEqual(testcase.spf_opts, ["-c", str(tconst.CONFIG_FILE), "--hf", str(tconst.HOTKEY_FILE)])
+
     def test_failure_reports_screen_captured_before_exit(self) -> None:
         environment = Mock()
         environment.spf_mgr.get_rendered_output.return_value = "fixture screen before exit"

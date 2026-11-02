@@ -14,7 +14,7 @@ func (m *Model) SetWidth(width int) {
 		width = MinWidth
 	}
 	m.width = width
-	m.SearchBar.SetWidth(m.width - common.InnerPadding)
+	m.SearchBar.SetWidth(m.FilterTextWidth())
 	m.columns = m.makeColumns(common.Config.FilePanelExtraColumns, common.Config.FilePanelNamePercent)
 	m.scrollToCursor(m.GetCursor())
 }
@@ -54,11 +54,18 @@ func (m *Model) PanelElementHeight() int {
 	if m.NeedRenderHeaders() {
 		headerHeight = ColumnHeaderHeight
 	}
-	return max(0, m.GetMainPanelHeight()-contentPadding-headerHeight)
+	padding := contentPadding
+	if m.WorkspaceChrome {
+		padding--
+	}
+	return max(0, m.GetMainPanelHeight()-padding-headerHeight)
 }
 
 func (m *Model) EntryStartY() int {
 	start := contentPadding + 1 // include the panel's top border
+	if m.WorkspaceChrome {
+		start--
+	}
 	if m.NeedRenderHeaders() {
 		start += ColumnHeaderHeight
 	}

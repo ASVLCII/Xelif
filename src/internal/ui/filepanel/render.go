@@ -40,7 +40,7 @@ func (m *Model) renderTopBar(r *rendering.Renderer) {
 	tabBar := m.renderTabBar()
 	prefixWidth := ansi.StringWidth(tabBar) + ansi.StringWidth(common.FilePanelTopDirectoryIcon)
 	availableWidth := m.GetContentWidth() - prefixWidth
-	if m.TabCount() == 1 {
+	if m.TabCount() == 1 && !m.WorkspaceChrome {
 		availableWidth -= len(" [+]")
 	}
 	breadcrumbs := ""
@@ -51,10 +51,13 @@ func (m *Model) renderTopBar(r *rendering.Renderer) {
 	directoryIcon := common.FilePanelTopDirectoryIconStyle.Foreground(lipgloss.Color(directoryColor)).
 		Render(ansi.Strip(common.FilePanelTopDirectoryIcon))
 	line := tabBar + directoryIcon + common.FilePanelTopPathStyle.Render(breadcrumbs)
-	if m.TabCount() == 1 {
+	if m.TabCount() == 1 && !m.WorkspaceChrome {
 		line += strings.Repeat(" ", max(1, m.GetContentWidth()-ansi.StringWidth(line)-len("[+]"))) + "[+]"
 	}
 	r.AddLines(line)
+	if m.WorkspaceChrome {
+		return
+	}
 	searchLabel, commandLabel := m.searchActionLabels()
 	r.AddLines(
 		common.FilePanelTopPathStyle.Render(
@@ -65,6 +68,16 @@ func (m *Model) renderTopBar(r *rendering.Renderer) {
 }
 
 func (m *Model) renderSearchBar(r *rendering.Renderer) {
+	if m.WorkspaceChrome {
+		g := m.toolbarLayout()
+		filter := " " + ansi.Truncate(m.SearchBar.View(), max(0, g.searchX-1), "")
+		line := filter + strings.Repeat(" ", max(0, g.searchX-ansi.StringWidth(filter))) + "Search  Commands"
+		if g.showSort {
+			line += "  " + sortmodel.ControlStyle().Render(m.SortActionLabel())
+		}
+		r.AddLines(line)
+		return
+	}
 	r.AddLines(" " + m.SearchBar.View())
 }
 
@@ -109,6 +122,10 @@ func (m *Model) renderColumnHeaders(r *rendering.Renderer) {
 }
 
 func (m *Model) renderFileEntries(r *rendering.Renderer) {
+	if m.directoryUnavailable {
+		r.AddLines("Folder unavailable - saved path retained.")
+		return
+	}
 	if m.Empty() {
 		r.AddLines(common.FilePanelNoneText)
 		return

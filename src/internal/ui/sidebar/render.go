@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/yorukot/superfile/src/internal/ui"
 
@@ -36,6 +37,11 @@ type sidebarViewport struct {
 	remaining, skip int
 }
 
+// Section rules fill available cells; they are not paths needing ellipses.
+func (s *Model) sectionHeading(text string) string {
+	return ansi.Truncate(text, max(0, s.width-common.BorderPadding), "")
+}
+
 func (v *sidebarViewport) addRows(r *rendering.Renderer, lines ...string) {
 	for _, line := range lines {
 		if v.skip > 0 {
@@ -61,13 +67,13 @@ func (s *Model) directoriesRender(curFilePanelFileLocation string,
 	for i := s.renderIndex; i < len(s.directories) && viewport.remaining > 0; i++ {
 		switch s.directories[i] {
 		case homeDividerDir:
-			viewport.addRows(r, "", common.SideBarHomeDivider, "")
+			viewport.addRows(r, "", s.sectionHeading(common.SideBarHomeDivider), "")
 		case recentDividerDir:
-			viewport.addRows(r, "", common.SideBarRecentDivider, "")
+			viewport.addRows(r, "", s.sectionHeading(common.SideBarRecentDivider), "")
 		case pinnedDividerDir:
-			viewport.addRows(r, "", common.SideBarPinnedDivider, "")
+			viewport.addRows(r, "", s.sectionHeading(common.SideBarPinnedDivider), "")
 		case diskDividerDir:
-			viewport.addRows(r, "", common.SideBarDisksDivider, "")
+			viewport.addRows(r, "", s.sectionHeading(common.SideBarDisksDivider), "")
 		default:
 			cursor := " "
 			if s.cursor == i && sideBarFocused && !s.searchBar.Focused() {

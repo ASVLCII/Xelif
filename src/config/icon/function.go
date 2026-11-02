@@ -19,6 +19,15 @@ const noIconColor = "NONE"
 //   - Status indicators (Error, Warn, Done, InOperation)
 //   - Navigation and sorting (Directory, Search, SortAsc, SortDesc)
 func InitIcon(nerdfont bool, directoryIconColor string) {
+	if nerdfont {
+		Space, SuperfileIcon = " ", "\ue6ad"
+		Home, Desktop, Download, Documents = "\U000f02dc", "\U000f01c4", "\U000f03d4", "\U000f0219"
+		Pictures, Videos, Music, Templates, PublicShare, Trash = "\U000f02e9", "\U000f0381", "♬", "\U000f03e2", "\uf0ac", "\uf1f8"
+		CompressFile, ExtractFile, Copy, Cut, Delete = "\U000f05c4", "\U000f06eb", "\U000f018f", "\U000f0190", "\U000f01b4"
+		Cursor, Browser, Select = "\uf054", "\U000f0208", "\U000f01bd"
+		Error, Warn, Done, InOperation = "\uf530", "\uf071", "\uf4a4", "\U000f0954"
+		Directory, Search, SortAsc, SortDesc, Terminal, Pinned, Disk = "\uf07b", "\ue68f", "\uf0de", "\uf0dd", "\ue795", "\U000f0403", "\U000f11f0"
+	}
 	// Make sure that these alternatives are ASCII characters only.
 	// Dont place any special unicode characters here.
 	if !nerdfont {

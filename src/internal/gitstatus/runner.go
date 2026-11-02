@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"time"
 )
 
 var errOutputLimit = errors.New("git output exceeded the configured limit")
 
 const maxStderrOutput = int64(64 << 10)
+
+const commandPipeWaitDelay = 500 * time.Millisecond
 
 type limitedBuffer struct {
 	data     []byte
@@ -45,6 +48,10 @@ func (c *Client) run(ctx context.Context, operation, path, dir string, readOnly 
 	// literal pathspecs placed after "--" by callers.
 	//nolint:gosec // G204: binary and argv are constrained as documented above.
 	cmd := exec.CommandContext(bounded, c.gitBinary, args...)
+	// Git launchers/helpers can leave inherited output pipes open after the
+	// command exits or is killed. Bound pipe draining as well as execution;
+	// otherwise cancellation (including application shutdown) can wait forever.
+	cmd.WaitDelay = commandPipeWaitDelay
 	cmd.Dir = dir
 	if readOnly {
 		cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")

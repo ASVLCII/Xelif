@@ -1,16 +1,15 @@
 package session
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 )
@@ -24,7 +23,7 @@ var (
 	ErrCorrupt = errors.New("session state is corrupt")
 	// ErrUnsupportedVersion identifies data written with an unknown schema version.
 	ErrUnsupportedVersion = errors.New("unsupported session schema version")
-	// ErrInvalidState identifies a state whose indexes cannot describe its contents.
+	// ErrInvalidState identifies malformed, ambiguous, or out-of-bounds state.
 	ErrInvalidState = errors.New("invalid session state")
 	// ErrInvalidWorkspaceName identifies an unsafe workspace file name.
 	ErrInvalidWorkspaceName = errors.New("invalid workspace name")
@@ -32,6 +31,7 @@ var (
 
 // Store persists a last session and named workspaces at caller-selected paths.
 type Store struct {
+	mu              sync.Mutex
 	lastSessionFile string
 	workspaceDir    string
 	writeFile       func(string, []byte) error
@@ -52,7 +52,22 @@ func (s *Store) LoadLast() (State, error) {
 }
 
 // SaveLast atomically replaces the last saved session.
+// It cannot overwrite a corrupt session or a version-2 app session.
 func (s *Store) SaveLast(state State) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := validateState(state); err != nil {
+		return err
+	}
+	data, err := readStateFile(s.lastSessionFile)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return err
+	}
+	if err == nil {
+		if _, decodeErr := decodeState(data, s.lastSessionFile); decodeErr != nil {
+			return fmt.Errorf("preserve existing last session: %w", decodeErr)
+		}
+	}
 	return s.save(s.lastSessionFile, state)
 }
 
@@ -125,6 +140,9 @@ func (s *Store) save(path string, state State) error {
 		return fmt.Errorf("encode session state: %w", err)
 	}
 	data = append(data, '\n')
+	if len(data) > MaxStateFileBytes {
+		return fmt.Errorf("%w: encoded layout exceeds %d bytes", ErrInvalidState, MaxStateFileBytes)
+	}
 	if err := s.writeFile(path, data); err != nil {
 		return fmt.Errorf("save session state: %w", err)
 	}
@@ -132,52 +150,19 @@ func (s *Store) save(path string, state State) error {
 }
 
 func loadState(path string) (State, error) {
-	data, err := os.ReadFile(path)
+	data, err := readStateFile(path)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return State{}, fmt.Errorf("load %q: %w: %w", path, ErrNotFound, err)
-		}
-		return State{}, fmt.Errorf("load %q: %w", path, err)
+		return State{}, err
 	}
-
-	var state State
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	if err := decoder.Decode(&state); err != nil {
-		return State{}, fmt.Errorf("decode %q: %w: %w", path, ErrCorrupt, err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		if err == nil {
-			err = errors.New("multiple JSON values")
-		}
-		return State{}, fmt.Errorf("decode %q: %w: %w", path, ErrCorrupt, err)
-	}
-	var object map[string]json.RawMessage
-	if err := json.Unmarshal(data, &object); err != nil {
-		return State{}, fmt.Errorf("decode %q: %w: %w", path, ErrCorrupt, err)
-	}
-	version, versionPresent := object["version"]
-	if !versionPresent || bytes.Equal(version, []byte("null")) {
-		return State{}, fmt.Errorf("decode %q: %w: missing schema version", path, ErrCorrupt)
-	}
-	if state.Version != CurrentVersion {
-		return State{}, fmt.Errorf(
-			"load %q: %w: got %d, want %d",
-			path,
-			ErrUnsupportedVersion,
-			state.Version,
-			CurrentVersion,
-		)
-	}
-	if err := validateState(state); err != nil {
-		return State{}, fmt.Errorf("load %q: %w: %w", path, ErrCorrupt, err)
-	}
-	return state, nil
+	return decodeState(data, path)
 }
 
 func validateState(state State) error {
 	if state.Version != CurrentVersion {
 		return fmt.Errorf("%w: got %d, want %d", ErrUnsupportedVersion, state.Version, CurrentVersion)
+	}
+	if len(state.Panels) > MaxPanels {
+		return fmt.Errorf("%w: %d panels exceeds %d", ErrInvalidState, len(state.Panels), MaxPanels)
 	}
 	if len(state.Panels) == 0 {
 		if state.FocusedPanel != 0 {
@@ -189,25 +174,38 @@ func validateState(state State) error {
 		return fmt.Errorf("%w: focused panel %d outside [0,%d)", ErrInvalidState, state.FocusedPanel, len(state.Panels))
 	}
 	for index, panel := range state.Panels {
-		if len(panel.Tabs) == 0 {
-			if panel.ActiveTab != 0 {
-				return fmt.Errorf(
-					"%w: panel %d has active tab %d with no tabs",
-					ErrInvalidState,
-					index,
-					panel.ActiveTab,
-				)
-			}
-			continue
+		if err := validatePanel(panel); err != nil {
+			return fmt.Errorf("panel %d: %w", index, err)
 		}
-		if panel.ActiveTab < 0 || panel.ActiveTab >= len(panel.Tabs) {
+	}
+	return nil
+}
+
+func validatePanel(panel PanelState) error {
+	if len(panel.Tabs) > MaxTabsPerPanel {
+		return fmt.Errorf("%w: exceeds %d tabs", ErrInvalidState, MaxTabsPerPanel)
+	}
+	if len(panel.Tabs) == 0 {
+		if panel.ActiveTab != 0 {
 			return fmt.Errorf(
-				"%w: panel %d active tab %d outside [0,%d)",
+				"%w: active tab %d with no tabs",
 				ErrInvalidState,
-				index,
 				panel.ActiveTab,
-				len(panel.Tabs),
 			)
+		}
+		return nil
+	}
+	if panel.ActiveTab < 0 || panel.ActiveTab >= len(panel.Tabs) {
+		return fmt.Errorf(
+			"%w: active tab %d outside [0,%d)",
+			ErrInvalidState,
+			panel.ActiveTab,
+			len(panel.Tabs),
+		)
+	}
+	for tabIndex, tab := range panel.Tabs {
+		if err := validateTab(tab); err != nil {
+			return fmt.Errorf("tab %d: %w", tabIndex, err)
 		}
 	}
 	return nil

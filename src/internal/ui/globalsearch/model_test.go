@@ -102,7 +102,9 @@ func TestDebounceStartsBoundedAsyncSearch(t *testing.T) {
 	m.activeReqID = 7
 	m.textInput.SetValue("needle")
 
-	action, cmd := m.HandleUpdate(debounceMsg{reqID: 7, query: "needle"})
+	action, cmd := m.HandleUpdate(
+		debounceMsg{reqID: 7, query: "needle", epoch: m.epoch, scope: m.GetScope(), root: m.root},
+	)
 
 	require.IsType(t, common.NoAction{}, action)
 	require.NotNil(t, cmd)
@@ -129,7 +131,7 @@ func TestQueryChangeCancelsRunningSearchImmediately(t *testing.T) {
 	m.Open(t.TempDir())
 	m.textInput.SetValue("a")
 	m.activeReqID = 1
-	_, searchCmd := m.HandleUpdate(debounceMsg{reqID: 1, query: "a"})
+	_, searchCmd := m.HandleUpdate(debounceMsg{reqID: 1, query: "a", epoch: m.epoch, scope: m.GetScope(), root: m.root})
 	require.NotNil(t, searchCmd)
 	defer func() {
 		if m.cancel != nil {
@@ -163,7 +165,7 @@ func TestCloseCancelsRunningSearch(t *testing.T) {
 	m.Open(t.TempDir())
 	m.textInput.SetValue("a")
 	m.activeReqID = 1
-	_, searchCmd := m.HandleUpdate(debounceMsg{reqID: 1, query: "a"})
+	_, searchCmd := m.HandleUpdate(debounceMsg{reqID: 1, query: "a", epoch: m.epoch, scope: m.GetScope(), root: m.root})
 	require.NotNil(t, searchCmd)
 	defer func() {
 		if m.cancel != nil {
@@ -195,6 +197,7 @@ func TestCurrentSearchResultUpdatesModal(t *testing.T) {
 	action, cmd := m.HandleUpdate(searchResultMsg{
 		reqID: 3,
 		query: "needle",
+		epoch: m.epoch, scope: m.GetScope(), root: m.root,
 		response: Response{
 			Results:  want,
 			Provider: ProviderEverything,
@@ -276,10 +279,10 @@ func TestNavigationKeepsCursorInsideVisibleWindow(t *testing.T) {
 	m.navigateDown()
 
 	assert.Equal(t, 2, m.cursor)
-	assert.Equal(t, 1, m.renderIndex)
+	assert.Equal(t, 2, m.renderIndex)
 }
 
-func TestEnterReturnsSelectedResultActionAndCloses(t *testing.T) {
+func TestEnterRevealsSelectedResultAndPreservesPickerUntilParentSuccess(t *testing.T) {
 	t.Parallel()
 
 	m := New(func(context.Context, string, string, int) Response { return Response{} })
@@ -297,7 +300,8 @@ func TestEnterReturnsSelectedResultActionAndCloses(t *testing.T) {
 	openAction, ok := action.(OpenResultAction)
 	require.True(t, ok, "Enter should return OpenResultAction, got %T", action)
 	assert.Equal(t, want, openAction.Result)
-	assert.False(t, m.IsOpen())
+	assert.True(t, openAction.Reveal)
+	assert.True(t, m.IsOpen())
 }
 
 func TestEscapeClosesWithoutAction(t *testing.T) {

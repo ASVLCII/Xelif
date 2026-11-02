@@ -48,6 +48,9 @@ func (m *Model) updateChildComponentWidth() {
 	}
 	panelCount := len(m.FilePanels)
 	widthForPanels := m.Width
+	const minimumContentWidth = 40
+	m.previewHidden = false
+	m.ExpectedPreviewWidth = 0
 
 	if m.FilePreview.IsOpen() {
 		// Need to give some width to preview
@@ -57,7 +60,20 @@ func (m *Model) updateChildComponentWidth() {
 		} else {
 			m.ExpectedPreviewWidth = m.Width / common.Config.FilePreviewWidth
 		}
-		widthForPanels -= m.ExpectedPreviewWidth
+		if m.Responsive &&
+			(widthForPanels-m.ExpectedPreviewWidth)/panelCount < minimumContentWidth+common.BorderPadding {
+			m.ExpectedPreviewWidth = 0
+			m.previewHidden = true
+		} else {
+			widthForPanels -= m.ExpectedPreviewWidth
+		}
+	}
+	m.collapsed = m.Responsive && widthForPanels/panelCount < minimumContentWidth+common.BorderPadding && panelCount > 1
+	if m.collapsed {
+		m.GetFocusedFilePanel().SetWidth(widthForPanels)
+		m.SinglePanelWidth = widthForPanels
+		m.MaxFilePanel = max(panelCount, min(common.FilePanelMax, widthForPanels/filepanel.MinWidth))
+		return
 	}
 
 	panelWidth := widthForPanels / panelCount
@@ -72,7 +88,7 @@ func (m *Model) updateChildComponentWidth() {
 	}
 
 	m.SinglePanelWidth = panelWidth
-	m.MaxFilePanel = widthForPanels / filepanel.MinWidth
+	m.MaxFilePanel = max(1, widthForPanels/filepanel.MinWidth)
 	// Cap at the system maximum
 	if m.MaxFilePanel > common.FilePanelMax {
 		m.MaxFilePanel = common.FilePanelMax
@@ -80,9 +96,25 @@ func (m *Model) updateChildComponentWidth() {
 }
 
 func (m *Model) ensurePreviewDimensionsSync() tea.Cmd {
+	if m.previewHidden {
+		return nil
+	}
 	if m.FilePreview.GetContentWidth() != m.ExpectedPreviewWidth ||
 		m.FilePreview.GetContentHeight() != m.Height {
 		return m.GetFilePreviewCmd(true)
 	}
 	return nil
 }
+
+func (m *Model) VisiblePanelIndices() []int {
+	if m.collapsed {
+		return []int{m.FocusedPanelIndex}
+	}
+	indices := make([]int, len(m.FilePanels))
+	for i := range indices {
+		indices[i] = i
+	}
+	return indices
+}
+
+func (m *Model) PreviewVisible() bool { return m.FilePreview.IsOpen() && !m.previewHidden }

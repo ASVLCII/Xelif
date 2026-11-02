@@ -26,6 +26,37 @@ type metadataOperationMsg struct {
 	result    metadataedit.PreviewResult
 	journal   string
 	err       error
+	view      metadataOperationView
+	patch     *metadataedit.Patch
+}
+
+// Explicit mutations continue globally, but their completion may only reopen
+// the view that submitted them. A newer preview owns a different patch pointer.
+type metadataOperationView struct {
+	workspaceID string
+	generation  uint64
+	operationID uint64
+}
+
+func (m *model) metadataSubmissionView() metadataOperationView {
+	view := metadataOperationView{generation: m.workspaceGeneration, operationID: m.metadataOperationSequence}
+	if len(m.workspaces) > 0 {
+		view.workspaceID = m.workspaces[m.activeWorkspace].State.ID
+	}
+	return view
+}
+
+func (m *model) beginMetadataOperation() metadataOperationView {
+	m.metadataOperationSequence++
+	m.metadataOperationBusy = true
+	return m.metadataSubmissionView()
+}
+
+func (v metadataOperationView) current(m *model) bool {
+	if len(m.workspaces) == 0 {
+		return v.workspaceID == ""
+	}
+	return v.workspaceID == m.workspaces[m.activeWorkspace].State.ID && v.generation == m.workspaceGeneration
 }
 
 func (m *model) executeMetadataAction(action common.MetadataAction) (string, tea.Cmd, error) {
@@ -52,10 +83,15 @@ func (m *model) executeMetadataAction(action common.MetadataAction) (string, tea
 		m.setTextViewerSize()
 		return "Metadata preview ready; use metadata apply to confirm", nil, nil
 	case common.MetadataApply:
+		if m.metadataOperationBusy {
+			return "", nil, errors.New("another metadata operation is still running; inspect Operations")
+		}
 		if m.pendingMetadataPatch == nil {
 			return "", nil, errors.New("no metadata preview is pending")
 		}
-		patch := *m.pendingMetadataPatch
+		submittedPatch := m.pendingMetadataPatch
+		patch := *submittedPatch
+		view := m.beginMetadataOperation()
 		journal := filepath.Join(variable.MetadataJournalDir,
 			fmt.Sprintf("metadata-%d.json", time.Now().UTC().UnixNano()))
 		m.textViewer.Open(applyingMetadataTitle, "Applying the reviewed edit in the background…")
@@ -72,14 +108,19 @@ func (m *model) executeMetadataAction(action common.MetadataAction) (string, tea
 				result, err := metadataedit.Apply(ctx, patch, journal)
 				return metadataOperationMsg{
 					operation: common.MetadataApply, result: result, journal: journal, err: err,
+					view: view, patch: submittedPatch,
 				}
 			},
 		), nil
 	case common.MetadataRestore:
+		if m.metadataOperationBusy {
+			return "", nil, errors.New("another metadata operation is still running; inspect Operations")
+		}
 		if m.lastMetadataJournal == "" {
 			return "", nil, errors.New("no metadata journal is available to restore")
 		}
 		journal := m.lastMetadataJournal
+		view := m.beginMetadataOperation()
 		m.textViewer.Open(restoringMetadataTitle, "Restoring the journaled metadata in the background…")
 		m.setTextViewerSize()
 		ctx, cancel := context.WithCancel(context.Background())
@@ -94,6 +135,7 @@ func (m *model) executeMetadataAction(action common.MetadataAction) (string, tea
 				result, err := metadataedit.Restore(ctx, journal)
 				return metadataOperationMsg{
 					operation: common.MetadataRestore, result: result, journal: journal, err: err,
+					view: view,
 				}
 			},
 		), nil
@@ -131,16 +173,26 @@ func parseMetadataChanges(action common.MetadataAction) (metadataedit.Changes, e
 }
 
 func (m *model) applyMetadataOperation(msg metadataOperationMsg) {
+	if msg.view.operationID != 0 && msg.view.operationID != m.metadataOperationSequence {
+		return
+	}
+	m.metadataOperationBusy = false
 	if msg.err != nil {
-		m.showTextViewerError("Metadata operation failed", msg.err, "")
+		if msg.view.current(m) {
+			m.showTextViewerError("Metadata operation failed", msg.err, "")
+		}
 		return
 	}
 	switch msg.operation {
 	case common.MetadataApply:
-		m.pendingMetadataPatch = nil
+		if msg.patch == m.pendingMetadataPatch {
+			m.pendingMetadataPatch = nil
+		}
 		m.lastMetadataJournal = msg.journal
 	case common.MetadataRestore:
-		m.lastMetadataJournal = ""
+		if m.lastMetadataJournal == msg.journal {
+			m.lastMetadataJournal = ""
+		}
 	case common.MetadataModified, common.MetadataAccessed, common.MetadataPermissions:
 		m.showUserError(
 			"Metadata operation failed",
@@ -152,6 +204,9 @@ func (m *model) applyMetadataOperation(msg metadataOperationMsg) {
 		return
 	}
 	m.fileModel.UpdateFilePanelsIfNeeded(true)
+	if !msg.view.current(m) {
+		return
+	}
 	title := "Metadata updated"
 	if msg.operation == common.MetadataRestore {
 		title = "Metadata restored"

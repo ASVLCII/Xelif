@@ -10,11 +10,12 @@ import (
 	"github.com/yorukot/superfile/src/internal/common"
 )
 
-func TestHandleClickOpensVisibleResultAndCloses(t *testing.T) {
+func TestHandleClickRevealsVisibleResultAndPreservesPicker(t *testing.T) {
 	t.Parallel()
 
 	m := New(func(context.Context, string, string, int) Response { return Response{} })
 	m.Open(t.TempDir())
+	m.SetMaxHeight(10)
 	m.results = []Result{{Path: "zero"}, {Path: "one"}, {Path: "two"}}
 	m.renderIndex = 1
 	want := m.results[2]
@@ -24,7 +25,8 @@ func TestHandleClickOpensVisibleResultAndCloses(t *testing.T) {
 	openAction, ok := action.(OpenResultAction)
 	require.True(t, ok, "result click should return OpenResultAction, got %T", action)
 	assert.Equal(t, want, openAction.Result)
-	assert.False(t, m.IsOpen())
+	assert.True(t, openAction.Reveal)
+	assert.True(t, m.IsOpen())
 }
 
 func TestHandleClickIgnoresNonResultRows(t *testing.T) {

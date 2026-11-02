@@ -28,6 +28,7 @@ func (m *Model) CreateNewFilePanel(location string) (tea.Cmd, error) {
 		m.GetFocusedFilePanel().SortReversed))
 
 	newPanelIndex := m.PanelCount() - 1
+	m.FilePanels[newPanelIndex].WorkspaceChrome = m.Responsive
 
 	m.FilePanels[m.FocusedPanelIndex].IsFocused = false
 	m.FilePanels[newPanelIndex].IsFocused = true
@@ -107,7 +108,7 @@ func (m *Model) UpdatePreviewPanel(msg preview.UpdateMsg) tea.Cmd {
 }
 
 func (m *Model) GetFilePreviewCmd(forcePreviewRender bool) tea.Cmd {
-	if !m.FilePreview.IsOpen() {
+	if !m.PreviewVisible() {
 		return nil
 	}
 	panel := m.GetFocusedFilePanel()

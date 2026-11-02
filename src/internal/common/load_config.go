@@ -61,8 +61,8 @@ func ValidateConfig(c *ConfigType) error {
 		)
 	}
 
-	if c.SidebarWidth != 0 && (c.SidebarWidth < 5 || c.SidebarWidth > 20) {
-		return errors.New(LoadConfigError("sidebar_width", "Sidebar width must be 5–20, or 0 to hide the sidebar."))
+	if c.SidebarWidth != 0 && (c.SidebarWidth < 5 || c.SidebarWidth > 40) {
+		return errors.New(LoadConfigError("sidebar_width", "Sidebar width must be 5–40, or 0 to hide the sidebar."))
 	}
 
 	for _, order := range c.SidebarSections {

@@ -46,7 +46,7 @@ func defaultModelConfig(toggleDotFile, toggleFooter, firstUse bool,
 		sidebarModel:      sidebar.New(),
 		fileMetaData:      metadata.New(),
 		fileModel:         filemodel.New(firstPanelPaths, toggleDotFile),
-		globalSearchModal: globalsearch.New(globalsearch.NewDefaultSearchFunc()),
+		globalSearchModal: globalsearch.New(nil),
 		commandPalette:    commandpalette.New(nil),
 		textViewer:        textviewer.New(),
 		archiveViewer:     archiveviewer.New(),
@@ -67,6 +67,7 @@ func defaultModelConfig(toggleDotFile, toggleFooter, firstUse bool,
 		hasTrash:          common.InitTrash(),
 	}
 	m.fileModel.Tasks = &m.processBarModel
+	m.ensureWorkspaces()
 	m.globalSearchModal.Tasks = &m.processBarModel
 	m.processBarModel.StartTask(
 		processbar.TaskSpec{

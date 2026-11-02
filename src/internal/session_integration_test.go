@@ -67,7 +67,8 @@ func TestNamedWorkspaceLifecycleAppliesSavedState(t *testing.T) {
 
 	require.NoError(t, m.saveWorkspace("project"))
 	require.NoError(t, m.updateCurrentFilePanelDir(other))
-	require.NoError(t, m.loadWorkspace("project"))
+	_, loadErr := m.loadWorkspace("project")
+	require.NoError(t, loadErr)
 
 	assert.Equal(t, saved, m.getFocusedFilePanel().Location)
 	names, err := m.sessionStore.ListWorkspaces()

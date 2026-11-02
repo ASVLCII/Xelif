@@ -32,21 +32,23 @@ type Model struct {
 
 	PanelMode PanelMode
 	// key is file location, value order of selection
-	selected           map[string]int
-	selectOrderCounter int
-	selectionAnchor    string
-	gitStates          map[string]gitstatus.State
-	element            []Element
-	DirectoryRecords   map[string]directoryRecord
-	Rename             textinput.Model
-	Renaming           bool
-	SearchBar          textinput.Model
-	LastTimeGetElement time.Time
-	lastElementInputs  panelElementInputs
-	TargetFile         string             // filename to position cursor on after load
-	columns            []columnDefinition // columns for rendering
-	tabs               []panelTab
-	activeTab          int
+	selected             map[string]int
+	selectOrderCounter   int
+	selectionAnchor      string
+	gitStates            map[string]gitstatus.State
+	element              []Element
+	DirectoryRecords     map[string]directoryRecord
+	Rename               textinput.Model
+	Renaming             bool
+	SearchBar            textinput.Model
+	LastTimeGetElement   time.Time
+	lastElementInputs    panelElementInputs
+	TargetFile           string             // filename to position cursor on after load
+	columns              []columnDefinition // columns for rendering
+	tabs                 []panelTab
+	activeTab            int
+	WorkspaceChrome      bool
+	directoryUnavailable bool
 }
 
 // Inputs that affect directory membership or ordering. Keeping the last loaded

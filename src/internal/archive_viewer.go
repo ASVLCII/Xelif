@@ -20,6 +20,7 @@ const (
 )
 
 type archiveOperationMsg struct {
+	view      operationView
 	operation archiveviewer.Operation
 	kind      archiveviewer.ActionKind
 	member    string
@@ -80,12 +81,13 @@ func (m *model) handleArchiveAction(action archiveviewer.Action) tea.Cmd {
 		_ = m.archiveViewer.Close()
 		return nil
 	case archiveviewer.PreviewAction, archiveviewer.ExtractAction:
-		operation, err := m.archiveViewer.StartOperation()
+		operation, err := m.startArchiveOperation(action.Kind)
 		if err != nil {
 			m.showUserError("Archive operation failed", err)
 			return nil
 		}
 		destination := m.getFocusedFilePanel().Location
+		view := m.operationSubmissionView()
 		return m.trackTask(
 			"Archive member",
 			operation.ArchivePath+" : "+action.Member,
@@ -93,16 +95,33 @@ func (m *model) handleArchiveAction(action archiveviewer.Action) tea.Cmd {
 			false,
 			operation.Context,
 			operation.Cancel,
-			archiveOperationCmd(operation, action, destination),
+			archiveOperationCmd(operation, action, destination, view),
 		)
 	default:
 		return nil
 	}
 }
 
-func archiveOperationCmd(operation archiveviewer.Operation, action archiveviewer.Action, destination string) tea.Cmd {
+// Extraction is a submitted mutation, not viewer-owned preview work.
+func (m *model) startArchiveOperation(kind archiveviewer.ActionKind) (archiveviewer.Operation, error) {
+	if kind != archiveviewer.ExtractAction {
+		return m.archiveViewer.StartOperation()
+	}
+	if !m.archiveViewer.IsOpen() {
+		return archiveviewer.Operation{}, archivebrowser.ErrClosed
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	return archiveviewer.Operation{Context: ctx, Cancel: cancel, ArchivePath: m.archiveViewer.ArchivePath()}, nil
+}
+
+func archiveOperationCmd(
+	operation archiveviewer.Operation,
+	action archiveviewer.Action,
+	destination string,
+	view operationView,
+) tea.Cmd {
 	return func() tea.Msg {
-		msg := archiveOperationMsg{operation: operation, kind: action.Kind, member: action.Member}
+		msg := archiveOperationMsg{operation: operation, kind: action.Kind, member: action.Member, view: view}
 		if err := operation.Context.Err(); err != nil {
 			msg.err = err
 			return msg
@@ -127,7 +146,17 @@ func archiveOperationCmd(operation archiveviewer.Operation, action archiveviewer
 }
 
 func (m *model) applyArchiveOperation(msg archiveOperationMsg) {
-	if !m.archiveViewer.CompleteOperation(msg.operation) || errors.Is(msg.err, context.Canceled) {
+	if msg.kind == archiveviewer.ExtractAction {
+		if msg.operation.Cancel != nil {
+			msg.operation.Cancel()
+		}
+		if !m.archiveViewer.IsOpen() || m.archiveViewer.ArchivePath() != msg.operation.ArchivePath {
+			return
+		}
+	} else if !m.archiveViewer.CompleteOperation(msg.operation) {
+		return
+	}
+	if !msg.view.current(m) || errors.Is(msg.err, context.Canceled) {
 		return
 	}
 	if msg.err != nil {

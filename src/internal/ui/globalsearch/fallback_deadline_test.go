@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestProviderTimeoutsLeaveLocalFallbackBudget(t *testing.T) {
+func TestProviderTimeoutsDoNotNarrowToFolder(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	path := filepath.Join(root, "needle.txt")
@@ -30,11 +30,11 @@ func TestProviderTimeoutsLeaveLocalFallbackBudget(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), searchTimeout)
 	defer cancel()
 	response := search(ctx, "needle", root, 10)
-	require.NoError(t, response.Err)
+	require.ErrorIs(t, response.Err, ErrIndexedUnavailable)
 	require.NoError(t, ctx.Err())
-	require.Equal(t, ProviderLocal, response.Provider)
-	require.Equal(t, []Result{{Path: path}}, response.Results)
-	require.Contains(t, response.Notice, "current folder")
+	require.Equal(t, ProviderEverything, response.Provider)
+	require.Empty(t, response.Results)
+	require.Contains(t, response.Notice, "Ctrl+S")
 }
 
 func TestCallerDeadlineDoesNotRunFallback(t *testing.T) {

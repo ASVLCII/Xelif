@@ -22,19 +22,22 @@ const (
 	LatestVersionGithub = "github.com/ASVLCII/Xelif/releases/latest"
 
 	// This will not break in windows. This is a relative path for Embed FS. It uses "/" only
-	EmbedConfigDir        = "src/superfile_config"
-	EmbedConfigFile       = EmbedConfigDir + "/config.toml"
-	EmbedHotkeysFile      = EmbedConfigDir + "/hotkeys.toml"
-	EmbedThemeDir         = EmbedConfigDir + "/theme"
-	EmbedThemeDefaultFile = EmbedThemeDir + "/monochrome.toml"
+	EmbedConfigDir         = "src/superfile_config"
+	EmbedConfigFile        = EmbedConfigDir + "/config.toml"
+	EmbedHotkeysFile       = EmbedConfigDir + "/hotkeys.toml"
+	EmbedLegacyHotkeysFile = EmbedConfigDir + "/hotkeys-legacy.toml"
+	EmbedThemeDir          = EmbedConfigDir + "/theme"
+	EmbedThemeDefaultFile  = EmbedThemeDir + "/monochrome.toml"
 )
 
 var (
-	HomeDir           = xdg.Home
-	SuperFileMainDir  = filepath.Join(xdg.ConfigHome, "superfile")
-	SuperFileCacheDir = filepath.Join(xdg.CacheHome, "superfile")
-	SuperFileDataDir  = filepath.Join(xdg.DataHome, "superfile")
-	SuperFileStateDir = filepath.Join(xdg.StateHome, "superfile")
+	HomeDir = xdg.Home
+	// Retain the exported names for source compatibility, but never share a
+	// writable profile with upstream superfile. XDG honors OS-specific roots.
+	SuperFileMainDir  = filepath.Join(xdg.ConfigHome, "xelif")
+	SuperFileCacheDir = filepath.Join(xdg.CacheHome, "xelif")
+	SuperFileDataDir  = filepath.Join(xdg.DataHome, "xelif")
+	SuperFileStateDir = filepath.Join(xdg.StateHome, "xelif")
 
 	// MainDir files
 	ThemeFolder      = filepath.Join(SuperFileMainDir, "theme")
@@ -54,7 +57,7 @@ var (
 	CatalogFile               = filepath.Join(SuperFileDataDir, "catalog.json")
 
 	// StateDir files
-	LogFile            = filepath.Join(SuperFileStateDir, "superfile.log")
+	LogFile            = filepath.Join(SuperFileStateDir, "xelif.log")
 	LastDirFile        = filepath.Join(SuperFileStateDir, "lastdir")
 	SessionFile        = filepath.Join(SuperFileStateDir, "session.json")
 	MetadataJournalDir = filepath.Join(SuperFileStateDir, "metadata-journals")
@@ -70,8 +73,9 @@ var (
 
 // These variables are actually not fixed, they are sometimes updated dynamically
 var (
-	ConfigFile  = filepath.Join(SuperFileMainDir, "config.toml")
-	HotkeysFile = filepath.Join(SuperFileMainDir, "hotkeys.toml")
+	ConfigFile        = filepath.Join(SuperFileMainDir, "config.toml")
+	HotkeysFile       = filepath.Join(SuperFileMainDir, "hotkeys.toml")
+	LegacyHotkeysFile = filepath.Join(SuperFileMainDir, "hotkeys-legacy.toml")
 
 	// ChooserFile is the path where superfile will write the file's path, which is to be
 	// opened, before exiting

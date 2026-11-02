@@ -10,6 +10,7 @@ import (
 	"github.com/yorukot/superfile/src/pkg/utils"
 
 	"github.com/yorukot/superfile/src/internal/common"
+	"github.com/yorukot/superfile/src/internal/ui/filepanel"
 )
 
 const minLinesForBorder = 3
@@ -28,7 +29,14 @@ func (m *model) validateLayout() error { //nolint:gocognit // cumilation of vali
 	}
 
 	// PanelHeight + 2 lines (main border) + actual footer height
-	if m.fullHeight != (m.mainPanelHeight+common.BorderPadding)+utils.FullFooterHeight(m.footerHeight, m.toggleFooter) {
+	extraRows := 0
+	if len(m.workspaces) > 0 {
+		extraRows = 2
+	}
+	if m.fullHeight != (m.mainPanelHeight+common.BorderPadding)+utils.FullFooterHeight(
+		m.footerHeight,
+		m.toggleFooter,
+	)+extraRows {
 		return fmt.Errorf(
 			"invalid model layout, total height doesn't sum correctly, fullHeight : %v, mainPanelHeight : %v, footerHeight : %v",
 			m.fullHeight,
@@ -63,7 +71,7 @@ func (m *model) validateLayout() error { //nolint:gocognit // cumilation of vali
 
 	totalFileModelWidth := 0
 	// Check preview panel dimensions if open
-	if m.fileModel.FilePreview.IsOpen() {
+	if m.fileModel.PreviewVisible() {
 		if m.fileModel.ExpectedPreviewWidth <= 0 {
 			return fmt.Errorf("preview panel is open but width is %v", m.fileModel.ExpectedPreviewWidth)
 		}
@@ -74,23 +82,11 @@ func (m *model) validateLayout() error { //nolint:gocognit // cumilation of vali
 	}
 
 	// Check each file panel has correct dimensions set
-	for i, panel := range m.fileModel.FilePanels {
+	for _, i := range m.fileModel.VisiblePanelIndices() {
+		panel := m.fileModel.FilePanels[i]
 		totalFileModelWidth += panel.GetWidth()
-		if panel.GetHeight() != m.fileModel.Height {
-			return fmt.Errorf(
-				"file panel %v height mismatch: expected %v, got %v",
-				i, m.fileModel.Height, panel.GetHeight())
-		}
-
-		if err := panel.ValidateCursorAndRenderIndex(); err != nil {
-			return fmt.Errorf(
-				"file panel %v error : %w", i, err)
-		}
-
-		// Validate search bar width matches panel width minus padding
-		if panel.SearchBar.Width() != panel.GetWidth()-common.InnerPadding {
-			return fmt.Errorf("file panel %v search bar width mismatch: expected %v, got %v",
-				i, panel.GetWidth()-common.InnerPadding, panel.SearchBar.Width())
+		if err := validatePanelGeometry(&panel, i, m.fileModel.Height); err != nil {
+			return err
 		}
 	}
 
@@ -122,6 +118,24 @@ func (m *model) validateLayout() error { //nolint:gocognit // cumilation of vali
 		}
 	}
 
+	return nil
+}
+
+func validatePanelGeometry(panel *filepanel.Model, index, height int) error {
+	if panel.GetHeight() != height {
+		return fmt.Errorf("file panel %v height mismatch: expected %v, got %v", index, height, panel.GetHeight())
+	}
+	if err := panel.ValidateCursorAndRenderIndex(); err != nil && !panel.Empty() {
+		return fmt.Errorf("file panel %v error : %w", index, err)
+	}
+	if panel.SearchBar.Width() != panel.FilterTextWidth() {
+		return fmt.Errorf(
+			"file panel %v search bar width mismatch: expected %v, got %v",
+			index,
+			panel.FilterTextWidth(),
+			panel.SearchBar.Width(),
+		)
+	}
 	return nil
 }
 
@@ -427,6 +441,6 @@ func (m *model) IsOverlayModelOpen() bool {
 	return m.operations.open || m.zoxideModal.IsOpen() || m.helpMenu.IsOpen() || m.promptModal.IsOpen() ||
 		m.globalSearchModal.IsOpen() || m.commandPalette.IsOpen() || m.textViewer.IsOpen() ||
 		m.archiveViewer.IsOpen() || m.remoteViewer.IsOpen() || m.sortModal.IsOpen() ||
-		m.firstUse || m.typingModal.open ||
+		m.firstUse || m.appearanceOpen || m.workspaceRenaming || m.typingModal.open ||
 		m.notifyModel.IsOpen()
 }

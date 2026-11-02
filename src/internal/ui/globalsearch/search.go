@@ -6,7 +6,6 @@ import (
 	"encoding/csv"
 	"errors"
 	"io"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -15,19 +14,20 @@ import (
 
 const localVisitLimit = 50_000
 
-// Reserve part of the modal's two-second deadline for the local fallback.
+// Bound optional Windows transport attempts without changing the chosen scope.
 const everythingAttemptTimeout = 500 * time.Millisecond
 
 var errSearchLimitReached = errors.New("search limit reached")
 
 type commandRunner func(context.Context, string, ...string) ([]byte, error)
 
-// NewDefaultSearchFunc queries Everything directly on Windows, then tries the
-// optional CLI and finally a bounded search below the active directory.
+// NewDefaultSearchFunc retains the original injectable interface. The default
+// scope is the OS's existing index; it never silently narrows to a folder.
 func NewDefaultSearchFunc() SearchFunc {
-	esPath, _ := exec.LookPath("es.exe")
-	fallback := newSearchFunc(esPath, runEverythingCommand)
-	return withDirectEverything(searchEverythingDirect, fallback)
+	search := NewProviderSearchFunc()
+	return func(ctx context.Context, query, root string, limit int) Response {
+		return search(ctx, SearchRequest{Query: query, Root: root, Scope: ScopeIndexed, Limit: limit})
+	}
 }
 
 type directSearchFunc func(context.Context, string, int) ([]Result, error)
@@ -35,21 +35,31 @@ type directSearchFunc func(context.Context, string, int) ([]Result, error)
 func withDirectEverything(direct directSearchFunc, fallback SearchFunc) SearchFunc {
 	return func(ctx context.Context, query, root string, limit int) Response {
 		parsed, err := ParseQuery(query)
-		if err == nil && EverythingSupportsQuery(parsed) {
-			attempt, cancel := context.WithTimeout(ctx, everythingAttemptTimeout)
-			results, directErr := direct(attempt, parsed.Terms[0], limit)
-			cancel()
-			if ctx.Err() != nil {
-				return Response{Provider: ProviderEverything, Err: ctx.Err()}
-			}
-			if directErr == nil {
-				return everythingResponse(results, limit)
-			}
-			if errors.Is(directErr, context.Canceled) {
-				return Response{Provider: ProviderEverything, Err: directErr}
-			}
+		if err != nil {
+			return Response{Provider: ProviderEverything, Err: err}
 		}
-		return fallback(ctx, query, root, limit)
+		if !EverythingSupportsQuery(parsed) {
+			return unsupportedIndexedResponse(ProviderEverything)
+		}
+		attempt, cancel := context.WithTimeout(ctx, everythingAttemptTimeout)
+		results, directErr := direct(attempt, parsed.Terms[0], limit)
+		cancel()
+		if ctx.Err() != nil {
+			return Response{Provider: ProviderEverything, Err: ctx.Err()}
+		}
+		if directErr == nil {
+			return everythingResponse(results, limit)
+		}
+		if errors.Is(directErr, context.Canceled) {
+			return Response{Provider: ProviderEverything, Err: directErr}
+		}
+		if fallback != nil {
+			return fallback(ctx, query, root, limit)
+		}
+		return unavailableIndexedResponse(
+			ProviderEverything,
+			"Open the existing Everything app, or press Ctrl+S for folder search",
+		)
 	}
 }
 
@@ -57,7 +67,10 @@ func newSearchFunc(esPath string, run commandRunner) SearchFunc {
 	return func(ctx context.Context, query string, root string, limit int) Response {
 		parsed, err := ParseQuery(query)
 		if err != nil {
-			return Response{Provider: ProviderLocal, Err: err}
+			return Response{Provider: ProviderEverything, Err: err}
+		}
+		if !EverythingSupportsQuery(parsed) {
+			return unsupportedIndexedResponse(ProviderEverything)
 		}
 
 		if esPath != "" && EverythingSupportsQuery(parsed) {
@@ -73,18 +86,15 @@ func newSearchFunc(esPath string, run commandRunner) SearchFunc {
 			if errors.Is(everythingErr, context.Canceled) {
 				return Response{Provider: ProviderEverything, Err: everythingErr}
 			}
-			response := SearchLocalQuery(ctx, root, parsed, LocalSearchOptions{ResultLimit: limit})
-			response.Notice = appendNotice("Everything search failed; searching current folder", response.Notice)
-			return response
+			return unavailableIndexedResponse(
+				ProviderEverything,
+				"Everything query failed; open the existing Everything app, or press Ctrl+S for folder search",
+			)
 		}
-
-		response := SearchLocalQuery(ctx, root, parsed, LocalSearchOptions{ResultLimit: limit})
-		if esPath == "" {
-			response.Notice = appendNotice("Everything CLI unavailable; searching current folder", response.Notice)
-		} else {
-			response.Notice = appendNotice("Query requires local filtering; searching current folder", response.Notice)
-		}
-		return response
+		return unavailableIndexedResponse(
+			ProviderEverything,
+			"Everything IPC and optional es.exe unavailable; open the existing Everything app, or press Ctrl+S for folder search",
+		)
 	}
 }
 
@@ -93,6 +103,7 @@ func everythingResponse(results []Result, limit int) Response {
 	response := Response{Results: results[:min(len(results), limit)], Provider: ProviderEverything}
 	if len(results) >= limit {
 		response.Partial = true
+		response.Truncated = true
 		response.Notice = "Result limit reached; refine your search"
 	}
 	return response
