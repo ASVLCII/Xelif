@@ -3,8 +3,44 @@ package internal
 import (
 	"log/slog"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/yorukot/superfile/src/internal/common"
 )
+
+// Move through the visible browser zones in screen order. Unlike Tab's legacy
+// file-panel cycling, directional arrows stop at the outside edges.
+func (m *model) moveBrowserFocus(delta int) tea.Cmd {
+	index := m.fileModel.FocusedPanelIndex
+	switch m.focusPanel {
+	case sidebarFocus:
+		if delta < 0 {
+			return nil
+		}
+		index = 0
+	case nonePanelFocus:
+		index += delta
+	default:
+		return nil
+	}
+	if index < 0 {
+		if common.Config.SidebarWidth == 0 {
+			return nil
+		}
+		if m.fullWidth < sidebarDrawerBreakpoint {
+			return m.openSidebarDrawer()
+		}
+		if !m.sidebarModel.Disabled() {
+			m.focusOnSideBar()
+		}
+		return nil
+	}
+	if m.fileModel.FocusPanel(index) {
+		m.focusPanel = nonePanelFocus
+		m.sidebarModel.SearchBarBlur()
+	}
+	return nil
+}
 
 // Pinned directory
 func (m *model) pinnedDirectory() {

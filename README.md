@@ -141,7 +141,8 @@ Use `xelif doctor --json` to inspect the actual paths and selected appearance.
 | Information panels | Use the footer command | `Shift+F` |
 | Range selection | Selection controls | `Shift+Space` |
 | New / close workspace | Workspace strip / tab context menu | `Ctrl+T` / `Ctrl+W` |
-| Next / previous workspace | Click a tab or use **Workspaces** | `Ctrl+Tab` / `Ctrl+Shift+Tab` |
+| Next / previous workspace | Click a tab or use **Workspaces** | `Ctrl+Right` / `Ctrl+Left`; also `Ctrl+Tab` / `Ctrl+Shift+Tab` |
+| Focus sidebar / adjacent file pane | Click the pane | `Shift+Left` / `Shift+Right` |
 | Rename / undo rename or move | File actions / Commands | `F2` / `Ctrl+Z` |
 | Cycle focus / quit | Commands | `F6` / `Ctrl+Q` |
 
@@ -151,6 +152,11 @@ closes the current edit/overlay rather than quitting in the familiar keymap.
 Some terminals reserve shortcuts; Commands and the Workspaces picker provide
 keyboard alternatives. Mouse-wheel handling advances one row per delivered
 event; physical wheels and terminals can emit multiple events.
+
+Shift+Arrow pane navigation follows screen order and stops at the outer edges.
+At narrow widths, Shift+Left from the first file pane opens the sidebar drawer.
+Older folder tabs inside a pane retain their picker and commands; their new-profile
+shortcuts are `Alt+Shift+Left` / `Alt+Shift+Right`.
 
 ## Performance and verification
 
