@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -27,6 +28,70 @@ func TestContextMenuLabelsRetainOneRowAndFitReferenceSizes(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestContextMenuShortcutColumnIsAlignedWithClearGap(t *testing.T) {
+	labels := []string{
+		contextMenuItems[contextOpen],
+		"Copy",
+		"Rename",
+		contextMenuItems[contextTrash],
+		"Open in new workspace",
+	}
+	shortcuts := []string{"enter", "ctrl+c", "f2", "delete", ""}
+	for _, columns := range []int{60, 80, 120} {
+		width, cueWidth := contextMenuColumnWidths(labels, shortcuts, columns-common.BorderPadding)
+		endColumn := -1
+		for i, label := range labels {
+			line := contextMenuColumnLine("  ", label, shortcuts[i], width, cueWidth)
+			require.Equal(t, width, ansi.StringWidth(line))
+			require.Contains(t, line, label)
+			if shortcuts[i] == "" {
+				continue
+			}
+			index := strings.Index(line, shortcuts[i])
+			gap := index - len("  "+label)
+			require.GreaterOrEqual(t, gap, contextMenuColumnGap)
+			end := ansi.StringWidth(line[:index]) + ansi.StringWidth(shortcuts[i])
+			if endColumn < 0 {
+				endColumn = end
+			}
+			require.Equal(t, endColumn, end)
+		}
+		require.LessOrEqual(t, width+common.BorderPadding, columns)
+	}
+}
+
+func TestContextMenuColumnsHandleUnicodeAndOverlongBindings(t *testing.T) {
+	labels := []string{"文件", "Cafe\u0301", contextMenuItems[contextOpen]}
+	shortcuts := []string{"ctrl+x", "f2", "enter"}
+	width, cueWidth := contextMenuColumnWidths(labels, shortcuts, 58)
+	for i, label := range labels {
+		line := contextMenuColumnLine("  ", label, shortcuts[i], width, cueWidth)
+		require.Equal(t, width, ansi.StringWidth(line))
+		require.Contains(t, line, label)
+		require.True(t, strings.HasSuffix(strings.TrimRight(line, " "), shortcuts[i]))
+	}
+	trashLabel := contextMenuItems[contextTrash]
+	width, cueWidth = contextMenuColumnWidths([]string{trashLabel}, []string{strings.Repeat("x", 100)}, 58)
+	require.Zero(t, cueWidth)
+	line := contextMenuColumnLine("  ", trashLabel, strings.Repeat("x", 100), width, cueWidth)
+	require.Contains(t, line, trashLabel)
+	require.NotContains(t, line, "xxx")
+	require.LessOrEqual(t, ansi.StringWidth(line), 58)
+}
+
+func TestContextMenuShortcutRetainsPaddingInsideBorder(t *testing.T) {
+	m := dailyDriverTestModel(t.TempDir())
+	m.contextMenu = contextMenuState{open: true}
+	shortcut := common.Hotkeys.CopyItems[0]
+	for _, row := range strings.Split(ansi.Strip(m.contextMenuRender()), "\n") {
+		if strings.Contains(row, shortcut) {
+			require.True(t, strings.HasSuffix(row, "  "+common.Config.BorderRight), row)
+			return
+		}
+	}
+	t.Fatal("Copy shortcut missing from menu")
 }
 
 func TestContextMenuLastWorkspaceActionRemainsClickable(t *testing.T) {

@@ -12,7 +12,12 @@ import (
 	"github.com/yorukot/superfile/src/internal/ui/filepanel"
 )
 
-const contextMenuWidth = 22
+const (
+	contextMenuWidth       = 22
+	contextMenuColumnGap   = 4
+	contextMenuPrefixWidth = 2
+	contextMenuMinLabel    = 8
+)
 
 const (
 	contextOpen = iota
@@ -177,23 +182,62 @@ func (m *model) contextMenuDimensions() (int, int) {
 
 func (m *model) contextMenuRender() string {
 	labels := m.contextMenuLabels()
+	shortcuts := m.contextMenuShortcuts()
+	width, shortcutWidth := contextMenuColumnWidths(labels, shortcuts, m.fullWidth-common.BorderPadding)
 	lines := make([]string, len(labels))
-	width := contextMenuWidth
 	for i, label := range labels {
 		prefix := "  "
-		width = max(width, lipgloss.Width(prefix+label)+common.BorderPadding)
 		style := common.ModalStyle
 		if i == m.contextMenu.cursor {
 			prefix = "> "
 			style = common.ModalCursorStyle
 		}
-		line := ansi.Truncate(prefix+label, max(1, m.fullWidth-common.BorderPadding), "")
-		width = min(width, max(1, m.fullWidth-common.BorderPadding))
+		shortcut := ""
+		if i < len(shortcuts) {
+			shortcut = shortcuts[i]
+		}
+		line := contextMenuColumnLine(prefix, label, shortcut, width, shortcutWidth)
 		lines[i] = style.Render(line)
 	}
 	return common.SortOptionsModalBorderStyle(
-		len(labels), width, common.Config.BorderBottom,
+		len(labels), width+common.BorderPadding, common.Config.BorderBottom,
 	).Render(strings.Join(lines, "\n"))
+}
+
+func contextMenuColumnWidths(labels, shortcuts []string, available int) (int, int) {
+	labelWidth, shortcutWidth := 0, 0
+	for _, label := range labels {
+		labelWidth = max(labelWidth, ansi.StringWidth(label))
+	}
+	for _, shortcut := range shortcuts {
+		shortcutWidth = max(shortcutWidth, ansi.StringWidth(shortcut))
+	}
+	width := contextMenuPrefixWidth + labelWidth + common.BorderPadding
+	if shortcutWidth > 0 {
+		width += contextMenuColumnGap + shortcutWidth
+	}
+	width = min(max(contextMenuWidth, width), max(1, available))
+	// Keep actions legible when an unusually long custom binding cannot fit.
+	// Omit the cue column rather than show a misleading partial shortcut.
+	if width-contextMenuPrefixWidth-common.BorderPadding-contextMenuColumnGap-shortcutWidth < contextMenuMinLabel {
+		shortcutWidth = 0
+	}
+	return width, shortcutWidth
+}
+
+func contextMenuColumnLine(prefix, label, shortcut string, width, shortcutWidth int) string {
+	labelWidth := width - contextMenuPrefixWidth - common.BorderPadding
+	if shortcutWidth > 0 {
+		labelWidth -= contextMenuColumnGap + shortcutWidth
+	}
+	label = ansi.Truncate(label, max(0, labelWidth), "...")
+	line := prefix + label
+	if shortcutWidth > 0 && shortcut != "" {
+		gap := width - common.BorderPadding - ansi.StringWidth(line) - ansi.StringWidth(shortcut)
+		line += strings.Repeat(" ", max(contextMenuColumnGap, gap)) + shortcut
+	}
+	line = ansi.Truncate(line, width, "")
+	return line + strings.Repeat(" ", max(0, width-ansi.StringWidth(line)))
 }
 
 func (m *model) contextMenuClick(mouse tea.Mouse) (tea.Cmd, bool) {

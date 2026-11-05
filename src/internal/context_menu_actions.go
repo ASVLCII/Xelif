@@ -93,10 +93,24 @@ func (m *model) contextActionLabel(id int) string {
 	if id == contextNew && !m.contextMenu.background {
 		return "New in current folder >"
 	}
-	if keys := contextActionKeys(id); len(keys) > 0 && keys[0] != "" {
-		return label + "  " + keys[0]
-	}
 	return label
+}
+
+func (m *model) contextMenuShortcuts() []string {
+	if m.contextMenu.workspaceTarget || m.contextMenu.sidebarTarget {
+		return nil
+	}
+	ids := m.contextMenuActionIDs()
+	shortcuts := make([]string, len(ids))
+	for i, id := range ids {
+		if id == contextCopyPath && m.contextMenu.background {
+			continue
+		}
+		if keys := contextActionKeys(id); len(keys) > 0 {
+			shortcuts[i] = keys[0]
+		}
+	}
+	return shortcuts
 }
 
 func contextActionKeys(id int) []string {
