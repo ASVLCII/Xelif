@@ -39,7 +39,10 @@ func createItem(location, item string) error {
 		}
 		defer f.Close()
 	} else {
-		err := os.MkdirAll(path, utils.UserDirPerm)
+		if err := os.MkdirAll(filepath.Dir(path), utils.UserDirPerm); err != nil {
+			return err
+		}
+		err := os.Mkdir(path, utils.UserDirPerm)
 		if err != nil {
 			slog.Error("Error while createItem during directory creation", "error", err)
 			return err
@@ -53,7 +56,17 @@ func (m *model) getCreateCmd() tea.Cmd {
 		return nil
 	}
 
-	items := []string{m.typingModal.textInput.Value()}
+	item := m.typingModal.textInput.Value()
+	if m.typingModal.directory {
+		if item == "" {
+			return nil
+		}
+		// Invalid names must still reach the existing creation error dialog.
+		if checkFileNameValidity(item) == nil && !strings.HasSuffix(item, string(filepath.Separator)) {
+			item += string(filepath.Separator)
+		}
+	}
+	items := []string{item}
 	location := m.typingModal.location
 
 	reqID := m.nextIoReqCnt()

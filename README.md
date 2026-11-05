@@ -158,6 +158,14 @@ At narrow widths, Shift+Left from the first file pane opens the sidebar drawer.
 Older folder tabs inside a pane retain their picker and commands; their new-profile
 shortcuts are `Alt+Shift+Left` / `Alt+Shift+Right`.
 
+Right-click empty space for **New → New file / New folder**, Paste, Sort, View,
+Refresh, and folder favourites. Right-click a file or folder for its actions;
+folders also offer **Paste into this folder** and **Open in new workspace**.
+Use **Shift+F10** for the same menu from the keyboard, including in empty folders.
+Submenus support Enter/Right to open and Escape/Left to return. Existing custom
+navigation bindings retain precedence. Properties shows the listed metadata
+snapshot; it does not recursively scan a folder or calculate its total size.
+
 ## Performance and verification
 
 The earlier refresh benchmark measured about **32â€“35% less time for navigation plus visible file/sidebar rendering** after avoiding redundant filesystem reads. That is not a claim about whole-app speed, terminal paint latency, or outperforming Everything. Forced reload costs were broadly unchanged in the measured run. The newer rendering pass reduces temporary allocations while ordinary navigation timing remains approximately unchanged; both comparisons are documented below.

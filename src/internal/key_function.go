@@ -281,7 +281,9 @@ func (m *model) handleNotifyModelCancel(action notify.ConfirmActionType) tea.Cmd
 		m.pendingGitDiscard = nil
 	case notify.DropPasteAction:
 		m.pendingDroppedPaths = nil
-	case notify.DeleteAction, notify.NoAction, notify.PermanentDeleteAction:
+	case notify.DeleteAction, notify.PermanentDeleteAction:
+		m.pendingDelete = nil
+	case notify.NoAction:
 		// Do nothing
 	default:
 		slog.Error("Unknown type of action", "action", action)

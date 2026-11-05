@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/yorukot/superfile/src/internal/common"
 	"github.com/yorukot/superfile/src/internal/ui/filepanel"
@@ -27,6 +28,23 @@ const (
 	contextSelectRange
 	contextFavourite
 	contextNewWorkspace
+	contextPaste
+	contextNew
+	contextNewFile
+	contextNewFolder
+	contextArchives
+	contextCompress
+	contextExtract
+	contextView
+	contextHidden
+	contextPreview
+	contextFooter
+	contextSort
+	contextRefresh
+	contextProperties
+	contextMore
+	contextBack
+	contextEditor
 )
 
 var contextMenuItems = []string{ //nolint:gochecknoglobals // Static menu definition.
@@ -43,6 +61,23 @@ var contextMenuItems = []string{ //nolint:gochecknoglobals // Static menu defini
 	"Select range here",
 	"Toggle favourite",
 	"Open in new workspace",
+	"Paste",
+	"New >",
+	"New file",
+	"New folder",
+	"Archives >",
+	"Compress...",
+	"Extract...",
+	"View >",
+	"Show / hide hidden files",
+	"Show / hide preview",
+	"Show / hide information bar",
+	"Sort by...",
+	"Refresh",
+	"Properties",
+	"More actions >",
+	"< Back",
+	"Open in editor",
 }
 
 type contextMenuState struct {
@@ -56,13 +91,35 @@ type contextMenuState struct {
 	sidebarTarget     bool
 	workspaceTarget   bool
 	workspaceTargetID string
+	directory         string
+	background        bool
+	page              int
+	parentCursor      int
+	targetDirectory   bool
+	targetExtractable bool
 }
 
 func (m *model) openContextMenu(mouse tea.Mouse, panelIndex int, targetPath string) {
+	if panelIndex < 0 || panelIndex >= len(m.fileModel.FilePanels) {
+		return
+	}
 	m.contextMenu = contextMenuState{
 		open:       true,
 		panelIndex: panelIndex,
 		targetPath: targetPath,
+		directory:  m.fileModel.FilePanels[panelIndex].Location,
+		background: targetPath == "",
+	}
+	panel := &m.fileModel.FilePanels[panelIndex]
+	index := panel.FindElementIndexByLocation(targetPath)
+	if index >= 0 {
+		item := panel.GetElementAtIdx(index)
+		if panel.PanelMode == filepanel.SelectMode && !panel.CheckSelected(targetPath) {
+			panel.ResetSelected()
+			panel.SetSelected(targetPath)
+		}
+		m.contextMenu.targetDirectory = item.Directory
+		m.contextMenu.targetExtractable = !item.Directory && contextExtractablePath(targetPath)
 	}
 	m.positionContextMenu(mouse)
 }
@@ -101,7 +158,12 @@ func (m *model) contextMenuLabels() []string {
 	if m.contextMenu.sidebarTarget {
 		return contextMenuItems[contextFavourite : contextFavourite+1]
 	}
-	return contextMenuItems
+	ids := m.contextMenuActionIDs()
+	labels := make([]string, len(ids))
+	for i, id := range ids {
+		labels[i] = m.contextActionLabel(id)
+	}
+	return labels
 }
 
 func (m *model) closeContextMenu() {
@@ -125,7 +187,9 @@ func (m *model) contextMenuRender() string {
 			prefix = "> "
 			style = common.ModalCursorStyle
 		}
-		lines[i] = style.Render(prefix + label)
+		line := ansi.Truncate(prefix+label, max(1, m.fullWidth-common.BorderPadding), "")
+		width = min(width, max(1, m.fullWidth-common.BorderPadding))
+		lines[i] = style.Render(line)
 	}
 	return common.SortOptionsModalBorderStyle(
 		len(labels), width, common.Config.BorderBottom,
@@ -158,6 +222,12 @@ func (m *model) contextMenuClick(mouse tea.Mouse) (tea.Cmd, bool) {
 
 func (m *model) contextMenuKey(key string) tea.Cmd {
 	switch {
+	case key == "esc":
+		if m.contextMenu.page != 0 {
+			m.contextMenuBack()
+		} else {
+			m.closeContextMenu()
+		}
 	case containsKey(common.Hotkeys.Quit, key), containsKey(common.Hotkeys.CancelTyping, key):
 		m.closeContextMenu()
 	case containsKey(common.Hotkeys.ListUp, key):
@@ -167,6 +237,16 @@ func (m *model) contextMenuKey(key string) tea.Cmd {
 		m.contextMenu.cursor = (m.contextMenu.cursor + 1) % len(m.contextMenuLabels())
 	case containsKey(common.Hotkeys.Confirm, key), containsKey(common.Hotkeys.ConfirmTyping, key):
 		return m.executeContextMenuAction()
+	case key == appearanceLeftKey:
+		if m.contextMenu.page != 0 {
+			m.contextMenuBack()
+		}
+	case key == "right":
+		ids := m.contextMenuActionIDs()
+		if !m.contextMenu.workspaceTarget && !m.contextMenu.sidebarTarget &&
+			m.contextMenu.cursor >= 0 && m.contextMenu.cursor < len(ids) && contextSubmenu(ids[m.contextMenu.cursor]) {
+			return m.executeContextMenuAction()
+		}
 	}
 	return nil
 }
@@ -182,6 +262,28 @@ func containsKey(keys []string, key string) bool {
 
 func (m *model) executeContextMenuAction() tea.Cmd {
 	menu := m.contextMenu
+	if !menu.workspaceTarget && !menu.sidebarTarget {
+		ids := m.contextMenuActionIDs()
+		if menu.cursor < 0 || menu.cursor >= len(ids) {
+			return nil
+		}
+		id := ids[menu.cursor]
+		if id == contextBack {
+			m.contextMenuBack()
+			return nil
+		}
+		if contextSubmenu(id) {
+			m.contextMenu.page = id
+			m.contextMenu.parentCursor = menu.cursor
+			m.contextMenu.cursor = 1
+			m.clampContextMenu()
+			return nil
+		}
+		if id == contextPaste && len(m.clipboard.GetItems()) == 0 {
+			return nil
+		}
+		menu.cursor = id // Dispatch stable action identity, not its visible row.
+	}
 	m.closeContextMenu()
 	if menu.workspaceTarget {
 		return m.executeWorkspaceContextMenu(menu)
@@ -209,17 +311,17 @@ func (m *model) executeWorkspaceContextMenu(menu contextMenuState) tea.Cmd {
 }
 
 func (m *model) executeFileContextMenu(menu contextMenuState) tea.Cmd {
-	if !m.fileModel.FocusPanel(menu.panelIndex) {
-		m.showUserError("Item is no longer available", errors.New("file panel was closed"))
+	index, valid := m.focusContextTarget(menu)
+	if !valid {
 		return nil
+	}
+	if menu.background {
+		return m.executeBackgroundContextMenu(menu)
 	}
 	panel := m.getFocusedFilePanel()
-	index := panel.FindElementIndexByLocation(menu.targetPath)
-	if index < 0 || !panel.FocusIndex(index) {
-		m.showUserError("Item is no longer available", errors.New("the folder changed; open the menu again"))
-		return nil
+	if cmd, handled := m.executeCommonContextAction(menu); handled {
+		return cmd
 	}
-	m.focusPanel = nonePanelFocus
 
 	switch menu.cursor {
 	case contextNewWorkspace:

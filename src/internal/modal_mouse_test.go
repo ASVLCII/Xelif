@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,9 +36,10 @@ func TestMouseConfirmationUsesRenderedButtonsWithoutClickThrough(t *testing.T) {
 	require.True(t, m.notifyModel.IsOpen())
 	label := common.ModalCancelInputText
 	require.NotEmpty(t, label)
-	x, y := renderedLabelPosition(t, m.notifyModel.Render(), label)
-	x += m.fullWidth/2 - common.ModalWidth/2
-	y += m.fullHeight/2 - common.ModalHeight/2
+	rendered := m.notificationRender()
+	x, y := renderedLabelPosition(t, rendered, label)
+	x += m.fullWidth/2 - lipgloss.Width(rendered)/2
+	y += m.fullHeight/2 - lipgloss.Height(rendered)/2
 	TeaUpdate(m, clickAt(x, y, tea.MouseLeft))
 	assert.False(t, m.notifyModel.IsOpen())
 	assert.Empty(t, m.pendingGitDiscard)

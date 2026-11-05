@@ -46,8 +46,6 @@ const (
 	workspaceCompactWidth             = 80
 	workspacePickerExtraItems         = 8
 	workspaceRenameWidth              = 36
-	contextMenuSidebarGap             = 2
-	contextMenuEntryRow               = 5
 	workspaceOperationsContinueNotice = "Workspace closed; file operations continue in Operations"
 )
 
@@ -676,14 +674,7 @@ func (m *model) handleWorkspaceKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		m.cycleComponentFocus(-1)
 		return nil, true
 	case containsKey(common.Hotkeys.ContextMenu, key):
-		p := m.getFocusedFilePanel()
-		if !p.Empty() {
-			m.openContextMenu(
-				tea.Mouse{X: m.sidebarModel.GetWidth() + contextMenuSidebarGap, Y: contextMenuEntryRow},
-				m.fileModel.FocusedPanelIndex,
-				p.GetFocusedItem().Location,
-			)
-		}
+		m.openKeyboardContextMenu()
 		return nil, true
 	}
 	return nil, false

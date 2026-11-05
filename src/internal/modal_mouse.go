@@ -77,6 +77,9 @@ func (m *model) handleModalMouseClick(mouse tea.Mouse) (tea.Cmd, bool) {
 		}
 		return nil, true
 	case m.notifyModel.IsOpen():
+		rendered := m.notificationRender()
+		x = mouse.X - (m.fullWidth/common.CenterDivisor - lipgloss.Width(rendered)/common.CenterDivisor)
+		y = mouse.Y - (m.fullHeight/common.CenterDivisor - lipgloss.Height(rendered)/common.CenterDivisor)
 		return m.handleNotifyModalMouseClick(x, y)
 	default:
 		return nil, false
@@ -102,7 +105,7 @@ func (m *model) handleSortModalMouseClick(mouse tea.Mouse) (tea.Cmd, bool) {
 }
 
 func (m *model) handleNotifyModalMouseClick(x, y int) (tea.Cmd, bool) {
-	rendered := m.notifyModel.Render()
+	rendered := m.notificationRender()
 	key := ""
 	if renderedLabelHit(rendered, common.ModalCancelInputText, x, y) {
 		key = common.Hotkeys.Quit[0]
@@ -115,6 +118,11 @@ func (m *model) handleNotifyModalMouseClick(x, y int) (tea.Cmd, bool) {
 		return m.handleKeyInput(utils.TeaRuneKeyMsg(key)), true
 	}
 	return nil, true
+}
+
+func (m *model) notificationRender() string {
+	width := min(common.ModalWidth, max(1, m.fullWidth-common.BorderPadding))
+	return m.notifyModel.RenderAtWidth(width)
 }
 
 func insideCentered(mouse tea.Mouse, screenWidth, screenHeight, width, height int) bool {

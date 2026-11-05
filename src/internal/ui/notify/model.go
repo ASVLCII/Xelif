@@ -46,12 +46,17 @@ func (m *Model) GetConfirmAction() ConfirmActionType {
 
 // TODO: Remove code duplication with typineModalRender
 func (m *Model) Render() string {
+	return m.RenderAtWidth(common.ModalWidth)
+}
+
+// RenderAtWidth lets the browser share responsive dialog geometry with mouse handling.
+func (m *Model) RenderAtWidth(width int) string {
 	var inputKeysText string
 	if m.confirmAction == NoAction {
 		inputKeysText = common.ModalOkayInputText
 	} else {
 		inputKeysText = common.ModalConfirmInputText + common.ModalInputSpacingText + common.ModalCancelInputText
 	}
-	return common.ModalBorderStyle(common.ModalHeight, common.ModalWidth).
+	return common.ModalBorderStyle(common.ModalHeight, max(1, width)).
 		Render(m.title + "\n\n" + m.content + "\n\n" + inputKeysText)
 }

@@ -13,15 +13,19 @@ func (m *model) openKeyboardContextMenu() {
 		return
 	}
 	panel := m.getFocusedFilePanel()
-	if m.focusPanel == nonePanelFocus && !panel.EmptyOrInvalid() {
+	if m.focusPanel == nonePanelFocus && panel.Location != "" {
 		x := m.sidebarModel.GetWidth() + 1
 		for i := range m.fileModel.FocusedPanelIndex {
 			x += m.fileModel.FilePanels[i].GetWidth()
 		}
+		target := ""
+		if !panel.EmptyOrInvalid() {
+			target = panel.GetFocusedItem().Location
+		}
 		m.openContextMenu(
 			tea.Mouse{X: x, Y: keyboardContextMenuRow},
 			m.fileModel.FocusedPanelIndex,
-			panel.GetFocusedItem().Location,
+			target,
 		)
 	}
 }

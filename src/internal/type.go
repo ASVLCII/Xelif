@@ -123,6 +123,7 @@ type model struct {
 	gitStatusReqID            int
 	gitStatusLast             time.Time
 	pendingGitDiscard         []string
+	pendingDelete             *pendingDeleteRequest
 	pendingBatchRename        *batchrename.Plan
 	duplicateScanCancel       context.CancelFunc
 	duplicateScanReqID        int
@@ -180,7 +181,18 @@ type model struct {
 type typingModal struct {
 	location  string
 	open      bool
+	directory bool
 	textInput textinput.Model
+}
+
+// A delete confirmation belongs to the exact selection that prompted it,
+// including while the trash availability check is still running.
+type pendingDeleteRequest struct {
+	reqID        int
+	paths        []string
+	folder       string
+	action       notify.ConfirmActionType
+	warningShown bool
 }
 
 type editorFinishedMsg struct{ err error }

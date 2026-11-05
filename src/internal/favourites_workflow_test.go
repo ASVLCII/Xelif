@@ -55,7 +55,14 @@ func TestFavouritesContextAndSidebarKeyboardUseSameStorage(t *testing.T) {
 	x, y := fileEntryScreenPosition(m, index)
 	TeaUpdate(m, clickAt(x, y, tea.MouseRight))
 	require.True(t, m.contextMenu.open)
-	TeaUpdate(m, clickAt(m.contextMenu.x+2, m.contextMenu.y+1+contextFavourite, tea.MouseLeft))
+	row := -1
+	for i, id := range m.contextMenuActionIDs() {
+		if id == contextFavourite {
+			row = i
+		}
+	}
+	require.NotEqual(t, -1, row)
+	TeaUpdate(m, clickAt(m.contextMenu.x+2, m.contextMenu.y+1+row, tea.MouseLeft))
 	require.Equal(t, []string{child}, savedFavouritePaths(t))
 	m.sidebarModel.UpdateDirectories()
 	TeaUpdate(m, clickAt(2, 4, tea.MouseRight))

@@ -109,6 +109,7 @@ func (m *model) panelCreateNewFile() {
 
 	m.typingModal.location = panel.Location
 	m.typingModal.open = true
+	m.typingModal.directory = false
 	m.typingModal.textInput = common.GenerateNewFileTextInput()
 	m.firstTextInput = true
 }
@@ -148,25 +149,31 @@ func (m *model) panelItemRename() {
 }
 
 func (m *model) getDeleteCmd(permDelete bool) tea.Cmd {
-	panel := m.getFocusedFilePanel()
-	if panel.Empty() {
+	items, useTrash := m.takeDeleteRequest(permDelete)
+	if len(items) == 0 {
 		return nil
 	}
-
-	var items []string
-	if panel.PanelMode == filepanel.SelectMode {
-		items = panel.GetSelectedLocationsSortedAsVisible()
-	} else {
-		items = []string{panel.GetFocusedItem().Location}
-	}
-
-	useTrash := m.hasTrash && trash.Available(panel.Location) && !permDelete
 
 	reqID := m.nextIoReqCnt()
 	slog.Debug("Submitting delete request", "id", reqID, "items cnt", len(items))
 	return m.processBarModel.Run(func() tea.Msg {
 		return m.deleteOperation(&m.processBarModel, items, useTrash, reqID)
 	})
+}
+
+func (m *model) takeDeleteRequest(permDelete bool) ([]string, bool) {
+	request := m.pendingDelete
+	m.pendingDelete = nil
+	if request == nil || !request.warningShown ||
+		(permDelete && request.action != notify.PermanentDeleteAction) ||
+		(!permDelete && request.action != notify.DeleteAction) {
+		return nil, false
+	}
+
+	items := append([]string(nil), request.paths...)
+	// The warning is the user's authorization. A later change in trash
+	// availability must fail through the trash backend, not delete permanently.
+	return items, !permDelete
 }
 
 func (m *model) deleteOperation(processBarModel *processbar.Model, items []string, useTrash bool, reqID int) tea.Msg {
@@ -239,8 +246,24 @@ func (m *model) getDeleteTriggerCmd(deletePermanent bool) tea.Cmd {
 		return nil
 	}
 
+	var items []string
+	if panel.PanelMode == filepanel.SelectMode {
+		items = panel.GetSelectedLocationsSortedAsVisible()
+	} else if path := panel.GetFocusedItem().Location; path != "" {
+		items = []string{path}
+	}
+	if len(items) == 0 {
+		return nil
+	}
+
 	reqID := m.nextIoReqCnt()
-	panelLocation := panel.Location
+	request := &pendingDeleteRequest{
+		reqID:  reqID,
+		paths:  append([]string(nil), items...),
+		folder: panel.Location,
+	}
+	m.pendingDelete = request
+	panelLocation := request.folder
 	hasTrash := m.hasTrash
 
 	return func() tea.Msg {
@@ -253,7 +276,9 @@ func (m *model) getDeleteTriggerCmd(deletePermanent bool) tea.Cmd {
 			content = common.PermanentDeleteWarnContent
 			action = notify.PermanentDeleteAction
 		}
-		return NewNotifyModalMsg(notify.New(true, title, content, action), reqID)
+		msg := NewNotifyModalMsg(notify.New(true, title, content, action), reqID)
+		msg.deleteConfirmation = true
+		return msg
 	}
 }
 
@@ -284,6 +309,10 @@ func (m *model) copyMultipleItem(cut bool) {
 }
 
 func (m *model) getPasteItemCmd() tea.Cmd {
+	return m.getPasteIntoCmd(m.getFocusedFilePanel().Location)
+}
+
+func (m *model) getPasteIntoCmd(panelLocation string) tea.Cmd {
 	copyItems := m.clipboard.PruneInaccessibleItemsAndGet()
 	cut := m.clipboard.IsCut()
 	if len(copyItems) == 0 {
@@ -292,7 +321,6 @@ func (m *model) getPasteItemCmd() tea.Cmd {
 
 	reqID := m.nextIoReqCnt()
 	clipboardGeneration := m.clipboard.Generation()
-	panelLocation := m.getFocusedFilePanel().Location
 
 	slog.Debug("Submitting pasteItems request", "id", reqID, "items cnt", len(copyItems), "dest", panelLocation)
 	return m.processBarModel.Run(func() tea.Msg {

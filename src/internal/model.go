@@ -367,23 +367,31 @@ func (m *model) handleRightMouseClick(mouse tea.Mouse) tea.Cmd {
 		if localX <= 0 || localX >= panel.GetWidth()-1 {
 			return nil
 		}
-		m.sidebarModel.SearchBarBlur()
-		rangeStartPath := panel.GetFocusedItem().Location
-		index, hit := panel.EntryIndexAtY(mouse.Y)
-		if !hit ||
-			!panel.FocusIndex(index) || !m.fileModel.FocusPanel(panelIndex) {
-			return nil
-		}
-		m.focusPanel = nonePanelFocus
-		if panel.PanelMode == filepanel.SelectMode && !panel.CheckSelected(panel.GetFocusedItem().Location) {
-			panel.ResetSelected()
-			panel.SetSelected(panel.GetFocusedItem().Location)
-		}
-		m.openContextMenu(mouse, panelIndex, panel.GetFocusedItem().Location)
-		m.contextMenu.rangeStartPath = rangeStartPath
+		m.rightClickFilePanel(mouse, panelIndex)
 		return nil
 	}
 	return nil
+}
+
+func (m *model) rightClickFilePanel(mouse tea.Mouse, panelIndex int) {
+	panel := &m.fileModel.FilePanels[panelIndex]
+	m.sidebarModel.SearchBarBlur()
+	rangeStartPath := panel.GetFocusedItem().Location
+	index, hit := panel.EntryIndexAtY(mouse.Y)
+	if !hit {
+		if mouse.Y >= panel.EntryStartY() && mouse.Y < panel.EntryStartY()+panel.PanelElementHeight() &&
+			m.fileModel.FocusPanel(panelIndex) {
+			m.focusPanel = nonePanelFocus
+			m.openContextMenu(mouse, panelIndex, "")
+		}
+		return
+	}
+	if !panel.FocusIndex(index) || !m.fileModel.FocusPanel(panelIndex) {
+		return
+	}
+	m.focusPanel = nonePanelFocus
+	m.openContextMenu(mouse, panelIndex, panel.GetFocusedItem().Location)
+	m.contextMenu.rangeStartPath = rangeStartPath
 }
 
 func (m *model) handleLeftMouseClick(mouse tea.Mouse) tea.Cmd {
@@ -603,7 +611,11 @@ func (m *model) handleWindowResize(msg tea.WindowSizeMsg) tea.Cmd {
 	m.fullHeight = msg.Height
 	m.fullWidth = msg.Width
 	m.setHeightValues()
-	return m.updateComponentDimensions()
+	cmd := m.updateComponentDimensions()
+	if m.contextMenu.open {
+		m.clampContextMenu()
+	}
+	return cmd
 }
 
 func (m *model) setHeightValues() {
@@ -1138,7 +1150,8 @@ func (m *model) updateRenderForOverlay(finalRender string) string {
 	}
 
 	if m.notifyModel.IsOpen() {
-		return m.centerOverlay(finalRender, m.notifyModel.Render(), common.ModalWidth, common.ModalHeight)
+		rendered := m.notificationRender()
+		return m.centerOverlay(finalRender, rendered, lipgloss.Width(rendered), lipgloss.Height(rendered))
 	}
 
 	if m.contextMenu.open {
