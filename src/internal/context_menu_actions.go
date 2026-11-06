@@ -174,6 +174,13 @@ func (m *model) focusContextTarget(menu contextMenuState) (int, bool) {
 		m.showUserError("Item is no longer available", errors.New("the folder changed; open the menu again"))
 		return 0, false
 	}
+	if menu.cursor == contextTrash {
+		entry := operationIdentity{entry: menu.identity.entry}
+		if err := entry.check(menu.targetPath); err != nil {
+			m.showUserError("Item changed or unavailable", err)
+			return 0, false
+		}
+	}
 	m.focusPanel = nonePanelFocus
 	return index, true
 }
@@ -193,7 +200,7 @@ func (m *model) executeCommonContextAction(menu contextMenuState) (tea.Cmd, bool
 		if menu.background {
 			destination = menu.directory
 		}
-		return m.getPasteIntoCmd(destination), true
+		return m.getPasteIntoSnapshotCmd(destination, menu.identity, menu.identityErr), true
 	case contextSort:
 		m.openSortMenu()
 	case contextHidden:

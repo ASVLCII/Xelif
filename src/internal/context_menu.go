@@ -102,6 +102,8 @@ type contextMenuState struct {
 	parentCursor      int
 	targetDirectory   bool
 	targetExtractable bool
+	identity          operationIdentity
+	identityErr       error
 }
 
 func (m *model) openContextMenu(mouse tea.Mouse, panelIndex int, targetPath string) {
@@ -126,6 +128,13 @@ func (m *model) openContextMenu(mouse tea.Mouse, panelIndex int, targetPath stri
 		m.contextMenu.targetDirectory = item.Directory
 		m.contextMenu.targetExtractable = !item.Directory && contextExtractablePath(targetPath)
 	}
+	identityPath := targetPath
+	if identityPath == "" {
+		identityPath = panel.Location
+	}
+	m.contextMenu.identity, m.contextMenu.identityErr = captureOperationIdentity(
+		identityPath, m.contextMenu.background || m.contextMenu.targetDirectory,
+	)
 	m.positionContextMenu(mouse)
 }
 
@@ -404,7 +413,8 @@ func (m *model) executeFileContextMenu(menu contextMenuState) tea.Cmd {
 	case contextCopyPath:
 		m.copyPath()
 	case contextTrash:
-		return m.getDeleteTriggerCmd(false)
+		identity := operationIdentity{entry: menu.identity.entry}
+		return m.prepareDeleteConfirmation(false, map[string]operationIdentity{menu.targetPath: identity})
 	case contextGitDiff:
 		return m.gitDiffCmd(false, m.gitOperationPaths())
 	case contextGitStage:

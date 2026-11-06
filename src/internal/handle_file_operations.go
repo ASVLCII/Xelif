@@ -149,6 +149,7 @@ func (m *model) panelItemRename() {
 }
 
 func (m *model) getDeleteCmd(permDelete bool) tea.Cmd {
+	request := m.pendingDelete
 	items, useTrash := m.takeDeleteRequest(permDelete)
 	if len(items) == 0 {
 		return nil
@@ -157,7 +158,7 @@ func (m *model) getDeleteCmd(permDelete bool) tea.Cmd {
 	reqID := m.nextIoReqCnt()
 	slog.Debug("Submitting delete request", "id", reqID, "items cnt", len(items))
 	return m.processBarModel.Run(func() tea.Msg {
-		return m.deleteOperation(&m.processBarModel, items, useTrash, reqID)
+		return m.deleteOperation(&m.processBarModel, items, useTrash, reqID, request.identities)
 	})
 }
 
@@ -176,7 +177,9 @@ func (m *model) takeDeleteRequest(permDelete bool) ([]string, bool) {
 	return items, !permDelete
 }
 
-func (m *model) deleteOperation(processBarModel *processbar.Model, items []string, useTrash bool, reqID int) tea.Msg {
+func (m *model) deleteOperation(processBarModel *processbar.Model, items []string, useTrash bool,
+	reqID int, identities map[string]operationIdentity,
+) tea.Msg {
 	if len(items) == 0 {
 		return NewDeleteOperationMsg(processbar.Cancelled, reqID)
 	}
@@ -188,20 +191,22 @@ func (m *model) deleteOperation(processBarModel *processbar.Model, items []strin
 	p.Source = strings.Join(items, "; ")
 	p.CancelReason = "Stops between selected items; an active OS delete/trash call must finish."
 	finalizer := func(state processbar.ProcessState, reqID int) tea.Msg { return NewDeleteOperationMsg(state, reqID) }
-	processor := makeDeleteProcessor(p, processBarModel, useTrash)
+	processor := makeDeleteProcessor(p, processBarModel, useTrash, identities)
 	msg := m.runFileProcessor(processor, finalizer, items, reqID)
 	return msg
 }
 
 func makeDeleteProcessor(process processbar.Process,
 	processBarModel *processbar.Model,
-	useTrash bool) processbar.FileListProcessor {
+	useTrash bool, identities map[string]operationIdentity,
+) processbar.FileListProcessor {
 	processorFunction := func(items []string) (processbar.Process, []string) {
 		notProcessed := make([]string, 0)
 		if len(items) == 0 {
 			markProcessDone(process, processBarModel)
 			return process, notProcessed
 		}
+		process.State, process.ErrorMsg = processbar.InOperation, ""
 		deleteFunc := os.RemoveAll
 		if useTrash {
 			deleteFunc = func(item string) error {
@@ -215,7 +220,10 @@ func makeDeleteProcessor(process processbar.Process,
 				process.Partial = fmt.Sprintf("Completed %d selected item(s); changes are retained.", process.Done)
 				break
 			}
-			err := deleteFunc(item)
+			err := identities[item].check(item)
+			if err == nil {
+				err = deleteFunc(item)
+			}
 			if err != nil {
 				process.State = processbar.Failed
 				slog.Error("Error in delete operation", "item", item, "useTrash", useTrash, "error", err)
@@ -240,6 +248,10 @@ func makeDeleteProcessor(process processbar.Process,
 }
 
 func (m *model) getDeleteTriggerCmd(deletePermanent bool) tea.Cmd {
+	return m.prepareDeleteConfirmation(deletePermanent, nil)
+}
+
+func (m *model) prepareDeleteConfirmation(deletePermanent bool, expected map[string]operationIdentity) tea.Cmd {
 	panel := m.getFocusedFilePanel()
 	if (panel.PanelMode == filepanel.SelectMode && panel.SelectedCount() == 0) ||
 		(panel.PanelMode == filepanel.BrowserMode && panel.Empty()) {
@@ -266,7 +278,21 @@ func (m *model) getDeleteTriggerCmd(deletePermanent bool) tea.Cmd {
 	panelLocation := request.folder
 	hasTrash := m.hasTrash
 
-	return func() tea.Msg {
+	return m.processBarModel.Run(func() tea.Msg {
+		identities := make(map[string]operationIdentity, len(items))
+		for _, path := range items {
+			if m.processBarModel.LifetimeContext().Err() != nil {
+				return nil
+			}
+			identity, err := deleteOperationIdentity(path, expected)
+			if err != nil {
+				msg := NewNotifyModalMsg(notify.New(true, "Could not verify selected item",
+					"Refresh the folder and try again.\n"+common.MakePrintable(err.Error()), notify.NoAction), reqID)
+				msg.deleteConfirmation = true
+				return msg
+			}
+			identities[path] = identity
+		}
 		title := common.TrashWarnTitle
 		content := common.TrashWarnContent
 		action := notify.DeleteAction
@@ -278,8 +304,9 @@ func (m *model) getDeleteTriggerCmd(deletePermanent bool) tea.Cmd {
 		}
 		msg := NewNotifyModalMsg(notify.New(true, title, content, action), reqID)
 		msg.deleteConfirmation = true
+		msg.deleteIdentities = identities
 		return msg
-	}
+	})
 }
 
 // Copy directory or file's path to superfile's clipboard
@@ -313,6 +340,14 @@ func (m *model) getPasteItemCmd() tea.Cmd {
 }
 
 func (m *model) getPasteIntoCmd(panelLocation string) tea.Cmd {
+	if len(m.clipboard.GetItems()) == 0 {
+		return nil
+	}
+	identity, err := captureOperationIdentity(panelLocation, true)
+	return m.getPasteIntoSnapshotCmd(panelLocation, identity, err)
+}
+
+func (m *model) getPasteIntoSnapshotCmd(panelLocation string, identity operationIdentity, snapshotErr error) tea.Cmd {
 	copyItems := m.clipboard.PruneInaccessibleItemsAndGet()
 	cut := m.clipboard.IsCut()
 	if len(copyItems) == 0 {
@@ -324,13 +359,21 @@ func (m *model) getPasteIntoCmd(panelLocation string) tea.Cmd {
 
 	slog.Debug("Submitting pasteItems request", "id", reqID, "items cnt", len(copyItems), "dest", panelLocation)
 	return m.processBarModel.Run(func() tea.Msg {
-		err := validatePasteOperation(panelLocation, copyItems, cut)
+		err := snapshotErr
+		if err == nil {
+			err = identity.check(panelLocation)
+		}
+		if err != nil {
+			return NewNotifyModalMsg(notify.New(true, "Paste destination changed or unavailable",
+				common.MakePrintable(err.Error())+"\nRefresh the folder and try again.", notify.NoAction), reqID)
+		}
+		err = validatePasteOperation(panelLocation, copyItems, cut)
 		if err != nil {
 			return NewNotifyModalMsg(notify.New(true, "Invalid paste location", err.Error(), notify.NoAction),
 				reqID)
 		}
 		return m.executePasteOperation(
-			&m.processBarModel, panelLocation, copyItems, cut, clipboardGeneration, reqID,
+			&m.processBarModel, panelLocation, copyItems, cut, clipboardGeneration, reqID, identity,
 		)
 	})
 }
@@ -358,7 +401,7 @@ func validatePasteOperation(panelLocation string, copyItems []string, cut bool) 
 }
 
 func makePasteProcessor(process processbar.Process, processBarModel *processbar.Model,
-	panelLocation string, cut bool, moves *[]pathMove,
+	panelLocation string, cut bool, moves *[]pathMove, identity operationIdentity,
 ) processbar.FileListProcessor {
 	return func(items []string) (processbar.Process, []string) {
 		if len(items) == 0 {
@@ -368,7 +411,10 @@ func makePasteProcessor(process processbar.Process, processBarModel *processbar.
 		process.State, process.ErrorMsg = processbar.InOperation, ""
 		var remaining []string
 		for i, filePath := range items {
-			err := pasteTaskItem(processBarModel, &process, filePath, panelLocation, cut, moves)
+			err := identity.check(panelLocation)
+			if err == nil {
+				err = pasteTaskItem(processBarModel, &process, filePath, panelLocation, cut, moves)
+			}
 			process.CurrentFile = filepath.Base(filePath)
 			if err != nil {
 				process.ErrorMsg = formatFileError(filePath, err)
@@ -431,7 +477,7 @@ func movePasteItemContext(ctx context.Context, filePath, panelLocation string, m
 }
 
 func (m *model) executePasteOperation(processBarModel *processbar.Model,
-	panelLocation string, items []string, cut bool, clipboardGeneration uint64, reqID int,
+	panelLocation string, items []string, cut bool, clipboardGeneration uint64, reqID int, identity operationIdentity,
 ) tea.Msg {
 	if len(items) == 0 {
 		return NewPasteOperationMsg(processbar.Cancelled, reqID)
@@ -456,7 +502,7 @@ func (m *model) executePasteOperation(processBarModel *processbar.Model,
 	finalizer := func(state processbar.ProcessState, reqId int) tea.Msg {
 		return newPasteOperationMsgWithContext(state, reqId, cut, clipboardGeneration, moves)
 	}
-	processor := makePasteProcessor(p, processBarModel, panelLocation, cut, &moves)
+	processor := makePasteProcessor(p, processBarModel, panelLocation, cut, &moves, identity)
 	msg := m.runFileProcessor(processor, finalizer, items, reqID)
 	return msg
 }

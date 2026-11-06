@@ -59,7 +59,11 @@ func TestDeleteConfirmationSnapshotSurvivesExternalRenameAndFocusChange(t *testi
 	panel.UpdateElementsIfNeeded(true, false)
 	setFilePanelSelectedItemByLocation(t, panel, other)
 
-	runDeleteSnapshot(t, confirmDeleteSnapshot(t, m))
+	cmd := confirmDeleteSnapshot(t, m)
+	require.NotNil(t, cmd)
+	failure, ok := cmd().(SpfErrorModalUpdateMsg)
+	require.True(t, ok, "an unavailable original must stop rather than report deletion success")
+	require.True(t, failure.m.IsOpen())
 	require.FileExists(t, other)
 	require.FileExists(t, moved)
 	require.NoFileExists(t, original)

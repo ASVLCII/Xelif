@@ -87,8 +87,10 @@ func TestCutMoveCanBeUndone(t *testing.T) {
 	processes := processbar.New()
 	processes.ListenForChannelUpdates()
 	m.clipboard.Reset(true)
+	identity, err := captureOperationIdentity(destinationDir, true)
+	require.NoError(t, err)
 	msg := m.executePasteOperation(
-		&processes, destinationDir, []string{source}, true, m.clipboard.Generation(), 1,
+		&processes, destinationDir, []string{source}, true, m.clipboard.Generation(), 1, identity,
 	)
 	pasteMsg, ok := msg.(PasteOperationMsg)
 	require.True(t, ok)

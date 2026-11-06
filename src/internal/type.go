@@ -191,6 +191,7 @@ type pendingDeleteRequest struct {
 	reqID        int
 	paths        []string
 	folder       string
+	identities   map[string]operationIdentity
 	action       notify.ConfirmActionType
 	warningShown bool
 }

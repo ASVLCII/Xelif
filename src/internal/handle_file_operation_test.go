@@ -642,7 +642,9 @@ func TestRetriedMoveProcessReceivesCompletionTime(t *testing.T) {
 	process := processbar.NewProcess("retry-move", filepath.Base(source), processbar.OpCut, 1)
 	require.NoError(t, processes.AddProcess(process))
 	moves := []pathMove{}
-	processor := makePasteProcessor(process, &processes, destinationDir, true, &moves)
+	identity, err := captureOperationIdentity(destinationDir, true)
+	require.NoError(t, err)
+	processor := makePasteProcessor(process, &processes, destinationDir, true, &moves, identity)
 
 	failed, remaining := processor([]string{source})
 	require.Equal(t, processbar.Failed, failed.State)

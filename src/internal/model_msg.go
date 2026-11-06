@@ -240,6 +240,7 @@ type NotifyModalUpdateMsg struct {
 
 	m                  notify.Model
 	deleteConfirmation bool
+	deleteIdentities   map[string]operationIdentity
 }
 
 func NewNotifyModalMsg(m notify.Model, reqID int) NotifyModalUpdateMsg {
@@ -257,8 +258,13 @@ func (msg NotifyModalUpdateMsg) ApplyToModel(m *model) tea.Cmd {
 		if request == nil || request.reqID != msg.reqID || request.warningShown {
 			return nil
 		}
-		request.action = msg.m.GetConfirmAction()
-		request.warningShown = true
+		if msg.m.GetConfirmAction() == notify.NoAction {
+			m.pendingDelete = nil
+		} else {
+			request.action = msg.m.GetConfirmAction()
+			request.identities = msg.deleteIdentities
+			request.warningShown = true
+		}
 	} else {
 		// Another notification has replaced the pending delete warning.
 		m.pendingDelete = nil
